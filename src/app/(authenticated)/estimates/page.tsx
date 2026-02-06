@@ -5,8 +5,8 @@ import {
   Calculator, Zap, FileText, Wand2, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils/cn';
-import { useEstimates, type JTEstimate } from '@/lib/hooks/useJobTread';
-import { LoadingState, ErrorState, EmptyState } from '@/components/ui/DataState';
+import { useEstimates } from '@/lib/hooks/useJobTread';
+import { LoadingState, ErrorState } from '@/components/ui/DataState';
 
 type ProjectType = 'roofing' | 'remodel' | 'addition' | 'commercial' | 'custom';
 
