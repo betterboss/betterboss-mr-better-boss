@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import {
-  Calculator, Zap, FileText, Send, Wand2, ChevronDown, ChevronUp, TrendingUp,
+  Calculator, Zap, FileText, Wand2, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils/cn';
 import { useEstimates, type JTEstimate } from '@/lib/hooks/useJobTread';
@@ -158,9 +158,9 @@ export default function EstimatesPage() {
               </div>
             </div>
           )}
-          <button className="btn-primary w-full text-xs flex items-center justify-center gap-1.5">
-            <Send className="w-3.5 h-3.5" />Push to JobTread
-          </button>
+          <p className="text-[10px] text-dark-500 text-center">
+            Copy these line items into JobTread to create your estimate.
+          </p>
         </div>
       )}
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import {
   Settings,
@@ -19,6 +19,12 @@ import { cn } from '@/lib/utils/cn';
 
 export default function SettingsPage() {
   const { data: session } = useSession();
+  const [lastSynced, setLastSynced] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setLastSynced(new Date());
+  }, []);
+
   const [notifications, setNotifications] = useState({
     overdueInvoices: true,
     newLeads: true,
@@ -77,7 +83,9 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-dark-200">API Status</p>
-              <p className="text-[10px] text-dark-500">Last synced: 2 minutes ago</p>
+              <p className="text-[10px] text-dark-500">
+                {lastSynced ? `Last synced: ${lastSynced.toLocaleTimeString()}` : 'Syncing...'}
+              </p>
             </div>
             <div className="badge-success text-[10px]">Active</div>
           </div>

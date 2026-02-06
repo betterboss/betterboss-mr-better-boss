@@ -2,11 +2,10 @@
 
 import {
   DollarSign, TrendingUp, AlertTriangle, BarChart3,
-  PieChart, Receipt, CreditCard, Calendar,
-  ArrowUpRight, ArrowDownRight,
+  PieChart, Receipt, CreditCard,
 } from 'lucide-react';
 import { cn, formatCurrency, formatPercent } from '@/lib/utils/cn';
-import { useJobs, useInvoices, type JTJob } from '@/lib/hooks/useJobTread';
+import { useJobs, useInvoices } from '@/lib/hooks/useJobTread';
 import { LoadingState, ErrorState } from '@/components/ui/DataState';
 
 export default function FinancesPage() {

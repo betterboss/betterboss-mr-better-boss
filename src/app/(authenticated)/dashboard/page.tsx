@@ -2,7 +2,7 @@
 
 import {
   Briefcase, DollarSign, Users, TrendingUp, AlertTriangle,
-  Clock, ArrowUpRight, ArrowDownRight, Zap, Target, BarChart3, Activity,
+  Zap, Target, BarChart3, Activity,
 } from 'lucide-react';
 import { cn, formatCurrency, formatPercent } from '@/lib/utils/cn';
 import { useJobs, useInvoices, useContacts, useTasks } from '@/lib/hooks/useJobTread';

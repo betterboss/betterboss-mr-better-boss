@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import {
-  Users, Search, Target, Phone, Mail, Calendar, Star, Clock, Zap,
+  Users, Search, Target, Phone, Mail, Calendar, Star, Zap,
 } from 'lucide-react';
-import { cn, formatCurrency } from '@/lib/utils/cn';
+import { cn } from '@/lib/utils/cn';
 import { useContacts, type JTContact } from '@/lib/hooks/useJobTread';
 import { LoadingState, ErrorState, EmptyState } from '@/components/ui/DataState';
 

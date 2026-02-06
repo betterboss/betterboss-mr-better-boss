@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 
 interface UseQueryResult<T> {
@@ -25,13 +25,13 @@ function useJobTreadQuery<T>(
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [trigger, setTrigger] = useState(0);
-  const varsRef = useRef(JSON.stringify(variables));
+  const [varsKey, setVarsKey] = useState(() => JSON.stringify(variables));
 
   const refetch = useCallback(() => setTrigger((t) => t + 1), []);
 
-  // Stable variable serialization
-  const varsKey = JSON.stringify(variables);
-  if (varsKey !== varsRef.current) varsRef.current = varsKey;
+  // Update varsKey only when variables actually change
+  const currentVarsKey = JSON.stringify(variables);
+  if (currentVarsKey !== varsKey) setVarsKey(currentVarsKey);
 
   useEffect(() => {
     if (status !== 'authenticated' || options?.skip) {
@@ -73,7 +73,7 @@ function useJobTreadQuery<T>(
 
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, varsRef.current, status, trigger, options?.skip]);
+  }, [query, varsKey, status, trigger, options?.skip]);
 
   return { data, isLoading, error, refetch };
 }
