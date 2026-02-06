@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "devCommand": "npm run dev",
+  "regions": ["iad1"],
+  "env": {
+    "JOBTREAD_API_URL": "https://api.jobtread.com/graphql",
+    "NEXT_PUBLIC_APP_NAME": "BetterBoss Sidebar"
+  }
+}

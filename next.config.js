@@ -2,7 +2,11 @@
 const nextConfig = {
   reactStrictMode: true,
   images: {
-    domains: ['app.jobtread.com', 'better-boss.ai', 'mybetterboss.ai'],
+    remotePatterns: [
+      { protocol: 'https', hostname: 'app.jobtread.com' },
+      { protocol: 'https', hostname: 'better-boss.ai' },
+      { protocol: 'https', hostname: 'mybetterboss.ai' },
+    ],
   },
 };
 

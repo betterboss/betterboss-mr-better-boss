@@ -1,19 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 import {
   Settings,
   User,
   Key,
   Bell,
-  Palette,
   Zap,
   ExternalLink,
   CheckCircle2,
-  Shield,
   Globe,
   HelpCircle,
+  LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
@@ -70,6 +69,13 @@ export default function SettingsPage() {
               <p className="text-xs text-dark-200">{session.user.organization}</p>
             </div>
           )}
+          <button
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="btn-secondary w-full text-xs flex items-center justify-center gap-1.5 text-red-400 hover:text-red-300"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            Sign Out
+          </button>
         </div>
       </div>
 
@@ -93,10 +99,15 @@ export default function SettingsPage() {
             <p className="text-xs text-dark-400">API Endpoint</p>
             <p className="text-[10px] text-dark-500 font-mono">api.jobtread.com/graphql</p>
           </div>
-          <button className="btn-secondary w-full text-xs flex items-center justify-center gap-1.5">
+          <a
+            href="https://app.jobtread.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-secondary w-full text-xs flex items-center justify-center gap-1.5"
+          >
             <ExternalLink className="w-3.5 h-3.5" />
             Open JobTread
-          </button>
+          </a>
         </div>
       </div>
 
