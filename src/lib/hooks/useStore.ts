@@ -10,6 +10,7 @@ type SidebarModule =
   | 'dashboard'
   | 'jobs'
   | 'estimates'
+  | 'takeoff'
   | 'leads'
   | 'finances'
   | 'assistant'
