@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Zap,
+  Ruler,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
@@ -37,6 +38,13 @@ const navItems = [
     icon: Calculator,
     path: '/estimates',
     description: 'AI-powered 4-minute estimates',
+  },
+  {
+    id: 'takeoff' as const,
+    label: 'Blueprint Takeoff',
+    icon: Ruler,
+    path: '/takeoff',
+    description: 'Scan plans & generate material takeoffs',
   },
   {
     id: 'leads' as const,

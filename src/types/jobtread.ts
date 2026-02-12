@@ -330,6 +330,77 @@ export interface AIChatMessage {
   };
 }
 
+// --- Blueprint Takeoff ---
+
+export interface BlueprintTakeoffRequest {
+  imageData: string; // base64-encoded image
+  projectType?: string;
+  defaultMarkup?: number;
+  notes?: string;
+}
+
+export interface BlueprintTakeoffResult {
+  projectSummary: {
+    projectType: string;
+    totalArea: number;
+    unit: string;
+    roomCount: number;
+    stories: number;
+    description: string;
+  };
+  measurements: BlueprintMeasurement[];
+  lineItems: TakeoffLineItem[];
+  subtotalCost: number;
+  subtotalPrice: number;
+  tax: number;
+  totalPrice: number;
+  markup: number;
+  confidence: number;
+  warnings: string[];
+  analyzedAt: string;
+}
+
+export interface BlueprintMeasurement {
+  label: string;
+  value: number;
+  unit: string;
+  area?: string; // e.g. "Kitchen", "Master Bedroom"
+}
+
+export interface TakeoffLineItem {
+  name: string;
+  description: string;
+  category: TakeoffCategory;
+  quantity: number;
+  unit: string;
+  unitCost: number;
+  unitPrice: number;
+  totalCost: number;
+  totalPrice: number;
+  markup: number;
+  costCode?: string;
+  tradeGroup: string;
+}
+
+export type TakeoffCategory =
+  | 'Sitework'
+  | 'Concrete'
+  | 'Masonry'
+  | 'Metals'
+  | 'Wood & Plastics'
+  | 'Thermal & Moisture'
+  | 'Doors & Windows'
+  | 'Finishes'
+  | 'Specialties'
+  | 'Equipment'
+  | 'Furnishings'
+  | 'Mechanical'
+  | 'Electrical'
+  | 'Plumbing'
+  | 'General Conditions'
+  | 'Labor'
+  | 'Subcontractor';
+
 // --- API Response Types ---
 
 export interface PaginatedResponse<T> {

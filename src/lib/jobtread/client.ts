@@ -334,6 +334,37 @@ export class JobTreadClient {
     return data.createDailyLog;
   }
 
+  // ---- Budget / Takeoff ----
+
+  async createBudgetFromTakeoff(
+    jobId: string,
+    input: {
+      name: string;
+      lineItems: {
+        name: string;
+        description?: string;
+        category?: string;
+        quantity: number;
+        unit?: string;
+        unitCost: number;
+        unitPrice: number;
+        costCode?: string;
+      }[];
+      notes?: string;
+    }
+  ): Promise<JobTreadEstimate> {
+    const data = await this.query<{ createEstimate: JobTreadEstimate }>(
+      `mutation CreateBudgetEstimate($jobId: ID!, $input: CreateEstimateInput!) {
+        createEstimate(jobId: $jobId, input: $input) {
+          id name status subtotal tax total createdAt
+          lineItems { id name description category quantity unit unitCost unitPrice totalCost totalPrice costCode }
+        }
+      }`,
+      { jobId, input }
+    );
+    return data.createEstimate;
+  }
+
   // ---- Dashboard Aggregation ----
 
   async getDashboardMetrics(): Promise<DashboardMetrics> {
