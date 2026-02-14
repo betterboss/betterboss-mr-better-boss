@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BetterBoss Auto-Populate — Settings</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <div class="options">
+    <header class="options__header">
+      <div class="options__logo">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+          <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z" fill="#0c8ce9" opacity="0.3"/>
+          <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z" stroke="#0c8ce9" stroke-width="1.5" fill="none"/>
+          <polyline points="14,2 14,8 20,8" stroke="#0c8ce9" stroke-width="1.5" fill="none"/>
+          <line x1="8" y1="13" x2="16" y2="13" stroke="#0c8ce9" stroke-width="1.5"/>
+          <line x1="8" y1="17" x2="13" y2="17" stroke="#0c8ce9" stroke-width="1.5"/>
+        </svg>
+        <div>
+          <h1>BetterBoss Auto-Populate</h1>
+          <p>Customize your document templates</p>
+        </div>
+      </div>
+    </header>
+
+    <main class="options__body">
+      <!-- General Settings -->
+      <section class="options__section">
+        <h2>General Settings</h2>
+        <div class="options__card">
+          <div class="options__toggle-row">
+            <div>
+              <label for="auto-toggle">Auto-populate on page load</label>
+              <p class="options__help">Automatically fill document fields when you navigate to a JobTread document page.</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="auto-toggle" checked />
+              <span class="toggle__slider"></span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- Description Template -->
+      <section class="options__section">
+        <h2>Description Template</h2>
+        <p class="options__help">
+          This template is used to populate the description/scope of work field on documents.
+          Use <code>{{variableName}}</code> for variables and <code>{{#variableName}}...{{/variableName}}</code> for conditional blocks.
+        </p>
+        <div class="options__card">
+          <div class="options__variables">
+            <strong>Available variables:</strong>
+            <div class="options__tags">
+              <span class="tag" data-var="jobName">jobName</span>
+              <span class="tag" data-var="jobNumber">jobNumber</span>
+              <span class="tag" data-var="jobStatus">jobStatus</span>
+              <span class="tag" data-var="jobDescription">jobDescription</span>
+              <span class="tag" data-var="jobAddress">jobAddress</span>
+              <span class="tag" data-var="customerName">customerName</span>
+              <span class="tag" data-var="company">company</span>
+              <span class="tag" data-var="customerEmail">customerEmail</span>
+              <span class="tag" data-var="customerPhone">customerPhone</span>
+              <span class="tag" data-var="date">date</span>
+            </div>
+          </div>
+          <textarea id="desc-template" rows="12" placeholder="Enter your description template..."></textarea>
+          <button class="btn btn--ghost" id="reset-desc">Reset to Default</button>
+        </div>
+      </section>
+
+      <!-- Footer Template -->
+      <section class="options__section">
+        <h2>Footer Template</h2>
+        <p class="options__help">
+          This template is used to populate the footer/terms area on documents.
+        </p>
+        <div class="options__card">
+          <textarea id="footer-template" rows="6" placeholder="Enter your footer template..."></textarea>
+          <button class="btn btn--ghost" id="reset-footer">Reset to Default</button>
+        </div>
+      </section>
+
+      <!-- Save Button -->
+      <section class="options__section options__section--actions">
+        <button class="btn btn--primary" id="save-btn">Save Settings</button>
+        <span class="options__saved" id="saved-msg">Settings saved!</span>
+      </section>
+    </main>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

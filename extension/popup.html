@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BetterBoss Auto-Populate</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="popup">
+    <header class="popup__header">
+      <div class="popup__logo">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+          <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z" fill="#0c8ce9" opacity="0.3"/>
+          <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z" stroke="#0c8ce9" stroke-width="1.5" fill="none"/>
+          <polyline points="14,2 14,8 20,8" stroke="#0c8ce9" stroke-width="1.5" fill="none"/>
+          <line x1="8" y1="13" x2="16" y2="13" stroke="#0c8ce9" stroke-width="1.5"/>
+          <line x1="8" y1="17" x2="13" y2="17" stroke="#0c8ce9" stroke-width="1.5"/>
+        </svg>
+        <div>
+          <h1>BetterBoss</h1>
+          <span class="popup__subtitle">JobTread Auto-Populate</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="popup__body">
+      <!-- Status Section -->
+      <section class="popup__section">
+        <div class="popup__status" id="status">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="status-text">Checking page...</span>
+        </div>
+      </section>
+
+      <!-- Toggle Section -->
+      <section class="popup__section">
+        <div class="popup__toggle-row">
+          <label for="auto-toggle">Auto-populate on page load</label>
+          <label class="toggle">
+            <input type="checkbox" id="auto-toggle" checked />
+            <span class="toggle__slider"></span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Page Info Section -->
+      <section class="popup__section" id="page-info-section" style="display:none;">
+        <h2>Detected Info</h2>
+        <div class="info-grid" id="info-grid"></div>
+      </section>
+
+      <!-- Actions Section -->
+      <section class="popup__section">
+        <h2>Actions</h2>
+        <div class="popup__actions">
+          <button class="btn btn--primary" id="btn-populate">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+            Fill Description & Footer
+          </button>
+          <div class="popup__actions-row">
+            <button class="btn btn--secondary" id="btn-desc-only">Description Only</button>
+            <button class="btn btn--secondary" id="btn-footer-only">Footer Only</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Quick Links -->
+      <section class="popup__section">
+        <button class="btn btn--ghost" id="btn-options">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          Customize Templates
+        </button>
+      </section>
+    </main>
+
+    <footer class="popup__footer">
+      <span>BetterBoss v1.0.0</span>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
