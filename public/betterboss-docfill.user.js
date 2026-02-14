@@ -822,8 +822,13 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
   // INIT
   // ==========================================================================
 
+  const isBookmarklet = !HAS_GM && !!window.__bbDocFillBookmarklet;
+
   function init() {
     log('DocFill v1.0.1 loaded on', window.location.href, HAS_GM ? '(Tampermonkey)' : '(Bookmarklet)');
+
+    // Expose toggle function so the bookmarklet can re-open the panel on subsequent clicks
+    window.__bbDocFillToggle = togglePanel;
 
     const hasRun = store.get('hasRunBefore', false);
     if (!hasRun) {
@@ -831,11 +836,18 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
       log('First run — navigate to a job or document page to get started');
     }
 
-    onPageChange();
+    if (isBookmarklet) {
+      // Bookmarklet: always show FAB and immediately open the panel
+      createFAB();
+      togglePanel();
+    } else {
+      onPageChange();
+    }
+
     watchURL();
 
     const debouncedCheck = debounce(() => {
-      if (!document.getElementById(BUTTON_ID) && !isExcludedPage() && isRelevantPage()) {
+      if (!document.getElementById(BUTTON_ID) && (isBookmarklet || (!isExcludedPage() && isRelevantPage()))) {
         createFAB();
       }
     }, 500);

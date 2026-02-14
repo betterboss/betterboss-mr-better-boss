@@ -167,7 +167,7 @@ export default function DocFillPage() {
             <p className="text-[14px] text-[#8891a5] mb-7">No installs. No extensions. Just drag &amp; drop.</p>
             {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a
-              href={"javascript:void((function(){if(window.__bbDocFillLoaded)return;window.__bbDocFillLoaded=true;var s=document.createElement('script');s.src='https://mybetterboss.ai/betterboss-docfill-loader.js?t='+Date.now();document.head.appendChild(s)})())"}
+              href={"javascript:void((function(){if(window.__bbDocFillToggle){window.__bbDocFillToggle();return}var s=document.createElement('script');s.src='https://mybetterboss.ai/betterboss-docfill-loader.js?t='+Date.now();document.head.appendChild(s)})())"}
               className="inline-flex items-center gap-3 text-white font-extrabold px-11 py-5 rounded-[16px] text-[20px] transition-all hover:-translate-y-0.5 hover:scale-[1.02] select-none"
               style={{
                 background: 'linear-gradient(135deg, #6366f1, #7c3aed)',
