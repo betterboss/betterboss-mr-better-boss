@@ -8,11 +8,20 @@
   "permissions": [
     "storage",
     "activeTab",
-    "clipboardWrite"
+    "clipboardWrite",
+    "alarms"
   ],
   "host_permissions": [
-    "https://app.jobtread.com/*"
+    "https://app.jobtread.com/*",
+    "https://better-boss.ai/*"
   ],
+  "externally_connectable": {
+    "matches": [
+      "https://better-boss.ai/*",
+      "https://*.better-boss.ai/*",
+      "http://localhost:3000/*"
+    ]
+  },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {

@@ -1096,6 +1096,8 @@ Client Signature: _________________________ Date: _________
     const p = _data.profile || {};
     const cv = _data.customVars || {};
     const prefs = _data.prefs || {};
+    const syncToken = _data._syncToken || '';
+    const lastSynced = _data._lastSynced || '';
 
     const customVarRows = Object.entries(cv).map(([k, v]) =>
       `<div class="bb-cv-row">
@@ -1152,6 +1154,45 @@ Client Signature: _________________________ Date: _________
             <span class="bb-toggle__label">Keyboard shortcuts</span>
             <span class="bb-toggle__hint">Ctrl+Shift+B toggle panel &bull; Ctrl+Shift+D copy desc &bull; Ctrl+Shift+F copy footer</span>
           </label>
+        </div>
+      </div>
+
+      <div class="bb-sep"></div>
+
+      <div class="bb-sec">
+        <div class="bb-sec__head"><h4>Cloud Sync</h4></div>
+        <div class="bb-card-inner">
+          <p class="bb-hint" style="margin-bottom:8px">Sync your profile, templates & snippets across devices via better-boss.ai.</p>
+          ${syncToken
+            ? `<div class="bb-cv-row" style="margin-bottom:8px">
+                <span class="bb-cv-key">Token</span>
+                <span class="bb-cv-eq">:</span>
+                <span class="bb-cv-val" title="${esc(syncToken)}">${esc(syncToken.substring(0, 12))}...</span>
+                <button class="bb-btn bb-btn--xs" id="bb-copy-token">Copy</button>
+              </div>
+              ${lastSynced ? `<p class="bb-hint" style="margin-bottom:8px">Last synced: ${esc(new Date(lastSynced).toLocaleString())}</p>` : ''}
+              <div class="bb-btn-row">
+                <button class="bb-btn bb-btn--outline" id="bb-sync-push">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/></svg>
+                  Push
+                </button>
+                <button class="bb-btn bb-btn--outline" id="bb-sync-pull">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                  Pull
+                </button>
+                <button class="bb-btn bb-btn--outline bb-btn--danger" id="bb-sync-disconnect">Disconnect</button>
+              </div>`
+            : `<div class="bb-btn-row">
+                <button class="bb-btn bb-btn--outline" id="bb-sync-new">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                  New Token
+                </button>
+                <div class="bb-cv-add" style="flex:1">
+                  <input id="bb-sync-token-input" placeholder="Paste existing token" style="flex:1"/>
+                  <button class="bb-btn bb-btn--xs bb-btn--add" id="bb-sync-connect">Connect</button>
+                </div>
+              </div>`
+          }
         </div>
       </div>
 
@@ -1220,6 +1261,71 @@ Client Signature: _________________________ Date: _________
       _data.prefs.shortcuts = e.target.checked;
       save('prefs', _data.prefs);
       toast(e.target.checked ? 'Shortcuts enabled' : 'Shortcuts disabled');
+    });
+
+    // Cloud Sync connectors
+    document.getElementById('bb-copy-token')?.addEventListener('click', function () {
+      copyText(syncToken, this);
+    });
+
+    document.getElementById('bb-sync-new')?.addEventListener('click', () => {
+      chrome.runtime.sendMessage({ action: 'generateSyncToken' }, (resp) => {
+        if (resp && resp.token) {
+          _data._syncToken = resp.token;
+          toast('Sync token created — share it across devices');
+          renderSettings(body);
+        } else {
+          toast('Failed to generate token', 'error');
+        }
+      });
+    });
+
+    document.getElementById('bb-sync-connect')?.addEventListener('click', () => {
+      const token = document.getElementById('bb-sync-token-input')?.value.trim();
+      if (!token || token.length < 8) { toast('Paste a valid sync token', 'error'); return; }
+      save('_syncToken', token);
+      _data._syncToken = token;
+      toast('Connected to sync token');
+      renderSettings(body);
+    });
+
+    document.getElementById('bb-sync-push')?.addEventListener('click', () => {
+      toast('Syncing...');
+      chrome.runtime.sendMessage({ action: 'pushSync', token: syncToken }, (resp) => {
+        if (resp && resp.success) {
+          _data._lastSynced = new Date().toISOString();
+          toast('Data pushed to cloud');
+          renderSettings(body);
+        } else {
+          toast('Push failed: ' + (resp?.error || 'Unknown error'), 'error');
+        }
+      });
+    });
+
+    document.getElementById('bb-sync-pull')?.addEventListener('click', () => {
+      toast('Pulling...');
+      chrome.runtime.sendMessage({ action: 'pullSync', token: syncToken }, (resp) => {
+        if (resp && resp.success) {
+          // Reload data from storage
+          loadData().then(() => {
+            toast('Data pulled from cloud');
+            renderSettings(body);
+          });
+        } else {
+          toast('Pull failed: ' + (resp?.error || 'Unknown error'), 'error');
+        }
+      });
+    });
+
+    document.getElementById('bb-sync-disconnect')?.addEventListener('click', () => {
+      if (!confirm('Disconnect cloud sync? Your local data stays, but syncing stops.')) return;
+      delete _data._syncToken;
+      delete _data._lastSynced;
+      try {
+        chrome.storage.local.remove(['_syncToken', '_lastSynced']);
+      } catch (e) { /* ignore */ }
+      toast('Sync disconnected');
+      renderSettings(body);
     });
 
     // Export
