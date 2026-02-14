@@ -4,27 +4,12 @@
 // =============================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
-  const autoToggle = document.getElementById('auto-toggle');
-  const btnPopulate = document.getElementById('btn-populate');
-  const btnDescOnly = document.getElementById('btn-desc-only');
-  const btnFooterOnly = document.getElementById('btn-footer-only');
+  const btnOpenPanel = document.getElementById('btn-open-panel');
   const btnOptions = document.getElementById('btn-options');
   const statusDot = document.getElementById('status-dot');
   const statusText = document.getElementById('status-text');
   const pageInfoSection = document.getElementById('page-info-section');
   const infoGrid = document.getElementById('info-grid');
-
-  // ---- Load Settings ----
-
-  chrome.storage.sync.get(['autoPopulateEnabled'], (result) => {
-    autoToggle.checked = result.autoPopulateEnabled !== false;
-  });
-
-  // ---- Save Toggle State ----
-
-  autoToggle.addEventListener('change', () => {
-    chrome.storage.sync.set({ autoPopulateEnabled: autoToggle.checked });
-  });
 
   // ---- Query Active Tab ----
 
@@ -34,9 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!tab || !tab.url || !tab.url.includes('app.jobtread.com')) {
       statusDot.className = 'status-dot status-dot--inactive';
       statusText.textContent = 'Not on a JobTread page';
-      btnPopulate.disabled = true;
-      btnDescOnly.disabled = true;
-      btnFooterOnly.disabled = true;
+      btnOpenPanel.disabled = true;
       return;
     }
 
@@ -48,21 +31,16 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // Update status
-      if (response.isDocumentPage) {
+      if (response.isRelevantPage) {
         statusDot.className = 'status-dot status-dot--active';
-        statusText.textContent = `Document page — ${response.editableFieldCount} editable field(s) found`;
-      } else if (response.isJobPage) {
-        statusDot.className = 'status-dot status-dot--active';
-        statusText.textContent = `Job page — ${response.editableFieldCount} editable field(s)`;
+        statusText.textContent = 'Ready — click the blue button on the page';
       } else {
         statusDot.className = 'status-dot status-dot--warning';
-        statusText.textContent = 'Navigate to a document to auto-populate';
+        statusText.textContent = 'Navigate to a document page to get started';
       }
 
       // Show detected info
       if (response.jobInfo || response.customerInfo) {
-        pageInfoSection.style.display = 'block';
         const rows = [];
 
         if (response.jobInfo.jobName) {
@@ -71,15 +49,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (response.jobInfo.jobNumber) {
           rows.push({ label: 'Job #', value: response.jobInfo.jobNumber });
         }
-        if (response.jobInfo.jobAddress) {
-          rows.push({ label: 'Address', value: response.jobInfo.jobAddress });
-        }
-        if (response.customerInfo.customerName) {
-          rows.push({ label: 'Customer', value: response.customerInfo.customerName });
-        }
-        if (response.customerInfo.company) {
-          rows.push({ label: 'Company', value: response.customerInfo.company });
-        }
         if (response.customerInfo.email) {
           rows.push({ label: 'Email', value: response.customerInfo.email });
         }
@@ -87,59 +56,42 @@ document.addEventListener('DOMContentLoaded', () => {
           rows.push({ label: 'Phone', value: response.customerInfo.phone });
         }
 
-        if (rows.length === 0) {
-          rows.push({ label: 'Info', value: '', empty: true });
+        if (rows.length > 0) {
+          pageInfoSection.style.display = 'block';
+          infoGrid.innerHTML = rows
+            .map(
+              (r) => `
+              <div class="info-row">
+                <span class="info-row__label">${r.label}</span>
+                <span class="info-row__value">${escapeHtml(r.value)}</span>
+              </div>
+            `
+            )
+            .join('');
         }
-
-        infoGrid.innerHTML = rows
-          .map(
-            (r) => `
-            <div class="info-row">
-              <span class="info-row__label">${r.label}</span>
-              <span class="info-row__value ${r.empty ? 'info-row__value--empty' : ''}">
-                ${r.empty ? 'No info detected — click the panel on page to enter manually' : escapeHtml(r.value)}
-              </span>
-            </div>
-          `
-          )
-          .join('');
       }
     });
   });
 
-  // ---- Populate Actions ----
+  // ---- Open Side Panel ----
 
-  btnPopulate.addEventListener('click', () => {
-    sendPopulateMessage('both');
-  });
-
-  btnDescOnly.addEventListener('click', () => {
-    sendPopulateMessage('description');
-  });
-
-  btnFooterOnly.addEventListener('click', () => {
-    sendPopulateMessage('footer');
-  });
-
-  function sendPopulateMessage(mode) {
+  btnOpenPanel.addEventListener('click', () => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tab = tabs[0];
       if (!tab) return;
 
-      chrome.tabs.sendMessage(tab.id, { action: 'populate', mode }, (response) => {
+      // Send message to content script to toggle the panel open
+      chrome.tabs.sendMessage(tab.id, { action: 'togglePanel' }, () => {
         if (chrome.runtime.lastError) {
           statusDot.className = 'status-dot status-dot--warning';
           statusText.textContent = 'Could not reach page — try refreshing';
           return;
         }
-
-        if (response && response.success) {
-          statusDot.className = 'status-dot status-dot--active';
-          statusText.textContent = 'Fields populated successfully!';
-        }
+        // Close the popup so user can interact with the page panel
+        window.close();
       });
     });
-  }
+  });
 
   // ---- Options Page ----
 

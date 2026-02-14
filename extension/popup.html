@@ -33,15 +33,16 @@
         </div>
       </section>
 
-      <!-- Toggle Section -->
+      <!-- How It Works -->
       <section class="popup__section">
-        <div class="popup__toggle-row">
-          <label for="auto-toggle">Auto-populate on page load</label>
-          <label class="toggle">
-            <input type="checkbox" id="auto-toggle" checked />
-            <span class="toggle__slider"></span>
-          </label>
-        </div>
+        <h2>How It Works</h2>
+        <ol class="popup__steps">
+          <li>Navigate to any document page in JobTread</li>
+          <li>Click the blue button in the bottom-right corner</li>
+          <li>Fill in Company Name &amp; Client Name in the panel</li>
+          <li>Click <strong>Copy Description</strong> or <strong>Copy Footer</strong></li>
+          <li>Paste into the Description or Footer field on your document</li>
+        </ol>
       </section>
 
       <!-- Page Info Section -->
@@ -52,19 +53,15 @@
 
       <!-- Actions Section -->
       <section class="popup__section">
-        <h2>Actions</h2>
+        <h2>Quick Actions</h2>
         <div class="popup__actions">
-          <button class="btn btn--primary" id="btn-populate">
+          <button class="btn btn--primary" id="btn-open-panel">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <line x1="9" y1="3" x2="9" y2="21"/>
             </svg>
-            Fill Description & Footer
+            Open Side Panel
           </button>
-          <div class="popup__actions-row">
-            <button class="btn btn--secondary" id="btn-desc-only">Description Only</button>
-            <button class="btn btn--secondary" id="btn-footer-only">Footer Only</button>
-          </div>
         </div>
       </section>
 

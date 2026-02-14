@@ -36,15 +36,6 @@
   transform: scale(0.95);
 }
 
-.bb-fab--active {
-  background: linear-gradient(135deg, #f97316, #c2410c);
-  box-shadow: 0 4px 16px rgba(249, 115, 22, 0.4), 0 2px 6px rgba(0, 0, 0, 0.2);
-}
-
-.bb-fab--active:hover {
-  box-shadow: 0 6px 24px rgba(249, 115, 22, 0.5), 0 3px 8px rgba(0, 0, 0, 0.25);
-}
-
 /* ---- Side Panel ---- */
 
 #bb-autofill-panel {
@@ -68,7 +59,7 @@
 }
 
 .bb-panel {
-  width: 340px;
+  width: 380px;
   height: 100%;
   background: #0f172a;
   color: #e2e8f0;
@@ -87,6 +78,7 @@
   padding: 16px 20px;
   background: linear-gradient(135deg, #072849, #0f172a);
   border-bottom: 1px solid rgba(12, 140, 233, 0.2);
+  flex-shrink: 0;
 }
 
 .bb-panel__header h3 {
@@ -121,7 +113,7 @@
 /* ---- Sections ---- */
 
 .bb-panel__section {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .bb-panel__section h4 {
@@ -131,6 +123,25 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #f97316;
+}
+
+.bb-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.bb-section-header h4 {
+  margin: 0 !important;
+}
+
+/* ---- Divider ---- */
+
+.bb-divider {
+  height: 1px;
+  background: #1e293b;
+  margin: 16px 0;
 }
 
 /* ---- Form Fields ---- */
@@ -170,21 +181,59 @@
   color: #475569;
 }
 
-/* ---- Buttons ---- */
+/* ---- Help Text ---- */
 
-.bb-btn-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.bb-help {
+  margin: 0 0 8px;
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.4;
 }
 
+/* ---- Output Boxes (copy-paste text) ---- */
+
+.bb-output {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #cbd5e1;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  user-select: all;
+  cursor: text;
+}
+
+.bb-output--small {
+  max-height: 80px;
+}
+
+.bb-output::-webkit-scrollbar {
+  width: 5px;
+}
+
+.bb-output::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.bb-output::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 3px;
+}
+
+/* ---- Buttons ---- */
+
 .bb-btn {
-  display: block;
-  width: 100%;
-  padding: 10px 16px;
+  display: inline-block;
+  padding: 8px 14px;
   border: none;
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: 6px;
+  font-size: 12px;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
@@ -193,8 +242,13 @@
 }
 
 .bb-btn--primary {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 13px;
   background: linear-gradient(135deg, #0c8ce9, #006fc7);
   color: white;
+  border-radius: 8px;
 }
 
 .bb-btn--primary:hover {
@@ -202,46 +256,24 @@
   box-shadow: 0 2px 12px rgba(12, 140, 233, 0.3);
 }
 
-.bb-btn--secondary {
+.bb-btn--copy {
   background: #1e293b;
-  color: #e2e8f0;
+  color: #0c8ce9;
   border: 1px solid #334155;
+  padding: 5px 12px;
+  font-size: 11px;
+  flex-shrink: 0;
 }
 
-.bb-btn--secondary:hover {
+.bb-btn--copy:hover {
   background: #334155;
   border-color: #0c8ce9;
 }
 
-/* ---- Status Messages ---- */
-
-.bb-panel__section--status {
-  margin-top: auto;
-}
-
-.bb-status {
-  padding: 10px 12px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.bb-status--success {
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.3);
-  color: #4ade80;
-}
-
-.bb-status--warning {
-  background: rgba(249, 115, 22, 0.1);
-  border: 1px solid rgba(249, 115, 22, 0.3);
-  color: #f97316;
-}
-
-.bb-status--error {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #ef4444;
+.bb-btn--copied {
+  background: rgba(34, 197, 94, 0.15) !important;
+  border-color: #22c55e !important;
+  color: #4ade80 !important;
 }
 
 /* ---- Scrollbar ---- */
