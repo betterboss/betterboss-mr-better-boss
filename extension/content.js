@@ -1,7 +1,18 @@
 // =============================================================================
 // BetterBoss JobTread Auto-Populate — Content Script
 // Detects document editing pages on app.jobtread.com and auto-populates
-// job/customer information into description and footer fields.
+// job/customer information into description and footer textarea fields.
+//
+// JobTread uses plain <textarea> elements (NOT rich text editors).
+// It is a React app, so we must use the native value setter to bypass
+// React's synthetic event system.
+//
+// JobTread formatting syntax (plaintext markdown):
+//   *bold*  ^italic^  _underline_  ~strikethrough~
+//   # H1  ## H2  ### H3
+//   - bullet  1. numbered
+//   > quote   --- horizontal rule
+//   [text](url) links
 // =============================================================================
 
 (function () {
@@ -20,6 +31,15 @@
   let isPopulated = false;
   let pollTimer = null;
 
+  // ---- React-Safe Native Value Setter ----
+  // JobTread is a React app. Directly setting .value on a textarea won't
+  // trigger React's state updates. We must use the native HTMLTextAreaElement
+  // prototype setter, then immediately dispatch input + change events.
+  const nativeTextareaSetter = Object.getOwnPropertyDescriptor(
+    window.HTMLTextAreaElement.prototype,
+    'value'
+  ).set;
+
   // ---- Utility ----
 
   function debounce(fn, ms) {
@@ -37,36 +57,53 @@
   // ---- Page Context Detection ----
 
   /**
-   * Determines if we're on a document editing page by looking at the URL
-   * and page content. JobTread document URLs typically contain patterns like:
-   * /jobs/{id}/proposals, /jobs/{id}/invoices, /documents/, etc.
+   * Determines if we're on a document editing page.
+   * Matches JobTread's actual URL patterns for document types.
    */
   function isDocumentPage() {
-    const url = window.location.href;
-    const docPatterns = [
-      /\/proposals\//i,
-      /\/estimates\//i,
-      /\/invoices\//i,
-      /\/purchase-orders\//i,
-      /\/change-orders\//i,
-      /\/work-orders\//i,
-      /\/bills\//i,
-      /\/documents\//i,
-      /\/selections\//i,
-    ];
-    return docPatterns.some((p) => p.test(url));
+    const path = window.location.pathname;
+    return (
+      path.includes('/documents/') ||
+      path.includes('/invoices/') ||
+      path.includes('/estimates/') ||
+      path.includes('/proposals/') ||
+      path.includes('/contracts/') ||
+      path.includes('/purchase-orders/') ||
+      path.includes('/change-orders/') ||
+      path.includes('/work-orders/') ||
+      path.includes('/bills/')
+    );
   }
 
   function isJobPage() {
-    return /\/jobs\/[^/]+/i.test(window.location.href);
+    return /\/jobs\/[^/]+/i.test(window.location.pathname);
+  }
+
+  function isBudgetPage() {
+    return window.location.pathname.endsWith('/budget');
+  }
+
+  /**
+   * Pages where we should NOT activate (per JT Power Tools patterns).
+   */
+  function isExcludedPage() {
+    const path = window.location.pathname;
+    return (
+      path.includes('/files') ||
+      path.includes('/vendors') ||
+      path.includes('/customers') ||
+      path.includes('/settings') ||
+      path.includes('/plans') ||
+      path.includes('/catalog')
+    );
   }
 
   // ---- Job & Customer Info Extraction ----
 
   /**
    * Scrapes visible job and customer information from the current page DOM.
-   * JobTread typically displays job name, number, customer name, address, etc.
-   * in the page header or sidebar when viewing a job or document.
+   * JobTread uses Tailwind classes like .font-bold, .text-cyan-500, .uppercase
+   * for headings and labels. We look for structured text patterns.
    */
   function extractJobInfo() {
     const info = {
@@ -75,27 +112,29 @@
       jobStatus: '',
       jobDescription: '',
       jobAddress: '',
+      jobId: '',
     };
 
-    // Try to extract from page title or header elements
-    // JobTread commonly puts job info in header/breadcrumb areas
-    const titleCandidates = [
-      'h1', 'h2',
-      '[data-testid="job-name"]',
-      '[class*="job-name"]',
-      '[class*="jobName"]',
-      '[class*="JobName"]',
-      '[class*="header-title"]',
-      '[class*="page-title"]',
-      '.job-header',
-      '.job-title',
-    ];
+    // Try heading elements first (JobTread puts job name in prominent headings)
+    const headings = document.querySelectorAll('h1, h2, [class*="font-bold"]');
+    for (const h of headings) {
+      const text = h.textContent.trim();
+      // Skip tiny or generic labels
+      if (text.length > 2 && text.length < 200 && !text.match(/^(dashboard|settings|jobs|home)/i)) {
+        // Check if this looks like a job name (not a section heading)
+        const parent = h.closest('[class*="header"], [class*="breadcrumb"], nav');
+        if (parent || h.tagName === 'H1') {
+          info.jobName = text;
+          break;
+        }
+      }
+    }
 
-    for (const selector of titleCandidates) {
-      const el = document.querySelector(selector);
-      if (el && el.textContent.trim()) {
-        info.jobName = el.textContent.trim();
-        break;
+    // Fallback: try the page title
+    if (!info.jobName) {
+      const titleMatch = document.title.match(/^(.+?)(?:\s*[-|]\s*JobTread)?$/i);
+      if (titleMatch) {
+        info.jobName = titleMatch[1].trim();
       }
     }
 
@@ -106,26 +145,27 @@
       info.jobNumber = jobNumMatch[1];
     }
 
-    // Try to extract address from visible elements
-    const addressCandidates = [
-      '[data-testid="job-address"]',
-      '[class*="address"]',
-      '[class*="Address"]',
-      '[class*="location"]',
-    ];
-
-    for (const selector of addressCandidates) {
-      const el = document.querySelector(selector);
-      if (el && el.textContent.trim().length > 5) {
-        info.jobAddress = el.textContent.trim();
-        break;
-      }
-    }
-
-    // Extract from URL if possible (job ID)
-    const jobIdMatch = window.location.href.match(/\/jobs\/([^/]+)/);
+    // Extract job ID from URL
+    const jobIdMatch = window.location.pathname.match(/\/jobs\/([^/]+)/);
     if (jobIdMatch) {
       info.jobId = jobIdMatch[1];
+    }
+
+    // Try to extract address — look for elements near labels that say "Address" or "Location"
+    const labels = document.querySelectorAll('.font-bold, label, [class*="uppercase"]');
+    for (const label of labels) {
+      const labelText = label.textContent.trim().toLowerCase();
+      if (labelText.includes('address') || labelText.includes('location')) {
+        // Get next sibling or adjacent text
+        const next = label.nextElementSibling || label.parentElement;
+        if (next) {
+          const addr = next.textContent.trim();
+          if (addr.length > 5 && addr !== labelText) {
+            info.jobAddress = addr.replace(labelText, '').trim();
+            break;
+          }
+        }
+      }
     }
 
     return info;
@@ -140,24 +180,27 @@
       address: '',
     };
 
-    // Look for customer name in common locations
-    const customerCandidates = [
-      '[data-testid="customer-name"]',
-      '[class*="customer-name"]',
-      '[class*="customerName"]',
-      '[class*="client-name"]',
-      '[class*="contact-name"]',
-    ];
-
-    for (const selector of customerCandidates) {
-      const el = document.querySelector(selector);
-      if (el && el.textContent.trim()) {
-        info.customerName = el.textContent.trim();
-        break;
+    // Look for customer-related labels and their values
+    const labels = document.querySelectorAll('.font-bold, label, [class*="uppercase"]');
+    for (const label of labels) {
+      const labelText = label.textContent.trim().toLowerCase();
+      if (
+        labelText.includes('customer') ||
+        labelText.includes('client') ||
+        labelText.includes('contact')
+      ) {
+        const next = label.nextElementSibling || label.parentElement;
+        if (next) {
+          const val = next.textContent.trim();
+          if (val.length > 1 && val !== labelText) {
+            info.customerName = val.replace(/customer|client|contact/gi, '').trim();
+            break;
+          }
+        }
       }
     }
 
-    // Try matching customer patterns in visible text
+    // Try matching email and phone in visible text
     const allText = document.body.innerText;
 
     const emailMatch = allText.match(/[\w.+-]+@[\w-]+\.[\w.]+/);
@@ -173,12 +216,23 @@
     return info;
   }
 
-  // ---- Editable Field Detection ----
+  // ---- Textarea Field Detection ----
 
   /**
-   * Finds description and footer editable fields on the document page.
-   * JobTread uses rich text editors (contenteditable divs) and textareas
-   * for document description and footer areas.
+   * Finds description and footer textarea fields on the document page.
+   * JobTread uses plain <textarea> elements. On document pages, the
+   * description and footer are within containers with the native formatter
+   * toolbar (.sticky.shadow-line-bottom).
+   *
+   * DOM structure for document textareas:
+   *   <div class="rounded-sm border">
+   *     <div class="sticky shadow-line-bottom z-[1] p-1 flex gap-1 bg-white">
+   *       <!-- native toolbar buttons -->
+   *     </div>
+   *     <div class="relative">
+   *       <textarea ...>
+   *     </div>
+   *   </div>
    */
   function findEditableFields() {
     const fields = {
@@ -187,56 +241,59 @@
       allEditable: [],
     };
 
-    // Look for contenteditable elements (rich text editors)
-    const editables = document.querySelectorAll(
-      '[contenteditable="true"], textarea, [role="textbox"]'
-    );
-
-    // Also look for common editor frameworks
-    const editorSelectors = [
-      '.ql-editor',                   // Quill
-      '.ProseMirror',                 // ProseMirror / TipTap
-      '.tox-edit-area__iframe',       // TinyMCE
-      '.ce-block__content',           // Editor.js
-      '[class*="editor"]',            // Generic
-      '[class*="Editor"]',
-      '[data-placeholder]',           // Placeholder-based editors
-      '.DraftEditor-root',            // Draft.js
-      '[class*="rich-text"]',         // Generic rich text
-      '[class*="description"]',       // Description-specific
-      '[class*="footer"]',            // Footer-specific
-    ];
-
-    for (const selector of editorSelectors) {
-      const elements = document.querySelectorAll(selector);
-      elements.forEach((el) => {
-        if (!fields.allEditable.includes(el)) {
-          fields.allEditable.push(el);
+    // Strategy 1: Find textareas inside containers with the native formatter toolbar
+    const formattedContainers = document.querySelectorAll('.rounded-sm.border');
+    for (const container of formattedContainers) {
+      const toolbar = container.querySelector(':scope > .sticky.shadow-line-bottom');
+      if (toolbar) {
+        const buttons = toolbar.querySelectorAll('div[role="button"]');
+        if (buttons.length >= 3) {
+          // This container has the native formatter — find its textarea
+          const textarea = container.querySelector('textarea');
+          if (textarea && !textarea.hasAttribute('data-jt-no-formatter')) {
+            fields.allEditable.push(textarea);
+          }
         }
-      });
+      }
     }
 
-    editables.forEach((el) => {
-      if (!fields.allEditable.includes(el)) {
-        fields.allEditable.push(el);
-      }
-    });
+    // Strategy 2: Find textareas by placeholder
+    const descTextarea = document.querySelector('textarea[placeholder="Description"]');
+    if (descTextarea && !fields.allEditable.includes(descTextarea)) {
+      fields.allEditable.push(descTextarea);
+    }
 
-    // Try to identify which field is description vs footer based on:
-    // 1. Labels/headings near the field
-    // 2. Position on page (description usually above, footer below)
-    // 3. Attributes or class names
-    fields.allEditable.forEach((el) => {
-      const context = getFieldContext(el);
+    // Strategy 3: Find textareas with caret-black class (common JT form textareas)
+    const caretBlackTextareas = document.querySelectorAll('textarea.caret-black');
+    for (const ta of caretBlackTextareas) {
+      if (!fields.allEditable.includes(ta) && !isExcludedTextarea(ta)) {
+        fields.allEditable.push(ta);
+      }
+    }
+
+    // Strategy 4: Find textareas with transparent text + formatting overlay
+    const allTextareas = document.querySelectorAll('textarea');
+    for (const ta of allTextareas) {
+      if (
+        !fields.allEditable.includes(ta) &&
+        !isExcludedTextarea(ta) &&
+        ta.style.color === 'transparent'
+      ) {
+        fields.allEditable.push(ta);
+      }
+    }
+
+    // Classify fields as description vs footer
+    for (const ta of fields.allEditable) {
+      const context = getFieldContext(ta);
       if (context === 'description' && !fields.description) {
-        fields.description = el;
+        fields.description = ta;
       } else if (context === 'footer' && !fields.footer) {
-        fields.footer = el;
+        fields.footer = ta;
       }
-    });
+    }
 
-    // Fallback: if we found editables but couldn't classify them,
-    // use position — first is description, last (if different) is footer
+    // Fallback: first editable = description, last = footer
     if (!fields.description && fields.allEditable.length > 0) {
       fields.description = fields.allEditable[0];
     }
@@ -248,76 +305,248 @@
   }
 
   /**
-   * Determines field context by looking at nearby labels, headings,
-   * and element attributes.
+   * Check if a textarea should be excluded from auto-populate.
    */
-  function getFieldContext(el) {
-    // Check element itself
-    const elText = (
-      el.className +
-      ' ' +
-      (el.getAttribute('data-placeholder') || '') +
-      ' ' +
-      (el.getAttribute('aria-label') || '') +
-      ' ' +
-      (el.getAttribute('name') || '') +
-      ' ' +
-      (el.id || '')
-    ).toLowerCase();
+  function isExcludedTextarea(ta) {
+    const placeholder = (ta.getAttribute('placeholder') || '').toLowerCase();
 
-    if (/description|scope|intro|body|content|message/.test(elText)) {
-      return 'description';
-    }
-    if (/footer|terms|condition|closing|signature/.test(elText)) {
-      return 'footer';
+    // Exclude known non-document fields
+    if (
+      placeholder === 'set notes' ||
+      placeholder === 'name' ||
+      placeholder === 'add an item...' ||
+      placeholder === 'add an item'
+    ) {
+      return true;
     }
 
-    // Check nearby labels (previous siblings, parent labels)
-    let node = el.previousElementSibling;
-    for (let i = 0; i < 3 && node; i++) {
-      const text = node.textContent.toLowerCase();
-      if (/description|scope|intro/.test(text)) return 'description';
-      if (/footer|terms|condition/.test(text)) return 'footer';
-      node = node.previousElementSibling;
+    if (ta.hasAttribute('data-jt-no-formatter')) {
+      return true;
     }
 
-    // Check parent's preceding heading
-    const parent = el.closest('section, div, fieldset, form');
-    if (parent) {
-      const heading = parent.querySelector('h1, h2, h3, h4, h5, h6, label, legend');
-      if (heading) {
-        const hText = heading.textContent.toLowerCase();
-        if (/description|scope|intro/.test(hText)) return 'description';
-        if (/footer|terms|condition/.test(hText)) return 'footer';
+    // Exclude subtask fields (small padding)
+    if (ta.classList.contains('p-1') && !ta.classList.contains('p-2') && ta.style.color === 'transparent') {
+      return true;
+    }
+
+    // Exclude fields inside Job Parameters popup
+    const paramPopup = ta.closest('.shadow-lg.rounded-sm.bg-white');
+    if (paramPopup) {
+      const paramHeader = paramPopup.querySelector('.font-bold.text-cyan-500.uppercase');
+      if (paramHeader && paramHeader.textContent.toLowerCase().includes('job parameters')) {
+        return true;
+      }
+    }
+
+    // Exclude checklist items
+    const ancestor = ta.closest('div');
+    if (ancestor) {
+      const checklistLabel = ancestor.querySelector('.font-bold');
+      if (checklistLabel && checklistLabel.textContent.trim().toLowerCase() === 'checklist') {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Determines field context by looking at nearby labels, headings,
+   * and element attributes. Uses JobTread's actual class patterns
+   * (.font-bold, .uppercase, .text-jtOrange).
+   */
+  function getFieldContext(ta) {
+    // Check placeholder
+    const placeholder = (ta.getAttribute('placeholder') || '').toLowerCase();
+    if (/description|scope|intro|body|content/.test(placeholder)) return 'description';
+    if (/footer|terms|condition|closing/.test(placeholder)) return 'footer';
+
+    // Check aria-label
+    const ariaLabel = (ta.getAttribute('aria-label') || '').toLowerCase();
+    if (/description|scope/.test(ariaLabel)) return 'description';
+    if (/footer|terms/.test(ariaLabel)) return 'footer';
+
+    // Walk up to find a label (JobTread uses .font-bold.uppercase headers)
+    let container = ta.closest('.rounded-sm.border') || ta.parentElement;
+    if (container) {
+      // Check preceding sibling labels
+      let prev = container.previousElementSibling;
+      for (let i = 0; i < 5 && prev; i++) {
+        const text = prev.textContent.trim().toLowerCase();
+        if (/description|scope|intro|header/i.test(text)) return 'description';
+        if (/footer|terms|condition/i.test(text)) return 'footer';
+        prev = prev.previousElementSibling;
+      }
+
+      // Check labels within the parent section
+      const parentSection = ta.closest('section, [class*="divide-y"], form');
+      if (parentSection) {
+        const allLabels = parentSection.querySelectorAll(
+          '.font-bold, .uppercase, label, h3, h4, h5'
+        );
+        for (const lbl of allLabels) {
+          const lblText = lbl.textContent.trim().toLowerCase();
+          // Only use labels that appear BEFORE the textarea in DOM order
+          if (ta.compareDocumentPosition(lbl) & Node.DOCUMENT_POSITION_PRECEDING) {
+            if (/description|scope|intro|header/i.test(lblText)) return 'description';
+            if (/footer|terms|condition/i.test(lblText)) return 'footer';
+          }
+        }
       }
     }
 
     return null;
   }
 
+  // ---- React-Safe Field Setting ----
+
+  /**
+   * Sets textarea value using the native HTMLTextAreaElement.prototype.value
+   * setter, then dispatches input + change events immediately so React
+   * picks up the change. React will CLEAR the value if events are delayed.
+   */
+  function setTextareaValue(textarea, value) {
+    if (!textarea) return;
+
+    textarea.focus();
+
+    // Use native setter to bypass React's controlled component
+    nativeTextareaSetter.call(textarea, value);
+
+    // Set cursor at end
+    textarea.setSelectionRange(value.length, value.length);
+
+    // Dispatch input event IMMEDIATELY (React clears value if we delay)
+    const inputEvent = new InputEvent('input', {
+      bubbles: true,
+      cancelable: false,
+      composed: true,
+      data: null,
+      dataTransfer: null,
+      inputType: 'insertText',
+      isComposing: false,
+    });
+    textarea.dispatchEvent(inputEvent);
+
+    // Dispatch change event immediately too
+    const changeEvent = new Event('change', {
+      bubbles: true,
+      cancelable: false,
+    });
+    textarea.dispatchEvent(changeEvent);
+  }
+
   // ---- Template System ----
 
+  /**
+   * Default description template using JobTread's plaintext markdown formatting.
+   * *bold*  ^italic^  ## headings  - bullets
+   */
   function getDefaultDescriptionTemplate() {
     return [
-      'Project: {{jobName}}',
-      '{{#jobNumber}}Job #: {{jobNumber}}{{/jobNumber}}',
-      '',
-      '{{#customerName}}Customer: {{customerName}}{{/customerName}}',
-      '{{#company}}Company: {{company}}{{/company}}',
-      '{{#customerEmail}}Email: {{customerEmail}}{{/customerEmail}}',
-      '{{#customerPhone}}Phone: {{customerPhone}}{{/customerPhone}}',
-      '',
-      '{{#jobAddress}}Project Address: {{jobAddress}}{{/jobAddress}}',
-      '',
-      '{{#jobDescription}}Scope of Work:',
-      '{{jobDescription}}{{/jobDescription}}',
+      '*JobTread Implementation Agreement — *^{{company}}^**',
+      '*Client:* *^{{company}}^* ("Client") • *Contact:* *^{{customerName}}^*',
+      '*Provider:* Better Boss ("Provider")',
+      '*Project:* Full JobTread build-out operating system for remodeling and construction',
+      '*Term:* 30 business day implementation from kickoff',
+      '*Total Contract Value:* *$10,000 USD*',
+      '*Financing:* See Section 6',
+      '##1) Objective',
+      'Deploy a single, structured JobTread OS that speeds proposals, reduces chaos, and gives clear visibility across jobs and finances.',
+      '##2) Scope of Work',
+      '####2.1 Meetings & Communication',
+      '- 2-hour kickoff meeting',
+      '- 1 midway checkpoint meeting',
+      '- 1 final meeting',
+      '- Chat/message communication in JobTread with 24-hour email support',
+      '####2.2 Implementation Schedule',
+      'Custom implementation schedule built inside JobTread to track progress and milestones.',
+      '####2.3 Cost Catalog Build',
+      'Complete cost catalog build including suppliers, labor, materials, cost groups, product and material catalog (Lowe\'s + local vendors) uploaded, standardized, and linked to cost codes.',
+      '####2.4 Job Costing Framework',
+      'Job costing review including units, cost codes, and cost types configured for accurate project tracking.',
+      '####2.5 Custom Views',
+      'Custom views across all modules including jobs, customers, catalog, and more for streamlined navigation.',
+      '####2.6 Estimating Engine',
+      '- Parameters and formulas for quantity formulas in estimate templates',
+      '- Measurement integration (RENDR, Hover, or EagleView) OR setup for manual parameter input',
+      '- 3-5 estimate templates with cost groups, formulas, and parameter fields for fast, accurate range-based pricing',
+      '####2.7 Document Templates',
+      'Document template build-out including details, design, and custom cover PDFs. Proposals, Closeout Packets, Certificates of Completion, Contracts, and Change Orders configured and branded.',
+      '####2.8 Dashboards',
+      '1-2 custom dashboards with live metrics by role—estimating accuracy, job costs, and pipeline status.',
+      '####2.9 Automation Suite',
+      'Up to 5 custom notifications OR 2-4 workflows as needed for client and trade partner communication including reminders, scheduling, and follow-ups.',
+      '####2.10 SOP Guides',
+      '5-10 SOP guides with refined standard operating procedures embedded directly in JobTread, built for repeatability and automation.',
+      '####2.11 Integration Review',
+      'Integration review (QuickBooks Online, etc.) to ensure connection is solid. Note: Provider is not an accountant but will verify integration functionality.',
+      '####2.12 Training & Handoff',
+      'Role-based videos, SOP reference map, and admin maintenance guide for full control post-launch.',
+      '##3) Scope Exclusions (Priced Separately)',
+      '- Custom API development',
+      '- Data migrations (e.g., CoConstruct migration = +$1,000 USD)',
+      '- GHL CRM integration',
+      '- Build out of integrated tools',
+      '- In-house takeoff tooling',
+      '##4) Process Assumptions',
+      '- Estimating: fixed cost and range-based models',
+      '- Standard JobTread features only; no external code or plug-ins',
+      '- Can help implement tools like RENDR or prebuilt integrations with JobTread',
+      '##5) Timeline (30 Business Days)',
+      '- Week 1: Kickoff, access setup, system mapping',
+      '- Week 2: Build templates, workflows, and automations; midpoint review',
+      '- Week 3: Finalize documents, dashboards, and schedules',
+      '- Week 4: QA, training videos, admin guide, go-live',
+      '##6) Pricing & Financing',
+      '*Fixed Fee*: $10,000 USD',
+      '*Financing options:*',
+      '6 mo: $1,666.67/mo — no interest',
+      '12 mo: $879.13/mo — ~$549.56 interest',
+      '36 mo: $322.63/mo — ~$1,614.90 interest',
+      '^Final terms subject to credit and approvals.^',
+      '##7) Payment Terms',
+      '- *100% due at kickoff* to schedule and start work',
+      '- If financed, the financing schedule replaces upfront payment',
+      '##8) Client Responsibilities',
+      '- Add Provider as a JobTread user and grant full access within 2 business days',
+      '- Provide reference materials (specs, selections, budgets, contract templates)',
+      '- Designate a decision-maker for reviews/approvals within 2 business days',
+      '- Attend kickoff and midpoint review',
+      '##9) Change Orders',
+      'Any change that adds scope, exceeds revision limits, or extends the timeline will require a change order and separate pricing.',
+      '##10) Support & Additional Work',
+      '- Post-go-live support available at an additional fee',
+      '- New projects outside this scope require a separate SOW',
+      '##11) Intellectual Property',
+      '- Client owns deliverables upon full payment',
+      '- Provider retains reusable frameworks',
+      '- No disclosure of Client data without consent',
+      '##12) Data Protection',
+      'Client is responsible for independent backups. Provider is not liable for data loss from Client actions or third-party outages.',
+      '##13) Limitation of Liability',
+      'Liability capped at total fees paid in prior 6 months. No consequential or special damages.',
+      '##14) Force Majeure',
+      'No liability for delays caused by events outside reasonable control.',
+      '##15) Confidentiality',
+      'Non-public information remains confidential and must be handled with reasonable care.',
+      '##16) Indemnification',
+      'Client indemnifies Provider against third-party claims from misuse or breach.',
+      '##17) Dispute Resolution & Governing Law',
+      '30-day informal negotiation, then binding arbitration in Denver, CO under AAA rules. Colorado law governs.',
+      '##18) Entire Agreement & Amendments',
+      'This document is the full agreement; changes require written approval.',
+      '##19) Counterparts & E-Signature',
+      'This agreement may be signed electronically and in counterparts.',
+      '##20) Acceptance & Signature',
+      'This Agreement is binding upon Client\'s signature below. *Better Boss\' acceptance is deemed upon (a) commencement of services or (b) receipt of the first payment.* No additional Provider signature required.',
     ].join('\n');
   }
 
   function getDefaultFooterTemplate() {
     return [
-      '{{#customerName}}Prepared for: {{customerName}}{{/customerName}}',
-      '{{#company}} | {{company}}{{/company}}',
+      '{{#customerName}}*Prepared for:* {{customerName}}{{/customerName}}',
+      '{{#company}} | *{{company}}*{{/company}}',
       '{{#jobName}} | Project: {{jobName}}{{/jobName}}',
       '{{#jobNumber}} | Job #{{jobNumber}}{{/jobNumber}}',
     ].join('');
@@ -335,7 +564,6 @@
       /\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g,
       (match, key, content) => {
         if (data[key] && data[key].toString().trim()) {
-          // Render inner content with variable substitution
           return content.replace(/\{\{(\w+)\}\}/g, (m, k) => data[k] || '');
         }
         return '';
@@ -367,59 +595,6 @@
     };
   }
 
-  // ---- Field Population ----
-
-  /**
-   * Sets content in an editable field, handling both contenteditable divs
-   * and textarea/input elements. Dispatches input events to trigger
-   * any framework change detection.
-   */
-  function setFieldContent(field, content) {
-    if (!field) return;
-
-    if (field.tagName === 'TEXTAREA' || field.tagName === 'INPUT') {
-      field.value = content;
-      field.dispatchEvent(new Event('input', { bubbles: true }));
-      field.dispatchEvent(new Event('change', { bubbles: true }));
-    } else if (
-      field.getAttribute('contenteditable') === 'true' ||
-      field.classList.contains('ql-editor') ||
-      field.classList.contains('ProseMirror') ||
-      field.getAttribute('role') === 'textbox'
-    ) {
-      // For rich text editors, use innerHTML to preserve formatting ability
-      const htmlContent = content
-        .split('\n')
-        .map((line) => (line.trim() ? `<p>${escapeHtml(line)}</p>` : '<p><br></p>'))
-        .join('');
-
-      field.focus();
-      field.innerHTML = htmlContent;
-      field.dispatchEvent(new Event('input', { bubbles: true }));
-      field.dispatchEvent(new Event('change', { bubbles: true }));
-
-      // For ProseMirror-based editors, dispatch a more specific event
-      field.dispatchEvent(
-        new InputEvent('beforeinput', {
-          inputType: 'insertText',
-          data: content,
-          bubbles: true,
-          cancelable: true,
-        })
-      );
-    } else {
-      // Fallback: try setting textContent
-      field.textContent = content;
-      field.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-  }
-
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
   // ---- Auto-Populate Logic ----
 
   async function autoPopulate(mode = 'both') {
@@ -431,7 +606,6 @@
     // Merge with any stored overrides from the popup
     const stored = await getStoredSettings();
 
-    // Override extracted info with any manual entries from settings
     if (stored.jobName) jobInfo.jobName = stored.jobName;
     if (stored.jobNumber) jobInfo.jobNumber = stored.jobNumber;
     if (stored.customerName) customerInfo.customerName = stored.customerName;
@@ -452,7 +626,7 @@
     if (mode === 'both' || mode === 'description') {
       if (fields.description) {
         const descContent = renderTemplate(descTemplate, data);
-        setFieldContent(fields.description, descContent);
+        setTextareaValue(fields.description, descContent);
         log('Description populated');
       } else {
         log('No description field found');
@@ -462,7 +636,7 @@
     if (mode === 'both' || mode === 'footer') {
       if (fields.footer) {
         const footerContent = renderTemplate(footerTemplate, data);
-        setFieldContent(fields.footer, footerContent);
+        setTextareaValue(fields.footer, footerContent);
         log('Footer populated');
       } else {
         log('No footer field found');
@@ -549,6 +723,7 @@
   function createPanel() {
     const jobInfo = currentJobInfo || extractJobInfo();
     const customerInfo = currentCustomerInfo || extractCustomerInfo();
+    const fields = findEditableFields();
 
     const panel = document.createElement('div');
     panel.id = PANEL_ID;
@@ -561,7 +736,16 @@
 
         <div class="bb-panel__body">
           <div class="bb-panel__section">
-            <h4>Detected Job Info</h4>
+            <h4>Page Status</h4>
+            <div class="bb-status ${fields.allEditable.length > 0 ? 'bb-status--success' : 'bb-status--warning'}">
+              ${fields.allEditable.length} textarea field(s) found
+              ${fields.description ? ' | Description: Yes' : ' | Description: No'}
+              ${fields.footer ? ' | Footer: Yes' : ' | Footer: No'}
+            </div>
+          </div>
+
+          <div class="bb-panel__section">
+            <h4>Job Info</h4>
             <div class="bb-field-group">
               <label>Job Name</label>
               <input type="text" id="bb-job-name" value="${escapeAttr(jobInfo.jobName)}" placeholder="Enter job name..."/>
@@ -577,7 +761,7 @@
           </div>
 
           <div class="bb-panel__section">
-            <h4>Detected Customer Info</h4>
+            <h4>Customer Info</h4>
             <div class="bb-field-group">
               <label>Customer Name</label>
               <input type="text" id="bb-customer-name" value="${escapeAttr(customerInfo.customerName)}" placeholder="Enter customer name..."/>
@@ -603,10 +787,10 @@
                 Fill Description & Footer
               </button>
               <button class="bb-btn bb-btn--secondary" id="bb-fill-desc">
-                Fill Description Only
+                Description Only
               </button>
               <button class="bb-btn bb-btn--secondary" id="bb-fill-footer">
-                Fill Footer Only
+                Footer Only
               </button>
             </div>
           </div>
@@ -620,7 +804,6 @@
 
     document.body.appendChild(panel);
 
-    // Wire up events
     document.getElementById('bb-close-panel').addEventListener('click', () => {
       panel.remove();
     });
@@ -639,7 +822,6 @@
   }
 
   function fillFromPanel(mode) {
-    // Read values from panel inputs
     const jobInfo = {
       jobName: document.getElementById('bb-job-name')?.value || '',
       jobNumber: document.getElementById('bb-job-number')?.value || '',
@@ -667,23 +849,23 @@
       const footerTemplate = stored.footerTemplate || getDefaultFooterTemplate();
 
       const statusEl = document.getElementById('bb-status');
-      let messages = [];
+      const messages = [];
 
       if (mode === 'both' || mode === 'description') {
         if (fields.description) {
-          setFieldContent(fields.description, renderTemplate(descTemplate, data));
+          setTextareaValue(fields.description, renderTemplate(descTemplate, data));
           messages.push('Description populated');
         } else {
-          messages.push('No description field found on page');
+          messages.push('No description field found');
         }
       }
 
       if (mode === 'both' || mode === 'footer') {
         if (fields.footer) {
-          setFieldContent(fields.footer, renderTemplate(footerTemplate, data));
+          setTextareaValue(fields.footer, renderTemplate(footerTemplate, data));
           messages.push('Footer populated');
         } else {
-          messages.push('No footer field found on page');
+          messages.push('No footer field found');
         }
       }
 
@@ -692,22 +874,24 @@
 
       if (statusEl) {
         const hasError = messages.some((m) => m.includes('not found'));
-        statusEl.className = hasError ? 'bb-status bb-status--warning' : 'bb-status bb-status--success';
+        statusEl.className = hasError
+          ? 'bb-status bb-status--warning'
+          : 'bb-status bb-status--success';
         statusEl.textContent = messages.join(' | ');
       }
     });
   }
 
   function escapeAttr(str) {
-    return (str || '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return (str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
   }
 
   // ---- Auto-Detection & Polling ----
 
-  /**
-   * Polls for editable fields appearing on the page (SPAs may load them late).
-   * Once fields are found, optionally auto-populates if enabled.
-   */
   function startPolling() {
     let attempts = 0;
 
@@ -722,13 +906,14 @@
         return;
       }
 
-      if (!isDocumentPage() && !isJobPage()) return;
+      if (isExcludedPage()) return;
+      if (!isDocumentPage() && !isJobPage() && !isBudgetPage()) return;
 
       const fields = findEditableFields();
       if (fields.allEditable.length > 0 && !isPopulated) {
         const stored = await getStoredSettings();
         if (stored.autoPopulateEnabled !== false) {
-          log('Editable fields found, auto-populating...');
+          log('Textarea fields found, auto-populating...');
           autoPopulate('both');
           clearInterval(pollTimer);
           pollTimer = null;
@@ -740,8 +925,9 @@
   // ---- MutationObserver ----
 
   const handleMutation = debounce(() => {
-    // Re-check if we navigated to a new document page (SPA navigation)
-    if (isDocumentPage() || isJobPage()) {
+    if (isExcludedPage()) return;
+
+    if (isDocumentPage() || isJobPage() || isBudgetPage()) {
       createFloatingButton();
       if (!isPopulated) {
         startPolling();
@@ -765,13 +951,12 @@
     const check = () => {
       if (window.location.href !== lastUrl) {
         lastUrl = window.location.href;
-        isPopulated = false; // Reset for new page
+        isPopulated = false;
         log('URL changed to:', lastUrl);
         handleMutation();
       }
     };
 
-    // Watch for pushState/replaceState
     const origPush = history.pushState;
     history.pushState = function (...args) {
       origPush.apply(this, args);
@@ -795,7 +980,7 @@
         autoPopulate(message.mode || 'both').then((result) => {
           sendResponse({ success: true, result });
         });
-        return true; // async response
+        return true;
       }
 
       if (message.action === 'getPageInfo') {
@@ -832,7 +1017,12 @@
   function init() {
     log('Initializing on', window.location.href);
 
-    if (isDocumentPage() || isJobPage()) {
+    if (isExcludedPage()) {
+      log('Excluded page, skipping.');
+      return;
+    }
+
+    if (isDocumentPage() || isJobPage() || isBudgetPage()) {
       createFloatingButton();
       startPolling();
     }
@@ -841,7 +1031,6 @@
     setupUrlWatcher();
   }
 
-  // Run when DOM is ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {

@@ -14,24 +14,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ---- Default Templates ----
 
+  // Default uses JobTread's plaintext markdown: *bold* ^italic^ ## headings - bullets
   const DEFAULT_DESC_TEMPLATE = [
-    'Project: {{jobName}}',
-    '{{#jobNumber}}Job #: {{jobNumber}}{{/jobNumber}}',
-    '',
-    '{{#customerName}}Customer: {{customerName}}{{/customerName}}',
-    '{{#company}}Company: {{company}}{{/company}}',
-    '{{#customerEmail}}Email: {{customerEmail}}{{/customerEmail}}',
-    '{{#customerPhone}}Phone: {{customerPhone}}{{/customerPhone}}',
-    '',
-    '{{#jobAddress}}Project Address: {{jobAddress}}{{/jobAddress}}',
-    '',
-    '{{#jobDescription}}Scope of Work:',
-    '{{jobDescription}}{{/jobDescription}}',
+    '*JobTread Implementation Agreement — *^{{company}}^**',
+    '*Client:* *^{{company}}^* ("Client") • *Contact:* *^{{customerName}}^*',
+    '*Provider:* Better Boss ("Provider")',
+    '*Project:* Full JobTread build-out operating system for remodeling and construction',
+    '*Term:* 30 business day implementation from kickoff',
+    '*Total Contract Value:* *$10,000 USD*',
+    '*Financing:* See Section 6',
+    '##1) Objective',
+    'Deploy a single, structured JobTread OS that speeds proposals, reduces chaos, and gives clear visibility across jobs and finances.',
+    '##2) Scope of Work',
+    '####2.1 Meetings & Communication',
+    '- 2-hour kickoff meeting',
+    '- 1 midway checkpoint meeting',
+    '- 1 final meeting',
+    '- Chat/message communication in JobTread with 24-hour email support',
+    '// ... (full agreement template — customize in options)',
+    '##20) Acceptance & Signature',
+    'This Agreement is binding upon Client\'s signature below. *Better Boss\' acceptance is deemed upon (a) commencement of services or (b) receipt of the first payment.* No additional Provider signature required.',
   ].join('\n');
 
   const DEFAULT_FOOTER_TEMPLATE = [
-    '{{#customerName}}Prepared for: {{customerName}}{{/customerName}}',
-    '{{#company}} | {{company}}{{/company}}',
+    '{{#customerName}}*Prepared for:* {{customerName}}{{/customerName}}',
+    '{{#company}} | *{{company}}*{{/company}}',
     '{{#jobName}} | Project: {{jobName}}{{/jobName}}',
     '{{#jobNumber}} | Job #{{jobNumber}}{{/jobNumber}}',
   ].join('');
