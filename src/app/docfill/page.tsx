@@ -10,7 +10,7 @@ export default function DocFillPage() {
           <div>
             <h1 className="text-3xl font-bold">Better Boss <span className="text-orange-500">DocFill</span></h1>
             <p className="text-neutral-500 text-sm mt-1">
-              Chrome Extension &middot; Smart document builder for JobTread
+              Smart document builder for JobTread
             </p>
           </div>
         </div>
@@ -25,52 +25,90 @@ export default function DocFillPage() {
             then instantly generates perfectly formatted descriptions and footers for every document.
             Just copy and paste.
           </p>
-          <a
-            href="/betterboss-docfill-extension.zip"
-            download
-            className="inline-flex items-center gap-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold px-8 py-4 rounded-xl text-lg hover:from-orange-400 hover:to-orange-500 transition-all shadow-lg shadow-orange-500/20"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            Download Extension (.zip)
-          </a>
         </section>
 
-        {/* Install Steps */}
+        {/* Install — Primary: Tampermonkey */}
+        <section className="space-y-6">
+          <h2 className="text-xl font-bold text-orange-500">Install in 2 Steps</h2>
+
+          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-5">
+            <div className="flex gap-4">
+              <span className="w-10 h-10 rounded-full bg-orange-500/10 text-orange-500 font-bold text-lg flex items-center justify-center shrink-0">1</span>
+              <div className="space-y-2">
+                <p className="text-white font-semibold text-base">Install Tampermonkey (free, one time)</p>
+                <p className="text-neutral-400 text-sm">Tampermonkey is a trusted browser extension used by millions. It lets you run scripts like DocFill.</p>
+                <a
+                  href="https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-neutral-800 border border-neutral-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm hover:border-orange-500 transition-all"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                    <polyline points="15 3 21 3 21 9" />
+                    <line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                  Get Tampermonkey (Chrome Web Store)
+                </a>
+              </div>
+            </div>
+
+            <div className="border-t border-neutral-800" />
+
+            <div className="flex gap-4">
+              <span className="w-10 h-10 rounded-full bg-orange-500/10 text-orange-500 font-bold text-lg flex items-center justify-center shrink-0">2</span>
+              <div className="space-y-2">
+                <p className="text-white font-semibold text-base">Click to install DocFill</p>
+                <p className="text-neutral-400 text-sm">
+                  Tampermonkey will pop up asking to confirm. Click &ldquo;Install&rdquo; and you&apos;re done.
+                  Updates happen automatically.
+                </p>
+                <a
+                  href="/betterboss-docfill.user.js"
+                  className="inline-flex items-center gap-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold px-8 py-4 rounded-xl text-lg hover:from-orange-400 hover:to-orange-500 transition-all shadow-lg shadow-orange-500/20"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Install Better Boss DocFill
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-neutral-500 text-sm text-center">
+            That&apos;s it. Open any job or document in <a href="https://app.jobtread.com" target="_blank" rel="noopener noreferrer" className="text-orange-500 hover:text-orange-400">JobTread</a> and look for the orange <strong className="text-white">BB</strong> button.
+          </p>
+        </section>
+
+        {/* How it works */}
         <section className="space-y-4">
-          <h2 className="text-xl font-bold text-orange-500">Install in 60 Seconds</h2>
+          <h2 className="text-xl font-bold text-orange-500">How It Works</h2>
           <ol className="space-y-4 text-neutral-300">
             <li className="flex gap-4">
               <span className="w-8 h-8 rounded-full bg-orange-500/10 text-orange-500 font-bold flex items-center justify-center shrink-0">1</span>
               <div>
-                <strong className="text-white">Download</strong> the ZIP file above and <strong className="text-white">unzip</strong> it anywhere on your computer.
+                Navigate to any <strong className="text-white">job, proposal, contract, or document</strong> in JobTread.
               </div>
             </li>
             <li className="flex gap-4">
               <span className="w-8 h-8 rounded-full bg-orange-500/10 text-orange-500 font-bold flex items-center justify-center shrink-0">2</span>
               <div>
-                Open Chrome and go to <code className="bg-neutral-800 text-orange-400 px-2 py-0.5 rounded text-sm">chrome://extensions</code>
+                Click the orange <strong className="text-white">BB</strong> button in the bottom-right corner.
               </div>
             </li>
             <li className="flex gap-4">
               <span className="w-8 h-8 rounded-full bg-orange-500/10 text-orange-500 font-bold flex items-center justify-center shrink-0">3</span>
               <div>
-                Turn on <strong className="text-white">Developer mode</strong> (top-right toggle).
+                Fill in client details (or let DocFill auto-detect them). Your business profile fills in automatically.
               </div>
             </li>
             <li className="flex gap-4">
               <span className="w-8 h-8 rounded-full bg-orange-500/10 text-orange-500 font-bold flex items-center justify-center shrink-0">4</span>
               <div>
-                Click <strong className="text-white">&ldquo;Load unpacked&rdquo;</strong> and select the <code className="bg-neutral-800 text-orange-400 px-2 py-0.5 rounded text-sm">extension</code> folder inside the unzipped directory.
-              </div>
-            </li>
-            <li className="flex gap-4">
-              <span className="w-8 h-8 rounded-full bg-orange-500/10 text-orange-500 font-bold flex items-center justify-center shrink-0">5</span>
-              <div>
-                The settings page opens automatically &mdash; <strong className="text-white">fill in your business profile</strong> and you&apos;re ready.
+                Click <strong className="text-white">&ldquo;Copy Description&rdquo;</strong> or <strong className="text-white">&ldquo;Copy Footer&rdquo;</strong> and paste into JobTread. Done.
               </div>
             </li>
           </ol>
@@ -85,7 +123,7 @@ export default function DocFillPage() {
               ['Copy & Paste', 'Click "Copy Description" or "Copy Footer" and paste directly into JobTread fields. No wrong field injection.'],
               ['Custom Templates', 'Full template editor with variables like {{bizName}}, {{company}}, {{jobNumber}}. Conditional blocks supported.'],
               ['Export / Import', 'Back up your profile and templates. Share across machines or team members with a JSON file.'],
-              ['Works Everywhere', 'Auto-detects proposals, contracts, estimates, invoices, change orders, work orders, and more.'],
+              ['Auto-Updates', 'Updates deploy instantly to everyone — no reinstalls, no Chrome Web Store review delays.'],
               ['Built for Contractors', 'Default SOW template covers the full 20-section implementation agreement with financing terms.'],
             ].map(([title, desc]) => (
               <div key={title} className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
@@ -94,6 +132,25 @@ export default function DocFillPage() {
               </div>
             ))}
           </div>
+        </section>
+
+        {/* Manual fallback */}
+        <section className="space-y-3">
+          <details className="group">
+            <summary className="text-neutral-500 text-sm cursor-pointer hover:text-neutral-400 transition-colors">
+              Prefer a standalone Chrome extension? (Advanced)
+            </summary>
+            <div className="mt-4 bg-neutral-900 border border-neutral-800 rounded-xl p-5 space-y-3 text-sm text-neutral-400">
+              <p>You can also install DocFill as a standalone Chrome extension:</p>
+              <ol className="list-decimal pl-5 space-y-1">
+                <li>Download the <a href="/betterboss-docfill-extension.zip" download className="text-orange-500 hover:text-orange-400">extension ZIP</a> and unzip it</li>
+                <li>Go to <code className="bg-neutral-800 text-orange-400 px-1.5 py-0.5 rounded text-xs">chrome://extensions</code></li>
+                <li>Enable <strong className="text-white">Developer mode</strong> (top-right toggle)</li>
+                <li>Click <strong className="text-white">&ldquo;Load unpacked&rdquo;</strong> and select the unzipped folder</li>
+              </ol>
+              <p className="text-neutral-500 text-xs">Note: The standalone extension doesn&apos;t auto-update. You&apos;ll need to re-download for new versions.</p>
+            </div>
+          </details>
         </section>
 
         {/* CTA */}
