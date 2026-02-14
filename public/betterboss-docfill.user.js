@@ -1,18 +1,18 @@
 // ==UserScript==
 // @name         Better Boss — DocFill for JobTread
-// @namespace    https://mybetterboss.ai
+// @namespace    https://better-boss.ai
 // @version      1.0.1
 // @description  Auto-generate proposals, contracts & SOWs inside JobTread. Set up your business profile once, then instantly copy perfectly formatted descriptions and footers.
-// @author       Better Boss (mybetterboss.ai)
+// @author       Better Boss (better-boss.ai)
 // @match        https://app.jobtread.com/*
-// @icon         https://mybetterboss.ai/favicon.ico
+// @icon         https://better-boss.ai/favicon.ico
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_addStyle
-// @homepageURL  https://mybetterboss.ai
-// @supportURL   https://mybetterboss.ai
-// @updateURL    https://mybetterboss.ai/betterboss-docfill.user.js
-// @downloadURL  https://mybetterboss.ai/betterboss-docfill.user.js
+// @homepageURL  https://better-boss.ai
+// @supportURL   https://better-boss.ai
+// @updateURL    https://better-boss.ai/betterboss-docfill.user.js
+// @downloadURL  https://better-boss.ai/betterboss-docfill.user.js
 // @run-at       document-idle
 // ==/UserScript==
 
@@ -471,7 +471,7 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
         <div class="bb-panel__body" id="bb-panel-body"></div>
         <div class="bb-panel__footer">
           ${BRAND} DocFill v1.0 &nbsp;\u00B7&nbsp;
-          <a href="https://mybetterboss.ai" target="_blank" rel="noopener">mybetterboss.ai</a>
+          <a href="https://better-boss.ai" target="_blank" rel="noopener">better-boss.ai</a>
         </div>
       </div>`;
 
@@ -631,7 +631,7 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
         <div class="bb-settings-card">
           <div class="bb-frow">
             <div class="bb-field"><label>Your Name</label><input id="bb-s-name" value="${esc(p.ownerName)}" placeholder="e.g. Nick Peret" maxlength="120"/></div>
-            <div class="bb-field"><label>Email</label><input id="bb-s-email" type="email" value="${esc(p.bizEmail)}" placeholder="e.g. nick@mybetterboss.ai" maxlength="200"/></div>
+            <div class="bb-field"><label>Email</label><input id="bb-s-email" type="email" value="${esc(p.bizEmail)}" placeholder="e.g. nick@better-boss.ai" maxlength="200"/></div>
           </div>
           <div class="bb-frow">
             <div class="bb-field"><label>Company</label><input id="bb-s-company" value="${esc(p.bizName)}" placeholder="e.g. Better Boss" maxlength="200"/></div>
@@ -639,7 +639,7 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
           </div>
           <div class="bb-frow">
             <div class="bb-field"><label>Address</label><input id="bb-s-address" value="${esc(p.bizAddress)}" placeholder="e.g. Denver, CO" maxlength="300"/></div>
-            <div class="bb-field"><label>Website</label><input id="bb-s-website" type="url" value="${esc(p.bizWebsite)}" placeholder="e.g. https://mybetterboss.ai" maxlength="200"/></div>
+            <div class="bb-field"><label>Website</label><input id="bb-s-website" type="url" value="${esc(p.bizWebsite)}" placeholder="e.g. https://better-boss.ai" maxlength="200"/></div>
           </div>
           <div class="bb-field"><label>License #</label><input id="bb-s-license" value="${esc(p.bizLicense)}" placeholder="e.g. CON-12345" maxlength="60"/></div>
           <div class="bb-faction">
