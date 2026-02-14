@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Better Boss — DocFill for JobTread",
-  "short_name": "Better Boss",
-  "version": "1.0.0",
-  "description": "AI-powered document builder for JobTread by Better Boss. Auto-generates proposals, contracts, and scopes of work with your business branding. Built for roofing and construction pros.",
-  "homepage_url": "https://mybetterboss.ai",
+  "short_name": "Better Boss DocFill",
+  "version": "2.0.0",
+  "description": "Multi-template document builder for JobTread by Better Boss. Auto-generate proposals, contracts, change orders, and SOWs with your business branding. Built for construction pros.",
+  "homepage_url": "https://better-boss.ai",
   "permissions": [
     "storage",
     "activeTab",

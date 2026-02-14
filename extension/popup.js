@@ -1,29 +1,34 @@
-// Better Boss — DocFill Popup · mybetterboss.ai
+// Better Boss — DocFill v2.0 Popup
+// https://better-boss.ai
 
 document.addEventListener('DOMContentLoaded', () => {
   const $ = id => document.getElementById(id);
-  const dot       = $('dot');
+  const dot = $('dot');
   const statusTxt = $('status-text');
-  const setupCta  = $('setup-cta');
-  const howSec    = $('how-section');
-  const infoSec   = $('info-section');
-  const infoGrid  = $('info-grid');
+  const setupCta = $('setup-cta');
+  const infoSec = $('info-section');
+  const infoGrid = $('info-grid');
   const actionSec = $('actions-section');
-  const avatar    = $('popup-avatar');
-  const name      = $('popup-name');
-  const company   = $('popup-company');
+  const avatar = $('popup-avatar');
+  const name = $('popup-name');
+  const company = $('popup-company');
 
   let loggedIn = false;
 
   function initials(n) {
     if (!n) return 'BB';
     const p = n.trim().split(/\s+/);
-    return p.length >= 2 ? (p[0][0]+p[p.length-1][0]).toUpperCase() : p[0].substring(0,2).toUpperCase();
+    return p.length >= 2 ? (p[0][0] + p[p.length - 1][0]).toUpperCase() : p[0].substring(0, 2).toUpperCase();
   }
-  function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
-  // Load profile
-  chrome.storage.sync.get(['profile'], (r) => {
+  function escHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // Load profile from local storage
+  chrome.storage.local.get(['profile'], (r) => {
     if (chrome.runtime.lastError) {
       statusTxt.textContent = 'Storage error — try reloading';
       return;
@@ -35,7 +40,6 @@ document.addEventListener('DOMContentLoaded', () => {
       name.textContent = p.ownerName;
       company.textContent = p.bizName || '';
       setupCta.style.display = 'none';
-      howSec.style.display = 'block';
     } else {
       setupCta.style.display = 'block';
     }
@@ -58,13 +62,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (resp.isRelevantPage) {
           dot.className = 'dot dot--on';
-          statusTxt.textContent = 'Ready — click the BB button on the page';
+          statusTxt.textContent = 'Ready — click the DocFill button on the page';
           if (loggedIn) actionSec.style.display = 'block';
         } else {
           dot.className = 'dot dot--warn';
           statusTxt.textContent = 'Navigate to a document page';
         }
-        // Show detected info
         const rows = [];
         if (resp.jobInfo?.jobName) rows.push(['Job', resp.jobInfo.jobName]);
         if (resp.jobInfo?.jobNumber) rows.push(['Job #', resp.jobInfo.jobNumber]);
@@ -72,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (resp.customerInfo?.phone) rows.push(['Phone', resp.customerInfo.phone]);
         if (rows.length) {
           infoSec.style.display = 'block';
-          infoGrid.innerHTML = rows.map(([l,v]) =>
+          infoGrid.innerHTML = rows.map(([l, v]) =>
             `<div class="info-row"><span class="info-l">${l}</span><span class="info-v">${escHtml(v)}</span></div>`
           ).join('');
         }

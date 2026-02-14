@@ -5,7 +5,6 @@ const nextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: 'app.jobtread.com' },
       { protocol: 'https', hostname: 'better-boss.ai' },
-      { protocol: 'https', hostname: 'mybetterboss.ai' },
     ],
   },
   async headers() {

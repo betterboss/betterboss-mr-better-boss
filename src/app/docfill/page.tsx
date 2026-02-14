@@ -1,10 +1,10 @@
 const features = [
   { icon: 'user', title: 'Business Profile', desc: 'Set up once — your company name, phone, email, license & address auto-fill into every document.', accent: 'indigo' },
-  { icon: 'copy', title: 'Copy & Paste', desc: 'One-click copy for descriptions and footers. Paste directly into JobTread fields. No mistakes.', accent: 'violet' },
-  { icon: 'file', title: 'Custom Templates', desc: 'Full template editor with variables like {{bizName}} and conditional blocks.', accent: 'indigo' },
-  { icon: 'upload', title: 'Export / Import', desc: 'Back up your profile and templates. Share across machines or team members with JSON.', accent: 'violet' },
-  { icon: 'trend', title: 'Auto-Updates', desc: 'Updates deploy instantly — no reinstalls, no Chrome Web Store review delays.', accent: 'indigo' },
-  { icon: 'home', title: 'Built for Contractors', desc: 'Default SOW template covers the full 20-section implementation agreement with financing.', accent: 'violet' },
+  { icon: 'copy', title: 'Copy All', desc: 'Copy description, footer, or everything at once. Paste directly into JobTread. No retyping.', accent: 'violet' },
+  { icon: 'file', title: 'Multi-Template Library', desc: 'Switch between proposal, contract, change order, and SOW templates instantly. Create unlimited custom templates.', accent: 'indigo' },
+  { icon: 'upload', title: 'Snippets & Custom Vars', desc: 'Save reusable text blocks. Add custom variables for project managers, estimators, and more.', accent: 'violet' },
+  { icon: 'trend', title: 'Keyboard Shortcuts', desc: 'Ctrl+Shift+B to toggle, Ctrl+Shift+D to copy description, Ctrl+Shift+F for footer. Speed is everything.', accent: 'indigo' },
+  { icon: 'home', title: 'Built for Contractors', desc: 'Pre-built templates for proposals, change orders, SOWs, and more. Export/import to share across your team.', accent: 'violet' },
 ] as const;
 
 const FeatureIcon = ({ type }: { type: string }) => {
@@ -297,7 +297,7 @@ export default function DocFillPage() {
       {/* Footer */}
       <footer className="relative z-10 text-center py-9" style={{ borderTop: '1px solid rgba(99,102,241,0.06)' }}>
         <p className="text-[12px] text-[#374151]">
-          Better Boss DocFill v1.0 &middot; Built by{' '}
+          Better Boss DocFill v2.0 &middot; Built by{' '}
           <a href="https://better-boss.ai" target="_blank" rel="noopener noreferrer" className="text-[#4b5563] hover:text-[#818cf8] transition-colors">Better Boss</a>
           {' '}&middot;{' '}
           <a href="https://better-boss.ai" target="_blank" rel="noopener noreferrer" className="text-[#4b5563] hover:text-[#818cf8] transition-colors">better-boss.ai</a>
