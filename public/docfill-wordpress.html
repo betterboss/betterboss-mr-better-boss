@@ -54,7 +54,6 @@
   .bb-sec:nth-child(3) { animation-delay: 0.16s; }
   .bb-sec:nth-child(4) { animation-delay: 0.24s; }
   .bb-sec:nth-child(5) { animation-delay: 0.32s; }
-  .bb-hide { display: none !important; }
 
   /* ---- HERO ---- */
   .bb-hero { position: relative; padding: 80px 0 48px; overflow: hidden; }
@@ -114,32 +113,8 @@
   .bb-demo-cap { font-size: 15px; color: #6b7280; margin-top: 28px; line-height: 1.6; }
   .bb-demo-cap strong { color: #c8cdd8; }
 
-  /* ---- METHOD CHOOSER ---- */
-  .bb-choose-lbl { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.15em; color: #818cf8; margin-bottom: 24px; text-align: center; }
-  .bb-methods { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-  @media (max-width: 640px) { .bb-methods { grid-template-columns: 1fr; } }
-
-  .bb-mcard { position: relative; text-align: left; background: linear-gradient(180deg, rgba(17,17,35,0.9) 0%, rgba(10,10,20,0.95) 100%); border: 1px solid rgba(99,102,241,0.12); border-radius: 20px; padding: 32px 28px; cursor: pointer; transition: all 0.35s cubic-bezier(0.4,0,0.2,1); overflow: hidden; }
-  .bb-mcard::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, rgba(99,102,241,0), transparent); transition: background 0.4s; }
-  .bb-mcard::after { content: ''; position: absolute; inset: 0; border-radius: 20px; background: radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.03) 0%, transparent 70%); pointer-events: none; transition: background 0.3s; }
-  .bb-mcard:hover { border-color: rgba(99,102,241,0.35); transform: translateY(-6px); box-shadow: 0 16px 48px rgba(0,0,0,0.4), 0 0 40px rgba(99,102,241,0.08); }
-  .bb-mcard:hover::before { background: linear-gradient(90deg, transparent, #6366f1, transparent); }
-  .bb-mcard:hover::after { background: radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.06) 0%, transparent 70%); }
-
-  .bb-mcard-ico { width: 52px; height: 52px; border-radius: 14px; background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(99,102,241,0.04)); color: #818cf8; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; border: 1px solid rgba(99,102,241,0.08); }
-  .bb-mcard h3 { font-size: 22px; font-weight: 800; color: #fff; margin: 0 0 6px; letter-spacing: -0.01em; transition: color 0.2s; }
-  .bb-mcard:hover h3 { color: #a78bfa; }
-  .bb-badge { display: inline-block; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; padding: 4px 12px; border-radius: 50px; margin-bottom: 16px; }
-  .bb-badge-rec { background: rgba(99,102,241,0.1); color: #a78bfa; border: 1px solid rgba(99,102,241,0.15); }
-  .bb-badge-alt { background: rgba(107,114,128,0.1); color: #9ca3af; border: 1px solid rgba(107,114,128,0.1); }
-  .bb-mcard p { font-size: 14px; color: #8891a5; line-height: 1.7; }
-
-  /* ---- SETUP PANELS ---- */
-  .bb-setup-hd { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
-  .bb-setup-hd h2 { font-size: 26px; font-weight: 800; color: #fff; letter-spacing: -0.01em; }
-  .bb-setup-hd h2 span { background: linear-gradient(90deg, #818cf8, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-  .bb-back { background: none; border: 1px solid rgba(99,102,241,0.2); color: #8891a5; font-size: 13px; font-weight: 600; cursor: pointer; padding: 6px 16px; border-radius: 8px; font-family: 'Inter', sans-serif; transition: all 0.2s; }
-  .bb-back:hover { border-color: #6366f1; color: #a78bfa; }
+  /* ---- INSTALL SECTION ---- */
+  .bb-install-lbl { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.15em; color: #818cf8; margin-bottom: 24px; text-align: center; }
 
   .bb-steps { background: linear-gradient(180deg, rgba(17,17,35,0.7) 0%, rgba(10,10,20,0.85) 100%); border: 1px solid rgba(99,102,241,0.12); border-radius: 22px; padding: 40px 36px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); animation: bb-glow 5s ease-in-out infinite; }
   @media (max-width: 600px) { .bb-steps { padding: 28px 20px; } }
@@ -161,19 +136,10 @@
   .bb-btn-go:hover { transform: translateY(-2px); box-shadow: 0 12px 44px rgba(99,102,241,0.45), 0 0 0 1px rgba(99,102,241,0.2); color: #fff !important; }
   .bb-btn-go:hover::before { left: 100%; }
 
-  .bb-btn-drag { background: linear-gradient(135deg, #6366f1, #7c3aed); color: #fff !important; padding: 14px 30px; font-size: 17px; font-weight: 800; box-shadow: 0 6px 28px rgba(99,102,241,0.3); cursor: grab; user-select: none; -webkit-user-select: none; }
-  .bb-btn-drag:active { cursor: grabbing; transform: scale(0.97); }
-
   .bb-done { text-align: center; color: #6b7280; font-size: 14px; margin-top: 24px; line-height: 1.7; }
   .bb-done a { color: #818cf8 !important; font-weight: 600; }
   .bb-done a:hover { color: #a78bfa !important; }
   .bb-done strong { color: #fff; }
-
-  .bb-note { background: linear-gradient(135deg, rgba(99,102,241,0.04), rgba(17,17,35,0.5)); border: 1px solid rgba(99,102,241,0.1); border-radius: 14px; padding: 22px 26px; font-size: 14px; color: #8891a5; line-height: 1.7; margin-top: 24px; }
-  .bb-note strong { color: #a78bfa; }
-
-  .bb-drag-h { color: #a78bfa; font-size: 14px; margin-top: 10px; font-weight: 600; animation: bb-float 1.5s ease-in-out infinite; }
-  .bb-kbd { background: rgba(17,17,35,0.8); color: #a78bfa; padding: 3px 8px; border-radius: 6px; font-size: 12px; font-family: 'SF Mono', 'Fira Code', Menlo, monospace; border: 1px solid rgba(99,102,241,0.15); }
 
   /* ---- HOW IT WORKS ---- */
   .bb-sec-hd { text-align: center; margin-bottom: 36px; }
@@ -305,41 +271,15 @@
       </div>
     </div>
 
-    <!-- ====== METHOD CHOOSER ====== -->
-    <div class="bb-sec" id="bb-chooser">
-      <div class="bb-choose-lbl">&#9889; Get Started in 2 Minutes</div>
-      <div class="bb-methods">
-        <div class="bb-mcard" onclick="bbShow('auto')">
-          <div class="bb-mcard-ico">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14m-7-7l7 7 7-7"/></svg>
-          </div>
-          <h3>Auto-Run</h3>
-          <div class="bb-badge bb-badge-rec">&#9733; Recommended</div>
-          <p>Runs automatically every time you open JobTread. Auto-updates with new features. Just 2 quick steps.</p>
-        </div>
-        <div class="bb-mcard" onclick="bbShow('bookmark')">
-          <div class="bb-mcard-ico">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-          </div>
-          <h3>Bookmarklet</h3>
-          <div class="bb-badge bb-badge-alt">Zero Install</div>
-          <p>Nothing to install. Drag a button to your bookmarks bar and click it when you&rsquo;re in JobTread. Done.</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- ====== AUTO-RUN ====== -->
-    <div class="bb-sec bb-hide" id="bb-auto">
-      <div class="bb-setup-hd">
-        <h2><span>Auto-Run</span> Setup</h2>
-        <button class="bb-back" onclick="bbShow('choose')">&#8592; Back</button>
-      </div>
+    <!-- ====== INSTALL ====== -->
+    <div class="bb-sec">
+      <div class="bb-install-lbl">&#9889; Get Started in 2 Minutes</div>
       <div class="bb-steps">
         <div class="bb-step">
           <div class="bb-step-n">1</div>
           <div class="bb-step-b">
             <strong>Install Tampermonkey (free, one time)</strong>
-            <p>Tampermonkey is a trusted browser extension used by 10M+ people. It lets scripts like DocFill run automatically.</p>
+            <p>Tampermonkey is a trusted browser extension used by 10M+ people. It lets DocFill run automatically on JobTread.</p>
             <a href="https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo" target="_blank" rel="noopener noreferrer" class="bb-btn bb-btn-ext">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
               Get Tampermonkey (Chrome Web Store)
@@ -349,8 +289,8 @@
         <div class="bb-step">
           <div class="bb-step-n">2</div>
           <div class="bb-step-b">
-            <strong>Click to install DocFill</strong>
-            <p>Tampermonkey will pop up asking to confirm. Click &ldquo;Install&rdquo; and you&rsquo;re done. Updates happen automatically.</p>
+            <strong>Install DocFill</strong>
+            <p>Click the button below. Tampermonkey will ask you to confirm &mdash; hit &ldquo;Install&rdquo; and you&rsquo;re done. Updates happen automatically.</p>
             <a href="https://mybetterboss.ai/betterboss-docfill.user.js" class="bb-btn bb-btn-go">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Install Better Boss DocFill
@@ -359,57 +299,10 @@
         </div>
       </div>
       <p class="bb-done">
-        That&rsquo;s it! Open any job or document in
+        That&rsquo;s it! Open any job in
         <a href="https://app.jobtread.com" target="_blank" rel="noopener noreferrer">JobTread</a>
         and look for the <strong>BB</strong> button in the bottom-right corner.
       </p>
-    </div>
-
-    <!-- ====== BOOKMARKLET ====== -->
-    <div class="bb-sec bb-hide" id="bb-bookmark">
-      <div class="bb-setup-hd">
-        <h2><span>Bookmarklet</span> Setup</h2>
-        <button class="bb-back" onclick="bbShow('choose')">&#8592; Back</button>
-      </div>
-      <div class="bb-steps">
-        <div class="bb-step">
-          <div class="bb-step-n">1</div>
-          <div class="bb-step-b">
-            <strong>Drag this button to your bookmarks bar</strong>
-            <p>
-              Click and drag the button below up to your browser&rsquo;s bookmarks bar.
-              If you don&rsquo;t see one, press <span class="bb-kbd">Ctrl+Shift+B</span>
-              (or <span class="bb-kbd">Cmd+Shift+B</span> on Mac).
-            </p>
-            <div>
-              <a href="javascript:void((function(){if(window.__bbDocFillLoaded)return;window.__bbDocFillLoaded=true;var s=document.createElement('script');s.src='https://mybetterboss.ai/betterboss-docfill-loader.js?t='+Date.now();document.head.appendChild(s)})())"
-                 class="bb-btn bb-btn-drag"
-                 onclick="event.preventDefault();document.getElementById('bb-dh').classList.remove('bb-hide');setTimeout(function(){document.getElementById('bb-dh').classList.add('bb-hide')},4000);"
-                 draggable="true">
-                <strong>BB</strong> DocFill
-              </a>
-              <p class="bb-drag-h bb-hide" id="bb-dh">&#8593; Drag it up to your bookmarks bar!</p>
-            </div>
-          </div>
-        </div>
-        <div class="bb-step">
-          <div class="bb-step-n">2</div>
-          <div class="bb-step-b">
-            <strong>Go to JobTread and click the bookmark</strong>
-            <p>
-              Navigate to any job or document in
-              <a href="https://app.jobtread.com" target="_blank" rel="noopener noreferrer" style="color:#818cf8 !important; font-weight: 600;">JobTread</a>,
-              then click the <strong style="color:#fff;">BB DocFill</strong> bookmark.
-              The <strong style="color:#fff;">BB</strong> button appears and you&rsquo;re ready to go.
-            </p>
-          </div>
-        </div>
-      </div>
-      <div class="bb-note">
-        <strong>&#9889; Good to know:</strong> The bookmarklet always loads the latest version from our server,
-        so you automatically get new features. Your settings are saved in your browser.
-        Click the bookmark once per JobTread session.
-      </div>
     </div>
 
     <!-- ====== HOW IT WORKS ====== -->
@@ -530,25 +423,3 @@
   </div>
 </div>
 
-<script>
-function bbShow(m) {
-  var c = document.getElementById('bb-chooser');
-  var a = document.getElementById('bb-auto');
-  var b = document.getElementById('bb-bookmark');
-  if (m === 'choose') {
-    c.classList.remove('bb-hide');
-    a.classList.add('bb-hide');
-    b.classList.add('bb-hide');
-  } else if (m === 'auto') {
-    c.classList.add('bb-hide');
-    a.classList.remove('bb-hide');
-    b.classList.add('bb-hide');
-    a.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  } else if (m === 'bookmark') {
-    c.classList.add('bb-hide');
-    a.classList.add('bb-hide');
-    b.classList.remove('bb-hide');
-    b.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-}
-</script>

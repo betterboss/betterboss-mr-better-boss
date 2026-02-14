@@ -1,9 +1,3 @@
-'use client';
-
-import { useState } from 'react';
-
-const BOOKMARKLET_CODE = `javascript:void((function(){if(window.__bbDocFillLoaded)return;window.__bbDocFillLoaded=true;var s=document.createElement('script');s.src='https://mybetterboss.ai/betterboss-docfill-loader.js?t='+Date.now();document.head.appendChild(s)})())`;
-
 const features = [
   { icon: 'user', title: 'Business Profile', desc: 'Set up once — your company name, phone, email, license & address auto-fill into every document.', accent: 'indigo' },
   { icon: 'copy', title: 'Copy & Paste', desc: 'One-click copy for descriptions and footers. Paste directly into JobTread fields. No mistakes.', accent: 'violet' },
@@ -26,8 +20,6 @@ const FeatureIcon = ({ type }: { type: string }) => {
 };
 
 export default function DocFillPage() {
-  const [method, setMethod] = useState<'auto' | 'bookmark' | null>(null);
-  const [dragHint, setDragHint] = useState(false);
 
   return (
     <div className="min-h-screen text-[#c8cdd8] font-sans" style={{ background: '#06060f' }}>
@@ -164,172 +156,56 @@ export default function DocFillPage() {
           </div>
         </section>
 
-        {/* Install Method Selection */}
-        {!method && (
-          <section className="mb-16">
-            <p className="text-center text-[12px] font-extrabold uppercase tracking-[0.15em] text-[#818cf8] mb-6">
-              &#9889; Get Started in 2 Minutes
-            </p>
-            <div className="grid sm:grid-cols-2 gap-5">
-              <button
-                onClick={() => setMethod('auto')}
-                className="text-left rounded-[20px] p-8 transition-all duration-300 group relative overflow-hidden"
-                style={{ background: 'linear-gradient(180deg, rgba(17,17,35,0.9), rgba(10,10,20,0.95))', border: '1px solid rgba(99,102,241,0.12)' }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(99,102,241,0.35)'; e.currentTarget.style.transform = 'translateY(-6px)'; e.currentTarget.style.boxShadow = '0 16px 48px rgba(0,0,0,0.4), 0 0 40px rgba(99,102,241,0.08)'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(99,102,241,0.12)'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
-              >
-                <div className="w-[52px] h-[52px] rounded-[14px] flex items-center justify-center text-[#818cf8] mb-5" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(99,102,241,0.04))', border: '1px solid rgba(99,102,241,0.08)' }}>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14m-7-7l7 7 7-7"/></svg>
-                </div>
-                <h3 className="text-[22px] font-extrabold text-white mb-1.5 tracking-[-0.01em] group-hover:text-[#a78bfa] transition-colors">Auto-Run</h3>
-                <span className="inline-block text-[10px] font-extrabold uppercase tracking-[0.08em] px-3 py-1 rounded-full mb-4" style={{ background: 'rgba(99,102,241,0.1)', color: '#a78bfa', border: '1px solid rgba(99,102,241,0.15)' }}>
-                  &#9733; Recommended
-                </span>
-                <p className="text-[14px] text-[#8891a5] leading-relaxed">Runs automatically every time you open JobTread. Auto-updates with new features. Just 2 quick steps.</p>
-              </button>
+        {/* Install */}
+        <section className="mb-16">
+          <p className="text-center text-[12px] font-extrabold uppercase tracking-[0.15em] text-[#818cf8] mb-6">
+            &#9889; Get Started in 2 Minutes
+          </p>
 
-              <button
-                onClick={() => setMethod('bookmark')}
-                className="text-left rounded-[20px] p-8 transition-all duration-300 group relative overflow-hidden"
-                style={{ background: 'linear-gradient(180deg, rgba(17,17,35,0.9), rgba(10,10,20,0.95))', border: '1px solid rgba(99,102,241,0.12)' }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(99,102,241,0.35)'; e.currentTarget.style.transform = 'translateY(-6px)'; e.currentTarget.style.boxShadow = '0 16px 48px rgba(0,0,0,0.4), 0 0 40px rgba(99,102,241,0.08)'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(99,102,241,0.12)'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
-              >
-                <div className="w-[52px] h-[52px] rounded-[14px] flex items-center justify-center text-[#818cf8] mb-5" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(99,102,241,0.04))', border: '1px solid rgba(99,102,241,0.08)' }}>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-                </div>
-                <h3 className="text-[22px] font-extrabold text-white mb-1.5 tracking-[-0.01em] group-hover:text-[#a78bfa] transition-colors">Bookmarklet</h3>
-                <span className="inline-block text-[10px] font-extrabold uppercase tracking-[0.08em] px-3 py-1 rounded-full mb-4" style={{ background: 'rgba(107,114,128,0.1)', color: '#9ca3af', border: '1px solid rgba(107,114,128,0.1)' }}>
-                  Zero Install
-                </span>
-                <p className="text-[14px] text-[#8891a5] leading-relaxed">Nothing to install. Drag a button to your bookmarks bar and click it when you&apos;re in JobTread. Done.</p>
-              </button>
-            </div>
-          </section>
-        )}
-
-        {/* Auto-Run Setup */}
-        {method === 'auto' && (
-          <section className="mb-16">
-            <div className="flex items-center gap-3.5 mb-7">
-              <h2 className="text-[26px] font-extrabold text-white tracking-[-0.01em]">
-                <span className="bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(90deg, #818cf8, #a78bfa)' }}>Auto-Run</span> Setup
-              </h2>
-              <button onClick={() => setMethod(null)} className="text-[#8891a5] text-[13px] font-semibold px-4 py-1.5 rounded-lg transition-all hover:text-[#a78bfa]" style={{ border: '1px solid rgba(99,102,241,0.2)' }}>&larr; Back</button>
-            </div>
-
-            <div className="rounded-[22px] p-9" style={{ background: 'linear-gradient(180deg, rgba(17,17,35,0.7), rgba(10,10,20,0.85))', border: '1px solid rgba(99,102,241,0.12)', animation: 'glow-box 5s ease-in-out infinite' }}>
-              <div className="flex gap-5">
-                <div className="w-[50px] h-[50px] rounded-[14px] flex items-center justify-center text-[#818cf8] font-extrabold text-[20px] shrink-0" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.05))', border: '1px solid rgba(99,102,241,0.1)' }}>1</div>
-                <div>
-                  <p className="text-white font-bold text-[17px] mb-2">Install Tampermonkey (free, one time)</p>
-                  <p className="text-[#8891a5] text-[14px] leading-relaxed mb-4">Tampermonkey is a trusted browser extension used by 10M+ people. It lets scripts like DocFill run automatically.</p>
-                  <a
-                    href="https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2.5 text-[#c8cdd8] font-bold px-6 py-3 rounded-xl text-[14px] transition-all hover:text-white"
-                    style={{ background: 'rgba(17,17,35,0.8)', border: '1px solid rgba(99,102,241,0.2)' }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                    Get Tampermonkey (Chrome Web Store)
-                  </a>
-                </div>
-              </div>
-
-              <div className="my-7" style={{ borderTop: '1px solid rgba(99,102,241,0.08)' }} />
-
-              <div className="flex gap-5">
-                <div className="w-[50px] h-[50px] rounded-[14px] flex items-center justify-center text-[#818cf8] font-extrabold text-[20px] shrink-0" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.05))', border: '1px solid rgba(99,102,241,0.1)' }}>2</div>
-                <div>
-                  <p className="text-white font-bold text-[17px] mb-2">Click to install DocFill</p>
-                  <p className="text-[#8891a5] text-[14px] leading-relaxed mb-4">Tampermonkey will pop up asking to confirm. Click &ldquo;Install&rdquo; and you&apos;re done. Updates happen automatically.</p>
-                  <a
-                    href="/betterboss-docfill.user.js"
-                    className="inline-flex items-center gap-3 text-white font-extrabold px-10 py-[18px] rounded-[14px] text-[18px] transition-all hover:-translate-y-0.5"
-                    style={{ background: 'linear-gradient(135deg, #6366f1, #7c3aed)', boxShadow: '0 8px 32px rgba(99,102,241,0.35)', letterSpacing: '-0.01em' }}
-                  >
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Install Better Boss DocFill
-                  </a>
-                </div>
+          <div className="rounded-[22px] p-9" style={{ background: 'linear-gradient(180deg, rgba(17,17,35,0.7), rgba(10,10,20,0.85))', border: '1px solid rgba(99,102,241,0.12)', animation: 'glow-box 5s ease-in-out infinite' }}>
+            <div className="flex gap-5">
+              <div className="w-[50px] h-[50px] rounded-[14px] flex items-center justify-center text-[#818cf8] font-extrabold text-[20px] shrink-0" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.05))', border: '1px solid rgba(99,102,241,0.1)' }}>1</div>
+              <div>
+                <p className="text-white font-bold text-[17px] mb-2">Install Tampermonkey (free, one time)</p>
+                <p className="text-[#8891a5] text-[14px] leading-relaxed mb-4">Tampermonkey is a trusted browser extension used by 10M+ people. It lets DocFill run automatically on JobTread.</p>
+                <a
+                  href="https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2.5 text-[#c8cdd8] font-bold px-6 py-3 rounded-xl text-[14px] transition-all hover:text-white"
+                  style={{ background: 'rgba(17,17,35,0.8)', border: '1px solid rgba(99,102,241,0.2)' }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  Get Tampermonkey (Chrome Web Store)
+                </a>
               </div>
             </div>
 
-            <p className="text-center text-[#6b7280] text-[14px] mt-6">
-              That&apos;s it! Open any job or document in{' '}
-              <a href="https://app.jobtread.com" target="_blank" rel="noopener noreferrer" className="text-[#818cf8] font-semibold hover:text-[#a78bfa]">JobTread</a>
-              {' '}and look for the <strong className="text-white">BB</strong> button in the bottom-right corner.
-            </p>
-          </section>
-        )}
+            <div className="my-7" style={{ borderTop: '1px solid rgba(99,102,241,0.08)' }} />
 
-        {/* Bookmarklet Setup */}
-        {method === 'bookmark' && (
-          <section className="mb-16">
-            <div className="flex items-center gap-3.5 mb-7">
-              <h2 className="text-[26px] font-extrabold text-white tracking-[-0.01em]">
-                <span className="bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(90deg, #818cf8, #a78bfa)' }}>Bookmarklet</span> Setup
-              </h2>
-              <button onClick={() => setMethod(null)} className="text-[#8891a5] text-[13px] font-semibold px-4 py-1.5 rounded-lg transition-all hover:text-[#a78bfa]" style={{ border: '1px solid rgba(99,102,241,0.2)' }}>&larr; Back</button>
-            </div>
-
-            <div className="rounded-[22px] p-9" style={{ background: 'linear-gradient(180deg, rgba(17,17,35,0.7), rgba(10,10,20,0.85))', border: '1px solid rgba(99,102,241,0.12)', animation: 'glow-box 5s ease-in-out infinite' }}>
-              <div className="flex gap-5">
-                <div className="w-[50px] h-[50px] rounded-[14px] flex items-center justify-center text-[#818cf8] font-extrabold text-[20px] shrink-0" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.05))', border: '1px solid rgba(99,102,241,0.1)' }}>1</div>
-                <div>
-                  <p className="text-white font-bold text-[17px] mb-2">Drag this button to your bookmarks bar</p>
-                  <p className="text-[#8891a5] text-[14px] leading-relaxed mb-4">
-                    Click and drag the button below up to your browser&apos;s bookmarks bar.
-                    If you don&apos;t see one, press <code className="px-2 py-0.5 rounded-md text-[12px] text-[#a78bfa] font-mono" style={{ background: 'rgba(17,17,35,0.8)', border: '1px solid rgba(99,102,241,0.15)' }}>Ctrl+Shift+B</code>{' '}
-                    (or <code className="px-2 py-0.5 rounded-md text-[12px] text-[#a78bfa] font-mono" style={{ background: 'rgba(17,17,35,0.8)', border: '1px solid rgba(99,102,241,0.15)' }}>Cmd+Shift+B</code> on Mac).
-                  </p>
-                  <div
-                    onMouseDown={() => setDragHint(true)}
-                    onMouseUp={() => setDragHint(false)}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-                    <a
-                      href={BOOKMARKLET_CODE}
-                      onClick={(e) => { e.preventDefault(); setDragHint(true); setTimeout(() => setDragHint(false), 4000); }}
-                      className="inline-flex items-center gap-2.5 text-white font-extrabold px-[30px] py-[14px] rounded-[14px] text-[17px] cursor-grab active:cursor-grabbing select-none"
-                      style={{ background: 'linear-gradient(135deg, #6366f1, #7c3aed)', boxShadow: '0 6px 28px rgba(99,102,241,0.3)' }}
-                      draggable="true"
-                    >
-                      <span className="font-black">BB</span> DocFill
-                    </a>
-                    {dragHint && (
-                      <p className="text-[#a78bfa] text-[14px] font-semibold mt-2.5" style={{ animation: 'float-up 1.5s ease-in-out infinite' }}>
-                        &#8593; Drag it up to your bookmarks bar!
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="my-7" style={{ borderTop: '1px solid rgba(99,102,241,0.08)' }} />
-
-              <div className="flex gap-5">
-                <div className="w-[50px] h-[50px] rounded-[14px] flex items-center justify-center text-[#818cf8] font-extrabold text-[20px] shrink-0" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.05))', border: '1px solid rgba(99,102,241,0.1)' }}>2</div>
-                <div>
-                  <p className="text-white font-bold text-[17px] mb-2">Go to JobTread and click the bookmark</p>
-                  <p className="text-[#8891a5] text-[14px] leading-relaxed">
-                    Navigate to any job or document in{' '}
-                    <a href="https://app.jobtread.com" target="_blank" rel="noopener noreferrer" className="text-[#818cf8] font-semibold hover:text-[#a78bfa]">JobTread</a>,
-                    then click the <strong className="text-white">BB DocFill</strong> bookmark.
-                    The <strong className="text-white">BB</strong> button appears and you&apos;re ready to go.
-                  </p>
-                </div>
+            <div className="flex gap-5">
+              <div className="w-[50px] h-[50px] rounded-[14px] flex items-center justify-center text-[#818cf8] font-extrabold text-[20px] shrink-0" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.05))', border: '1px solid rgba(99,102,241,0.1)' }}>2</div>
+              <div>
+                <p className="text-white font-bold text-[17px] mb-2">Install DocFill</p>
+                <p className="text-[#8891a5] text-[14px] leading-relaxed mb-4">Click the button below. Tampermonkey will ask you to confirm &mdash; hit &ldquo;Install&rdquo; and you&apos;re done. Updates happen automatically.</p>
+                <a
+                  href="/betterboss-docfill.user.js"
+                  className="inline-flex items-center gap-3 text-white font-extrabold px-10 py-[18px] rounded-[14px] text-[18px] transition-all hover:-translate-y-0.5"
+                  style={{ background: 'linear-gradient(135deg, #6366f1, #7c3aed)', boxShadow: '0 8px 32px rgba(99,102,241,0.35)', letterSpacing: '-0.01em' }}
+                >
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Install Better Boss DocFill
+                </a>
               </div>
             </div>
+          </div>
 
-            <div className="rounded-[14px] p-[22px] mt-6 text-[14px] text-[#8891a5] leading-relaxed" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.04), rgba(17,17,35,0.5))', border: '1px solid rgba(99,102,241,0.1)' }}>
-              <strong className="text-[#a78bfa]">&#9889; Good to know:</strong> The bookmarklet always loads the latest version from our server,
-              so you automatically get new features. Your settings are saved in your browser.
-              Click the bookmark once per JobTread session.
-            </div>
-          </section>
-        )}
+          <p className="text-center text-[#6b7280] text-[14px] mt-6">
+            That&apos;s it! Open any job in{' '}
+            <a href="https://app.jobtread.com" target="_blank" rel="noopener noreferrer" className="text-[#818cf8] font-semibold hover:text-[#a78bfa]">JobTread</a>
+            {' '}and look for the <strong className="text-white">BB</strong> button in the bottom-right corner.
+          </p>
+        </section>
 
         {/* How It Works */}
         <section className="mb-16">
