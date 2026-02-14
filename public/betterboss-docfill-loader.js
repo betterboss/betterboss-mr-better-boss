@@ -1,9 +1,9 @@
 // Better Boss DocFill — Bookmarklet Loader
 // This file is loaded when users click the bookmarklet.
 // It fetches the latest DocFill userscript from the server and runs it.
+// Note: The bookmarklet itself handles the __bbDocFillLoaded guard to prevent
+// double-loading, so we skip the check here and just load the userscript.
 (function(){
-  if(window.__bbDocFillLoaded){console.log('[Better Boss] DocFill already loaded');return;}
-  window.__bbDocFillLoaded=true;
   var s=document.createElement('script');
   s.src='https://mybetterboss.ai/betterboss-docfill.user.js?t='+Date.now();
   s.onload=function(){console.log('[Better Boss] DocFill loaded via bookmarklet');};
