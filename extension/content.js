@@ -1,7 +1,7 @@
 // =============================================================================
-// BetterBoss JobTread Auto-Populate — Content Script
+// Better Boss DocFill — Content Script
 // Generates pre-formatted document text (description & footer) using
-// job/customer info scraped from the page. User copies and pastes into
+// job/customer info + saved business profile. User copies and pastes into
 // the correct JobTread fields.
 //
 // JobTread formatting syntax (plaintext markdown):
@@ -20,9 +20,10 @@
 
   let currentJobInfo = null;
   let currentCustomerInfo = null;
+  let cachedProfile = null;
 
   function log(...args) {
-    console.log('[BetterBoss]', ...args);
+    console.log('[BB DocFill]', ...args);
   }
 
   // ---- Page Detection ----
@@ -58,7 +59,6 @@
   function extractJobInfo() {
     const info = { jobName: '', jobNumber: '', jobAddress: '', jobId: '' };
 
-    // Job name from headings
     const headings = document.querySelectorAll('h1, h2');
     for (const h of headings) {
       const text = h.textContent.trim();
@@ -68,17 +68,14 @@
       }
     }
 
-    // Fallback: page title
     if (!info.jobName) {
       const m = document.title.match(/^(.+?)(?:\s*[-|]\s*JobTread)?$/i);
       if (m) info.jobName = m[1].trim();
     }
 
-    // Job number
     const numMatch = document.body.innerText.match(/(?:Job\s*#?\s*|#)(\d{3,})/i);
     if (numMatch) info.jobNumber = numMatch[1];
 
-    // Job ID from URL
     const idMatch = window.location.pathname.match(/\/jobs\/([^/]+)/);
     if (idMatch) info.jobId = idMatch[1];
 
@@ -101,9 +98,9 @@
   // ---- Templates ----
 
   function getDefaultDescriptionTemplate() {
-    return `*JobTread Implementation Agreement — *^{{company}}^**
-*Client:* *^{{company}}^* ("Client") • *Contact:* *^{{customerName}}^*
-*Provider:* Better Boss ("Provider")
+    return `*JobTread Implementation Agreement \u2014 *^{{company}}^**
+*Client:* *^{{company}}^* (\u201CClient\u201D) \u2022 *Contact:* *^{{customerName}}^*
+*Provider:* {{bizName}} (\u201CProvider\u201D)
 *Project:* Full JobTread build-out operating system for remodeling and construction
 *Term:* 30 business day implementation from kickoff
 *Total Contract Value:* *$10,000 USD*
@@ -119,7 +116,7 @@ Deploy a single, structured JobTread OS that speeds proposals, reduces chaos, an
 ####2.2 Implementation Schedule
 Custom implementation schedule built inside JobTread to track progress and milestones.
 ####2.3 Cost Catalog Build
-Complete cost catalog build including suppliers, labor, materials, cost groups, product and material catalog (Lowe's + local vendors) uploaded, standardized, and linked to cost codes.
+Complete cost catalog build including suppliers, labor, materials, cost groups, product and material catalog (Lowe\u2019s + local vendors) uploaded, standardized, and linked to cost codes.
 ####2.4 Job Costing Framework
 Job costing review including units, cost codes, and cost types configured for accurate project tracking.
 ####2.5 Custom Views
@@ -131,7 +128,7 @@ Custom views across all modules including jobs, customers, catalog, and more for
 ####2.7 Document Templates
 Document template build-out including details, design, and custom cover PDFs. Proposals, Closeout Packets, Certificates of Completion, Contracts, and Change Orders configured and branded.
 ####2.8 Dashboards
-1-2 custom dashboards with live metrics by role—estimating accuracy, job costs, and pipeline status.
+1-2 custom dashboards with live metrics by role\u2014estimating accuracy, job costs, and pipeline status.
 ####2.9 Automation Suite
 Up to 5 custom notifications OR 2-4 workflows as needed for client and trade partner communication including reminders, scheduling, and follow-ups.
 ####2.10 SOP Guides
@@ -158,9 +155,9 @@ Role-based videos, SOP reference map, and admin maintenance guide for full contr
 ##6) Pricing & Financing
 *Fixed Fee*: $10,000 USD
 *Financing options:*
-6 mo: $1,666.67/mo — no interest
-12 mo: $879.13/mo — ~$549.56 interest
-36 mo: $322.63/mo — ~$1,614.90 interest
+6 mo: $1,666.67/mo \u2014 no interest
+12 mo: $879.13/mo \u2014 ~$549.56 interest
+36 mo: $322.63/mo \u2014 ~$1,614.90 interest
 ^Final terms subject to credit and approvals.^
 ##7) Payment Terms
 - *100% due at kickoff* to schedule and start work
@@ -196,11 +193,19 @@ This document is the full agreement; changes require written approval.
 ##19) Counterparts & E-Signature
 This agreement may be signed electronically and in counterparts.
 ##20) Acceptance & Signature
-This Agreement is binding upon Client's signature below. *Better Boss' acceptance is deemed upon (a) commencement of services or (b) receipt of the first payment.* No additional Provider signature required.`;
+This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019s acceptance is deemed upon (a) commencement of services or (b) receipt of the first payment.* No additional Provider signature required.`;
   }
 
   function getDefaultFooterTemplate() {
-    return `{{#customerName}}*Prepared for:* {{customerName}}{{/customerName}}{{#company}} | *{{company}}*{{/company}}{{#jobName}} | Project: {{jobName}}{{/jobName}}{{#jobNumber}} | Job #{{jobNumber}}{{/jobNumber}}`;
+    return '{{#customerName}}*Prepared for:* {{customerName}}{{/customerName}}' +
+      '{{#company}} | *{{company}}*{{/company}}' +
+      '{{#jobName}} | Project: {{jobName}}{{/jobName}}' +
+      '{{#jobNumber}} | Job #{{jobNumber}}{{/jobNumber}}' +
+      '\n{{#bizName}}*{{bizName}}*{{/bizName}}' +
+      '{{#bizPhone}} | {{bizPhone}}{{/bizPhone}}' +
+      '{{#bizEmail}} | {{bizEmail}}{{/bizEmail}}' +
+      '{{#bizWebsite}} | {{bizWebsite}}{{/bizWebsite}}' +
+      '{{#bizLicense}} | Lic #{{bizLicense}}{{/bizLicense}}';
   }
 
   /**
@@ -231,19 +236,6 @@ This Agreement is binding upon Client's signature below. *Better Boss' acceptanc
     return result;
   }
 
-  function buildTemplateData(jobInfo, customerInfo) {
-    return {
-      jobName: jobInfo.jobName || '',
-      jobNumber: jobInfo.jobNumber || '',
-      jobAddress: jobInfo.jobAddress || '',
-      customerName: customerInfo.customerName || '',
-      company: customerInfo.company || '',
-      customerEmail: customerInfo.email || '',
-      customerPhone: customerInfo.phone || '',
-      date: new Date().toLocaleDateString(),
-    };
-  }
-
   // ---- Storage ----
 
   function getStoredSettings() {
@@ -269,7 +261,6 @@ This Agreement is binding upon Client's signature below. *Better Boss' acceptanc
         buttonEl.classList.remove('bb-btn--copied');
       }, 1500);
     } catch (err) {
-      // Fallback
       const textarea = document.createElement('textarea');
       textarea.value = text;
       textarea.style.cssText = 'position:fixed;left:-9999px';
@@ -295,16 +286,8 @@ This Agreement is binding upon Client's signature below. *Better Boss' acceptanc
     const btn = document.createElement('div');
     btn.id = BUTTON_ID;
     btn.innerHTML = `
-      <button class="bb-fab" title="BetterBoss — Copy document text">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-          <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z" fill="currentColor" opacity="0.3"/>
-          <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z" stroke="currentColor" stroke-width="1.5" fill="none"/>
-          <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="1.5" fill="none"/>
-          <line x1="8" y1="13" x2="16" y2="13" stroke="currentColor" stroke-width="1.5"/>
-          <line x1="8" y1="17" x2="13" y2="17" stroke="currentColor" stroke-width="1.5"/>
-          <circle cx="17" cy="17" r="4" fill="#0c8ce9" stroke="white" stroke-width="1"/>
-          <path d="M15.5 17H18.5M17 15.5V18.5" stroke="white" stroke-width="1.2" stroke-linecap="round"/>
-        </svg>
+      <button class="bb-fab" title="Better Boss DocFill">
+        <span class="bb-fab__text">BB</span>
       </button>
     `;
     btn.addEventListener('click', togglePanel);
@@ -322,6 +305,15 @@ This Agreement is binding upon Client's signature below. *Better Boss' acceptanc
     createPanel();
   }
 
+  function getInitials(name) {
+    if (!name) return 'BB';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return parts[0].substring(0, 2).toUpperCase();
+  }
+
   async function createPanel() {
     const jobInfo = currentJobInfo || extractJobInfo();
     const customerInfo = currentCustomerInfo || extractCustomerInfo();
@@ -329,28 +321,51 @@ This Agreement is binding upon Client's signature below. *Better Boss' acceptanc
     currentCustomerInfo = customerInfo;
 
     const stored = await getStoredSettings();
-    const descTemplate = stored.descriptionTemplate || getDefaultDescriptionTemplate();
-    const footerTemplate = stored.footerTemplate || getDefaultFooterTemplate();
+    const profile = stored.profile || {};
+    cachedProfile = profile;
+
+    const isLoggedIn = profile && profile.ownerName;
+    const profileLabel = isLoggedIn
+      ? `<div class="bb-profile-badge">
+           <div class="bb-profile-badge__avatar">${getInitials(profile.ownerName)}</div>
+           <div class="bb-profile-badge__info">
+             <strong>${escapeAttr(profile.ownerName)}</strong>
+             <span>${escapeAttr(profile.bizName || '')}</span>
+           </div>
+         </div>`
+      : `<p class="bb-help" style="color:#f97316;">No profile set up. <a href="#" id="bb-open-settings" style="color:#0c8ce9;text-decoration:underline;">Open Settings</a> to create one.</p>`;
 
     const panel = document.createElement('div');
     panel.id = PANEL_ID;
     panel.innerHTML = `
       <div class="bb-panel">
         <div class="bb-panel__header">
-          <h3>BetterBoss Auto-Populate</h3>
+          <div class="bb-panel__brand">
+            <div class="bb-panel__logo">BB</div>
+            <div>
+              <h3>Better Boss <span style="color:#f97316;">DocFill</span></h3>
+            </div>
+          </div>
           <button class="bb-panel__close" id="bb-close-panel">&times;</button>
         </div>
 
         <div class="bb-panel__body">
+          <!-- Profile badge -->
+          <div class="bb-panel__section">
+            ${profileLabel}
+          </div>
+
+          <div class="bb-divider"></div>
+
           <!-- Customer / Job fields -->
           <div class="bb-panel__section">
-            <h4>Fill In Customer & Job Info</h4>
+            <h4>Client & Job Details</h4>
             <div class="bb-field-group">
-              <label>Company Name</label>
+              <label>Client's Company</label>
               <input type="text" id="bb-company" value="${escapeAttr(customerInfo.company)}" placeholder="e.g. Smith Remodeling LLC"/>
             </div>
             <div class="bb-field-group">
-              <label>Client Name</label>
+              <label>Client Contact Name</label>
               <input type="text" id="bb-customer-name" value="${escapeAttr(customerInfo.customerName)}" placeholder="e.g. John Smith"/>
             </div>
             <div class="bb-field-group">
@@ -371,7 +386,7 @@ This Agreement is binding upon Client's signature below. *Better Boss' acceptanc
               <h4>Description Text</h4>
               <button class="bb-btn bb-btn--copy" id="bb-copy-desc">Copy Description</button>
             </div>
-            <p class="bb-help">Copy this and paste into the Description field on your document.</p>
+            <p class="bb-help">Copy and paste into the Description field.</p>
             <div class="bb-output" id="bb-desc-output"></div>
           </div>
 
@@ -383,7 +398,7 @@ This Agreement is binding upon Client's signature below. *Better Boss' acceptanc
               <h4>Footer Text</h4>
               <button class="bb-btn bb-btn--copy" id="bb-copy-footer">Copy Footer</button>
             </div>
-            <p class="bb-help">Copy this and paste into the Footer field on your document.</p>
+            <p class="bb-help">Copy and paste into the Footer field.</p>
             <div class="bb-output bb-output--small" id="bb-footer-output"></div>
           </div>
 
@@ -391,6 +406,10 @@ This Agreement is binding upon Client's signature below. *Better Boss' acceptanc
           <div class="bb-panel__section">
             <button class="bb-btn bb-btn--primary" id="bb-generate">Generate Text</button>
           </div>
+        </div>
+
+        <div class="bb-panel__footer">
+          Better Boss DocFill v1.0.0
         </div>
       </div>
     `;
@@ -409,7 +428,16 @@ This Agreement is binding upon Client's signature below. *Better Boss' acceptanc
       copyToClipboard(text, this);
     });
 
-    // Also re-generate when inputs change
+    // Settings link (if not logged in)
+    const settingsLink = document.getElementById('bb-open-settings');
+    if (settingsLink) {
+      settingsLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        chrome.runtime.sendMessage({ action: 'openOptions' });
+      });
+    }
+
+    // Re-generate on input change
     ['bb-company', 'bb-customer-name', 'bb-job-name', 'bb-job-number'].forEach((id) => {
       document.getElementById(id).addEventListener('input', generateOutput);
     });
@@ -424,19 +452,29 @@ This Agreement is binding upon Client's signature below. *Better Boss' acceptanc
     const jobName = document.getElementById('bb-job-name')?.value || '';
     const jobNumber = document.getElementById('bb-job-number')?.value || '';
 
+    const stored = await getStoredSettings();
+    const profile = stored.profile || {};
+
     const data = {
+      // Client/job fields (entered per-document)
       company,
       customerName,
       jobName,
       jobNumber,
       jobAddress: '',
-      jobNumber,
       customerEmail: '',
       customerPhone: '',
       date: new Date().toLocaleDateString(),
+      // Business profile fields (from settings)
+      bizName: profile.bizName || '',
+      bizEmail: profile.bizEmail || '',
+      bizPhone: profile.bizPhone || '',
+      bizAddress: profile.bizAddress || '',
+      bizWebsite: profile.bizWebsite || '',
+      bizLicense: profile.bizLicense || '',
+      ownerName: profile.ownerName || '',
     };
 
-    const stored = await getStoredSettings();
     const descTemplate = stored.descriptionTemplate || getDefaultDescriptionTemplate();
     const footerTemplate = stored.footerTemplate || getDefaultFooterTemplate();
 
@@ -496,7 +534,7 @@ This Agreement is binding upon Client's signature below. *Better Boss' acceptanc
         lastUrl = window.location.href;
         currentJobInfo = null;
         currentCustomerInfo = null;
-        // Remove old panel/button so they refresh on new page
+        cachedProfile = null;
         const oldPanel = document.getElementById(PANEL_ID);
         if (oldPanel) oldPanel.remove();
         const oldBtn = document.getElementById(BUTTON_ID);
@@ -533,7 +571,6 @@ This Agreement is binding upon Client's signature below. *Better Boss' acceptanc
     handlePageChange();
     setupUrlWatcher();
 
-    // Also watch for late DOM loads (SPA)
     const observer = new MutationObserver(() => {
       if (!document.getElementById(BUTTON_ID) && !isExcludedPage() && isRelevantPage()) {
         createFloatingButton();

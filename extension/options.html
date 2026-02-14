@@ -3,41 +3,135 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BetterBoss Auto-Populate — Settings</title>
+  <title>Better Boss DocFill — Settings</title>
   <link rel="stylesheet" href="options.css" />
 </head>
 <body>
   <div class="options">
     <header class="options__header">
       <div class="options__logo">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-          <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z" fill="#0c8ce9" opacity="0.3"/>
-          <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z" stroke="#0c8ce9" stroke-width="1.5" fill="none"/>
-          <polyline points="14,2 14,8 20,8" stroke="#0c8ce9" stroke-width="1.5" fill="none"/>
-          <line x1="8" y1="13" x2="16" y2="13" stroke="#0c8ce9" stroke-width="1.5"/>
-          <line x1="8" y1="17" x2="13" y2="17" stroke="#0c8ce9" stroke-width="1.5"/>
-        </svg>
+        <div class="options__logo-icon">
+          <span>BB</span>
+        </div>
         <div>
-          <h1>BetterBoss Auto-Populate</h1>
-          <p>Customize your document templates</p>
+          <h1>Better Boss <span class="brand-accent">DocFill</span></h1>
+          <p>Smart document builder for JobTread</p>
         </div>
       </div>
     </header>
 
-    <main class="options__body">
-      <!-- General Settings -->
-      <section class="options__section">
-        <h2>General Settings</h2>
+    <!-- ============================================================ -->
+    <!-- LOGIN SCREEN (shown when not logged in)                      -->
+    <!-- ============================================================ -->
+    <div id="login-screen" class="options__screen" style="display:none;">
+      <div class="login-card">
+        <div class="login-card__icon">
+          <div class="options__logo-icon options__logo-icon--lg">
+            <span>BB</span>
+          </div>
+        </div>
+        <h2>Welcome to Better Boss DocFill</h2>
+        <p class="login-card__subtitle">Set up your business profile to get started. Your info will be used to auto-generate proposals, contracts, and scopes of work.</p>
+
+        <form id="login-form" class="login-form">
+          <div class="form-group">
+            <label for="login-name">Your Full Name <span class="required">*</span></label>
+            <input type="text" id="login-name" placeholder="e.g. Jordan Rivera" required />
+          </div>
+          <div class="form-group">
+            <label for="login-email">Email Address <span class="required">*</span></label>
+            <input type="email" id="login-email" placeholder="e.g. jordan@yourbiz.com" required />
+          </div>
+          <div class="form-group">
+            <label for="login-company">Company / Business Name <span class="required">*</span></label>
+            <input type="text" id="login-company" placeholder="e.g. Rivera Construction LLC" required />
+          </div>
+          <div class="form-group">
+            <label for="login-phone">Business Phone</label>
+            <input type="tel" id="login-phone" placeholder="e.g. (303) 555-1234" />
+          </div>
+          <div class="form-group">
+            <label for="login-address">Business Address</label>
+            <input type="text" id="login-address" placeholder="e.g. 123 Main St, Denver, CO 80202" />
+          </div>
+          <div class="form-group">
+            <label for="login-website">Website</label>
+            <input type="url" id="login-website" placeholder="e.g. https://riveraconstruction.com" />
+          </div>
+          <div class="form-group">
+            <label for="login-license">License # (optional)</label>
+            <input type="text" id="login-license" placeholder="e.g. CON-2024-12345" />
+          </div>
+
+          <button type="submit" class="btn btn--primary btn--full">
+            Save Profile & Get Started
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SETTINGS SCREEN (shown when logged in)                       -->
+    <!-- ============================================================ -->
+    <main id="settings-screen" class="options__screen" style="display:none;">
+
+      <!-- Profile Summary Bar -->
+      <div class="profile-bar" id="profile-bar">
+        <div class="profile-bar__info">
+          <div class="profile-bar__avatar" id="profile-avatar">JR</div>
+          <div>
+            <strong id="profile-display-name">Jordan Rivera</strong>
+            <span id="profile-display-company">Rivera Construction LLC</span>
+          </div>
+        </div>
+        <div class="profile-bar__actions">
+          <button class="btn btn--ghost-sm" id="btn-edit-profile">Edit Profile</button>
+          <button class="btn btn--ghost-sm btn--danger" id="btn-logout">Log Out</button>
+        </div>
+      </div>
+
+      <!-- Business Profile (Edit Mode — hidden by default) -->
+      <section class="options__section" id="profile-edit-section" style="display:none;">
+        <h2>Business Profile</h2>
         <div class="options__card">
-          <div class="options__toggle-row">
-            <div>
-              <label for="auto-toggle">Auto-populate on page load</label>
-              <p class="options__help">Automatically fill document fields when you navigate to a JobTread document page.</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="profile-name">Full Name</label>
+              <input type="text" id="profile-name" />
             </div>
-            <label class="toggle">
-              <input type="checkbox" id="auto-toggle" checked />
-              <span class="toggle__slider"></span>
-            </label>
+            <div class="form-group">
+              <label for="profile-email">Email</label>
+              <input type="email" id="profile-email" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="profile-company">Company Name</label>
+              <input type="text" id="profile-company" />
+            </div>
+            <div class="form-group">
+              <label for="profile-phone">Phone</label>
+              <input type="tel" id="profile-phone" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="profile-address">Address</label>
+              <input type="text" id="profile-address" />
+            </div>
+            <div class="form-group">
+              <label for="profile-website">Website</label>
+              <input type="url" id="profile-website" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="profile-license">License #</label>
+            <input type="text" id="profile-license" />
+          </div>
+          <div class="form-actions">
+            <button class="btn btn--primary" id="save-profile-btn">Save Profile</button>
+            <button class="btn btn--ghost-sm" id="cancel-profile-btn">Cancel</button>
+            <span class="options__saved" id="profile-saved-msg">Profile saved!</span>
           </div>
         </div>
       </section>
@@ -46,26 +140,31 @@
       <section class="options__section">
         <h2>Description Template</h2>
         <p class="options__help">
-          This template is used to populate the description/scope of work field on documents.
+          This template generates the text you copy into the Description field.
           Use <code>{{variableName}}</code> for variables and <code>{{#variableName}}...{{/variableName}}</code> for conditional blocks.
         </p>
         <div class="options__card">
           <div class="options__variables">
-            <strong>Available variables:</strong>
+            <strong>Available variables (click to insert):</strong>
             <div class="options__tags">
+              <span class="tag" data-var="company">company</span>
+              <span class="tag" data-var="customerName">customerName</span>
               <span class="tag" data-var="jobName">jobName</span>
               <span class="tag" data-var="jobNumber">jobNumber</span>
-              <span class="tag" data-var="jobStatus">jobStatus</span>
-              <span class="tag" data-var="jobDescription">jobDescription</span>
               <span class="tag" data-var="jobAddress">jobAddress</span>
-              <span class="tag" data-var="customerName">customerName</span>
-              <span class="tag" data-var="company">company</span>
               <span class="tag" data-var="customerEmail">customerEmail</span>
               <span class="tag" data-var="customerPhone">customerPhone</span>
               <span class="tag" data-var="date">date</span>
+              <span class="tag tag--profile" data-var="bizName">bizName</span>
+              <span class="tag tag--profile" data-var="bizEmail">bizEmail</span>
+              <span class="tag tag--profile" data-var="bizPhone">bizPhone</span>
+              <span class="tag tag--profile" data-var="bizAddress">bizAddress</span>
+              <span class="tag tag--profile" data-var="bizWebsite">bizWebsite</span>
+              <span class="tag tag--profile" data-var="bizLicense">bizLicense</span>
+              <span class="tag tag--profile" data-var="ownerName">ownerName</span>
             </div>
           </div>
-          <textarea id="desc-template" rows="12" placeholder="Enter your description template..."></textarea>
+          <textarea id="desc-template" rows="16" placeholder="Enter your description template..."></textarea>
           <button class="btn btn--ghost" id="reset-desc">Reset to Default</button>
         </div>
       </section>
@@ -74,7 +173,7 @@
       <section class="options__section">
         <h2>Footer Template</h2>
         <p class="options__help">
-          This template is used to populate the footer/terms area on documents.
+          This template generates the text you copy into the Footer field.
         </p>
         <div class="options__card">
           <textarea id="footer-template" rows="6" placeholder="Enter your footer template..."></textarea>
@@ -82,12 +181,18 @@
         </div>
       </section>
 
-      <!-- Save Button -->
+      <!-- Save Templates -->
       <section class="options__section options__section--actions">
-        <button class="btn btn--primary" id="save-btn">Save Settings</button>
-        <span class="options__saved" id="saved-msg">Settings saved!</span>
+        <button class="btn btn--primary" id="save-btn">Save Templates</button>
+        <span class="options__saved" id="saved-msg">Templates saved!</span>
       </section>
     </main>
+
+    <footer class="options__footer">
+      <span>Better Boss DocFill v1.0.0</span>
+      <span class="options__footer-sep">|</span>
+      <span>Built by <strong>Better Boss</strong></span>
+    </footer>
   </div>
 
   <script src="options.js"></script>

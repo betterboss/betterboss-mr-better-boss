@@ -1,17 +1,16 @@
 // =============================================================================
-// BetterBoss Auto-Populate — Background Service Worker
-// Handles extension lifecycle events and cross-tab coordination
+// Better Boss DocFill — Background Service Worker
+// Handles extension lifecycle events and cross-script coordination
 // =============================================================================
 
 // Set default settings on install
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
     chrome.storage.sync.set({
-      autoPopulateEnabled: true,
       descriptionTemplate: '',
       footerTemplate: '',
     });
-    console.log('[BetterBoss] Extension installed, defaults set.');
+    console.log('[BB DocFill] Extension installed, defaults set.');
   }
 });
 
@@ -22,7 +21,6 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     tab.url &&
     tab.url.includes('app.jobtread.com')
   ) {
-    // Notify the content script that the page finished loading
     chrome.tabs.sendMessage(tabId, { action: 'pageLoaded' }).catch(() => {
       // Content script not yet loaded, that's fine
     });
@@ -43,5 +41,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ success: true });
     });
     return true;
+  }
+
+  if (message.action === 'openOptions') {
+    chrome.runtime.openOptionsPage();
+    return false;
   }
 });

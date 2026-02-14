@@ -1,5 +1,5 @@
 /* =============================================================================
-   BetterBoss Auto-Populate — Popup Styles
+   Better Boss DocFill — Popup Styles
    ============================================================================= */
 
 * {
@@ -36,11 +36,33 @@ body {
   gap: 10px;
 }
 
+.popup__logo-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #0c8ce9, #006fc7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.popup__logo-icon span {
+  color: white;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: -0.03em;
+}
+
 .popup__logo h1 {
   font-size: 16px;
   font-weight: 700;
   color: #ffffff;
   letter-spacing: -0.02em;
+}
+
+.brand-accent {
+  color: #f97316;
 }
 
 .popup__subtitle {
@@ -71,6 +93,52 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: #f97316;
+  margin-bottom: 10px;
+}
+
+/* ---- Profile Bar (in popup) ---- */
+
+.popup__profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.popup__profile-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0c8ce9, #006fc7);
+  color: white;
+  font-weight: 700;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.popup__profile-info strong {
+  display: block;
+  font-size: 13px;
+  color: #ffffff;
+}
+
+.popup__profile-info span {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
+}
+
+/* ---- CTA (Not Logged In) ---- */
+
+.popup__cta {
+  text-align: center;
+}
+
+.popup__cta p {
+  font-size: 12px;
+  color: #94a3b8;
   margin-bottom: 10px;
 }
 
@@ -105,60 +173,6 @@ body {
 .status-dot--inactive {
   background: #ef4444;
   box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
-}
-
-/* ---- Toggle ---- */
-
-.popup__toggle-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.toggle {
-  position: relative;
-  display: inline-block;
-  width: 38px;
-  height: 20px;
-}
-
-.toggle input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle__slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #334155;
-  transition: 0.2s;
-  border-radius: 20px;
-}
-
-.toggle__slider:before {
-  position: absolute;
-  content: "";
-  height: 14px;
-  width: 14px;
-  left: 3px;
-  bottom: 3px;
-  background-color: #94a3b8;
-  transition: 0.2s;
-  border-radius: 50%;
-}
-
-.toggle input:checked + .toggle__slider {
-  background-color: #0c8ce9;
-}
-
-.toggle input:checked + .toggle__slider:before {
-  transform: translateX(18px);
-  background-color: white;
 }
 
 /* ---- Steps List ---- */
@@ -209,27 +223,12 @@ body {
   white-space: nowrap;
 }
 
-.info-row__value--empty {
-  color: #475569;
-  font-style: italic;
-  font-weight: 400;
-}
-
 /* ---- Buttons ---- */
 
 .popup__actions {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.popup__actions-row {
-  display: flex;
-  gap: 8px;
-}
-
-.popup__actions-row .btn {
-  flex: 1;
 }
 
 .btn {
@@ -256,17 +255,6 @@ body {
 .btn--primary:hover {
   background: linear-gradient(135deg, #3ba3f0, #0c8ce9);
   box-shadow: 0 2px 12px rgba(12, 140, 233, 0.3);
-}
-
-.btn--secondary {
-  background: #1e293b;
-  color: #e2e8f0;
-  border: 1px solid #334155;
-}
-
-.btn--secondary:hover {
-  background: #334155;
-  border-color: #0c8ce9;
 }
 
 .btn--ghost {

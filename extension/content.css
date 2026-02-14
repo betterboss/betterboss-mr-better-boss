@@ -1,5 +1,5 @@
 /* =============================================================================
-   BetterBoss Auto-Populate — Content Script Styles
+   Better Boss DocFill — Content Script Styles
    Floating action button and side panel injected into JobTread pages
    ============================================================================= */
 
@@ -34,6 +34,13 @@
 
 .bb-fab:active {
   transform: scale(0.95);
+}
+
+.bb-fab__text {
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: -0.04em;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* ---- Side Panel ---- */
@@ -75,17 +82,37 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
+  padding: 14px 20px;
   background: linear-gradient(135deg, #072849, #0f172a);
   border-bottom: 1px solid rgba(12, 140, 233, 0.2);
+  flex-shrink: 0;
+}
+
+.bb-panel__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bb-panel__logo {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #0c8ce9, #006fc7);
+  color: white;
+  font-weight: 800;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
 
 .bb-panel__header h3 {
   margin: 0;
   font-size: 15px;
-  font-weight: 600;
-  color: #0c8ce9;
+  font-weight: 700;
+  color: #ffffff;
   letter-spacing: -0.01em;
 }
 
@@ -108,6 +135,49 @@
   flex: 1;
   overflow-y: auto;
   padding: 16px 20px;
+}
+
+.bb-panel__footer {
+  padding: 10px 20px;
+  border-top: 1px solid #1e293b;
+  text-align: center;
+  font-size: 10px;
+  color: #475569;
+  flex-shrink: 0;
+}
+
+/* ---- Profile Badge ---- */
+
+.bb-profile-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bb-profile-badge__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0c8ce9, #006fc7);
+  color: white;
+  font-weight: 700;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.bb-profile-badge__info strong {
+  display: block;
+  font-size: 13px;
+  color: #ffffff;
+}
+
+.bb-profile-badge__info span {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
 }
 
 /* ---- Sections ---- */

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "BetterBoss - JobTread Auto-Populate",
+  "name": "Better Boss DocFill",
   "version": "1.0.0",
-  "description": "Automatically pre-populates job and customer information into JobTread document description and footer fields.",
+  "description": "Smart document builder for JobTread. Auto-generates proposals, contracts, and scopes of work with your business branding — built by Better Boss.",
   "permissions": [
     "storage",
     "activeTab"

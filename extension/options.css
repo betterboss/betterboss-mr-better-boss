@@ -1,5 +1,5 @@
 /* =============================================================================
-   BetterBoss Auto-Populate — Options Page Styles
+   Better Boss DocFill — Options Page Styles
    ============================================================================= */
 
 * {
@@ -36,16 +36,139 @@ body {
   gap: 14px;
 }
 
+.options__logo-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #0c8ce9, #006fc7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.options__logo-icon span {
+  color: white;
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: -0.03em;
+}
+
+.options__logo-icon--lg {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+}
+
+.options__logo-icon--lg span {
+  font-size: 24px;
+}
+
 .options__logo h1 {
   font-size: 22px;
   font-weight: 700;
   color: #ffffff;
 }
 
+.brand-accent {
+  color: #f97316;
+}
+
 .options__logo p {
   font-size: 13px;
   color: #64748b;
   margin-top: 2px;
+}
+
+/* ---- Login Screen ---- */
+
+.login-card {
+  max-width: 440px;
+  margin: 40px auto;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 16px;
+  padding: 40px 32px;
+  text-align: center;
+}
+
+.login-card__icon {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.login-card h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 8px;
+}
+
+.login-card__subtitle {
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.5;
+  margin-bottom: 28px;
+}
+
+.login-form {
+  text-align: left;
+}
+
+.required {
+  color: #f97316;
+}
+
+/* ---- Profile Bar ---- */
+
+.profile-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 32px;
+}
+
+.profile-bar__info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.profile-bar__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0c8ce9, #006fc7);
+  color: white;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.profile-bar__info strong {
+  display: block;
+  font-size: 14px;
+  color: #ffffff;
+}
+
+.profile-bar__info span {
+  display: block;
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+.profile-bar__actions {
+  display: flex;
+  gap: 8px;
 }
 
 /* ---- Sections ---- */
@@ -87,70 +210,53 @@ body {
   padding: 20px;
 }
 
-/* ---- Toggle ---- */
+/* ---- Form Fields ---- */
 
-.options__toggle-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 20px;
+.form-group {
+  margin-bottom: 14px;
+  flex: 1;
 }
 
-.options__toggle-row label {
+.form-group label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: #94a3b8;
   font-weight: 600;
-  font-size: 14px;
 }
 
-.options__toggle-row .options__help {
+.form-group input {
+  width: 100%;
+  padding: 10px 12px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 13px;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #0c8ce9;
+  box-shadow: 0 0 0 2px rgba(12, 140, 233, 0.15);
+}
+
+.form-group input::placeholder {
+  color: #475569;
+}
+
+.form-row {
+  display: flex;
+  gap: 14px;
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin-top: 4px;
-  margin-bottom: 0;
-}
-
-.toggle {
-  position: relative;
-  display: inline-block;
-  width: 42px;
-  height: 22px;
-  flex-shrink: 0;
-}
-
-.toggle input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle__slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #334155;
-  transition: 0.2s;
-  border-radius: 22px;
-}
-
-.toggle__slider:before {
-  position: absolute;
-  content: "";
-  height: 16px;
-  width: 16px;
-  left: 3px;
-  bottom: 3px;
-  background-color: #94a3b8;
-  transition: 0.2s;
-  border-radius: 50%;
-}
-
-.toggle input:checked + .toggle__slider {
-  background-color: #0c8ce9;
-}
-
-.toggle input:checked + .toggle__slider:before {
-  transform: translateX(20px);
-  background-color: white;
 }
 
 /* ---- Variables Tags ---- */
@@ -188,6 +294,16 @@ body {
 .tag:hover {
   background: rgba(12, 140, 233, 0.15);
   border-color: #0c8ce9;
+}
+
+.tag--profile {
+  color: #f97316;
+  border-color: rgba(249, 115, 22, 0.3);
+}
+
+.tag--profile:hover {
+  background: rgba(249, 115, 22, 0.1);
+  border-color: #f97316;
 }
 
 /* ---- Textarea ---- */
@@ -245,6 +361,11 @@ textarea::placeholder {
   box-shadow: 0 2px 16px rgba(12, 140, 233, 0.3);
 }
 
+.btn--full {
+  width: 100%;
+  margin-top: 8px;
+}
+
 .btn--ghost {
   background: transparent;
   color: #64748b;
@@ -255,6 +376,31 @@ textarea::placeholder {
 
 .btn--ghost:hover {
   color: #0c8ce9;
+}
+
+.btn--ghost-sm {
+  background: transparent;
+  color: #94a3b8;
+  padding: 6px 12px;
+  font-size: 12px;
+  border: 1px solid #334155;
+  border-radius: 6px;
+}
+
+.btn--ghost-sm:hover {
+  color: #0c8ce9;
+  border-color: #0c8ce9;
+}
+
+.btn--danger {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.btn--danger:hover {
+  color: #ef4444;
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
 }
 
 /* ---- Actions ---- */
@@ -275,4 +421,23 @@ textarea::placeholder {
 
 .options__saved--visible {
   opacity: 1;
+}
+
+/* ---- Footer ---- */
+
+.options__footer {
+  padding: 20px 0;
+  border-top: 1px solid #1e293b;
+  text-align: center;
+  font-size: 11px;
+  color: #475569;
+}
+
+.options__footer-sep {
+  margin: 0 8px;
+  color: #334155;
+}
+
+.options__footer strong {
+  color: #0c8ce9;
 }
