@@ -1,27 +1,18 @@
 {
   "manifest_version": 3,
-  "name": "Better Boss — DocFill for JobTread",
-  "short_name": "Better Boss DocFill",
-  "version": "2.0.0",
-  "description": "Multi-template document builder for JobTread by Better Boss. Auto-generate proposals, contracts, change orders, and SOWs with your business branding. Built for construction pros.",
+  "name": "Better Boss DocFill",
+  "short_name": "DocFill",
+  "version": "3.0.0",
+  "description": "Auto-fill document descriptions and footers in JobTread. Built for construction pros by Better Boss.",
   "homepage_url": "https://better-boss.ai",
   "permissions": [
     "storage",
     "activeTab",
-    "clipboardWrite",
-    "alarms"
+    "clipboardWrite"
   ],
   "host_permissions": [
-    "https://app.jobtread.com/*",
-    "https://better-boss.ai/*"
+    "https://app.jobtread.com/*"
   ],
-  "externally_connectable": {
-    "matches": [
-      "https://better-boss.ai/*",
-      "https://*.better-boss.ai/*",
-      "http://localhost:3000/*"
-    ]
-  },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -46,8 +37,5 @@
   "background": {
     "service_worker": "background.js"
   },
-  "options_page": "options.html",
-  "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'"
-  }
+  "options_page": "options.html"
 }
