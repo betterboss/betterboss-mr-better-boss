@@ -159,51 +159,37 @@ export default function DocFillPage() {
         {/* Install */}
         <section className="mb-16">
           <p className="text-center text-[12px] font-extrabold uppercase tracking-[0.15em] text-[#818cf8] mb-6">
-            &#9889; Get Started in 2 Minutes
+            &#9889; Get Started in 30 Seconds
           </p>
 
-          <div className="rounded-[22px] p-9" style={{ background: 'linear-gradient(180deg, rgba(17,17,35,0.7), rgba(10,10,20,0.85))', border: '1px solid rgba(99,102,241,0.12)', animation: 'glow-box 5s ease-in-out infinite' }}>
-            <div className="flex gap-5">
-              <div className="w-[50px] h-[50px] rounded-[14px] flex items-center justify-center text-[#818cf8] font-extrabold text-[20px] shrink-0" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.05))', border: '1px solid rgba(99,102,241,0.1)' }}>1</div>
-              <div>
-                <p className="text-white font-bold text-[17px] mb-2">Install Tampermonkey (free, one time)</p>
-                <p className="text-[#8891a5] text-[14px] leading-relaxed mb-4">Tampermonkey is a trusted browser extension used by 10M+ people. It lets DocFill run automatically on JobTread.</p>
-                <a
-                  href="https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2.5 text-[#c8cdd8] font-bold px-6 py-3 rounded-xl text-[14px] transition-all hover:text-white"
-                  style={{ background: 'rgba(17,17,35,0.8)', border: '1px solid rgba(99,102,241,0.2)' }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                  Get Tampermonkey (Chrome Web Store)
-                </a>
-              </div>
-            </div>
-
-            <div className="my-7" style={{ borderTop: '1px solid rgba(99,102,241,0.08)' }} />
-
-            <div className="flex gap-5">
-              <div className="w-[50px] h-[50px] rounded-[14px] flex items-center justify-center text-[#818cf8] font-extrabold text-[20px] shrink-0" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.05))', border: '1px solid rgba(99,102,241,0.1)' }}>2</div>
-              <div>
-                <p className="text-white font-bold text-[17px] mb-2">Install DocFill</p>
-                <p className="text-[#8891a5] text-[14px] leading-relaxed mb-4">Click the button below. Tampermonkey will ask you to confirm &mdash; hit &ldquo;Install&rdquo; and you&apos;re done. Updates happen automatically.</p>
-                <a
-                  href="/betterboss-docfill.user.js"
-                  className="inline-flex items-center gap-3 text-white font-extrabold px-10 py-[18px] rounded-[14px] text-[18px] transition-all hover:-translate-y-0.5"
-                  style={{ background: 'linear-gradient(135deg, #6366f1, #7c3aed)', boxShadow: '0 8px 32px rgba(99,102,241,0.35)', letterSpacing: '-0.01em' }}
-                >
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  Install Better Boss DocFill
-                </a>
-              </div>
+          <div className="rounded-[22px] p-9 text-center" style={{ background: 'linear-gradient(180deg, rgba(17,17,35,0.7), rgba(10,10,20,0.85))', border: '1px solid rgba(99,102,241,0.12)', animation: 'glow-box 5s ease-in-out infinite' }}>
+            <p className="text-[22px] font-extrabold text-white mb-2">Drag this button to your bookmarks bar:</p>
+            <p className="text-[14px] text-[#8891a5] mb-7">No installs. No extensions. Just drag &amp; drop.</p>
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+            <a
+              href={"javascript:void((function(){if(window.__bbDocFillLoaded)return;window.__bbDocFillLoaded=true;var s=document.createElement('script');s.src='https://mybetterboss.ai/betterboss-docfill-loader.js?t='+Date.now();document.head.appendChild(s)})())"}
+              className="inline-flex items-center gap-3 text-white font-extrabold px-11 py-5 rounded-[16px] text-[20px] transition-all hover:-translate-y-0.5 hover:scale-[1.02] select-none"
+              style={{
+                background: 'linear-gradient(135deg, #6366f1, #7c3aed)',
+                boxShadow: '0 8px 32px rgba(99,102,241,0.35), 0 0 0 1px rgba(99,102,241,0.1)',
+                letterSpacing: '-0.01em',
+                cursor: 'grab',
+              }}
+              draggable
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              BB DocFill
+            </a>
+            <div className="flex items-center justify-center gap-2 text-[14px] text-[#818cf8] font-semibold mt-4">
+              <span className="text-[20px]" style={{ animation: 'float-up 1.2s ease-in-out infinite alternate' }}>&#8593;</span>
+              Drag it up to your bookmarks bar
             </div>
           </div>
 
           <p className="text-center text-[#6b7280] text-[14px] mt-6">
-            That&apos;s it! Open any job in{' '}
+            Then open any job in{' '}
             <a href="https://app.jobtread.com" target="_blank" rel="noopener noreferrer" className="text-[#818cf8] font-semibold hover:text-[#a78bfa]">JobTread</a>
-            {' '}and look for the <strong className="text-white">BB</strong> button in the bottom-right corner.
+            {' '}and click <strong className="text-white">BB DocFill</strong> in your bookmarks bar. That&apos;s it!
           </p>
         </section>
 
@@ -213,14 +199,13 @@ export default function DocFillPage() {
             <h2 className="text-[30px] font-extrabold text-white tracking-[-0.02em]">
               How It <span className="bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(90deg, #818cf8, #a78bfa)' }}>Works</span>
             </h2>
-            <p className="text-[15px] text-[#6b7280] mt-2">From job page to finished document in 4 steps</p>
+            <p className="text-[15px] text-[#6b7280] mt-2">From job page to finished document in 3 steps</p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             {[
               { n: '1', title: 'Open a Job', desc: 'Navigate to any job, proposal, or contract in JobTread.' },
-              { n: '2', title: 'Click BB', desc: 'Hit the BB button in the bottom-right corner of the screen.' },
-              { n: '3', title: 'Auto-Fill', desc: 'DocFill detects client info and generates your document text.' },
-              { n: '4', title: 'Copy & Paste', desc: 'Click "Copy" and paste directly into JobTread. Done.' },
+              { n: '2', title: 'Click BB DocFill', desc: 'Click the BB DocFill bookmark in your bookmarks bar. The panel appears instantly.' },
+              { n: '3', title: 'Copy & Paste', desc: 'DocFill auto-generates your document. Click "Copy" and paste into JobTread. Done.' },
             ].map(step => (
               <div
                 key={step.n}

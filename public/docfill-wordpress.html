@@ -136,6 +136,15 @@
   .bb-btn-go:hover { transform: translateY(-2px); box-shadow: 0 12px 44px rgba(99,102,241,0.45), 0 0 0 1px rgba(99,102,241,0.2); color: #fff !important; }
   .bb-btn-go:hover::before { left: 100%; }
 
+  .bb-btn-drag { display: inline-flex; align-items: center; gap: 12px; font-family: 'Inter', sans-serif; font-weight: 800; font-size: 20px; padding: 20px 44px; border-radius: 16px; cursor: grab; background: linear-gradient(135deg, #6366f1, #7c3aed); color: #fff !important; box-shadow: 0 8px 32px rgba(99,102,241,0.35), 0 0 0 1px rgba(99,102,241,0.1); letter-spacing: -0.01em; transition: all 0.3s cubic-bezier(0.4,0,0.2,1); position: relative; overflow: hidden; user-select: none; -webkit-user-select: none; border: none; }
+  .bb-btn-drag::before { content: ''; position: absolute; top: 0; left: -100%; width: 200%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent); transition: left 0.6s; }
+  .bb-btn-drag:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 14px 48px rgba(99,102,241,0.5), 0 0 0 1px rgba(99,102,241,0.2); cursor: grab; color: #fff !important; }
+  .bb-btn-drag:hover::before { left: 100%; }
+  .bb-btn-drag:active { cursor: grabbing; }
+
+  .bb-drag-hint { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #818cf8; font-weight: 600; margin-top: 16px; }
+  .bb-drag-arrow { font-size: 20px; animation: bb-slide-in 1.2s ease-in-out infinite alternate; }
+
   .bb-done { text-align: center; color: #6b7280; font-size: 14px; margin-top: 24px; line-height: 1.7; }
   .bb-done a { color: #818cf8 !important; font-weight: 600; }
   .bb-done a:hover { color: #a78bfa !important; }
@@ -273,35 +282,22 @@
 
     <!-- ====== INSTALL ====== -->
     <div class="bb-sec">
-      <div class="bb-install-lbl">&#9889; Get Started in 2 Minutes</div>
-      <div class="bb-steps">
-        <div class="bb-step">
-          <div class="bb-step-n">1</div>
-          <div class="bb-step-b">
-            <strong>Install Tampermonkey (free, one time)</strong>
-            <p>Tampermonkey is a trusted browser extension used by 10M+ people. It lets DocFill run automatically on JobTread.</p>
-            <a href="https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo" target="_blank" rel="noopener noreferrer" class="bb-btn bb-btn-ext">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-              Get Tampermonkey (Chrome Web Store)
-            </a>
-          </div>
-        </div>
-        <div class="bb-step">
-          <div class="bb-step-n">2</div>
-          <div class="bb-step-b">
-            <strong>Install DocFill</strong>
-            <p>Click the button below. Tampermonkey will ask you to confirm &mdash; hit &ldquo;Install&rdquo; and you&rsquo;re done. Updates happen automatically.</p>
-            <a href="https://mybetterboss.ai/betterboss-docfill.user.js" class="bb-btn bb-btn-go">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Install Better Boss DocFill
-            </a>
-          </div>
+      <div class="bb-install-lbl">&#9889; Get Started in 30 Seconds</div>
+      <div class="bb-steps" style="text-align: center;">
+        <p style="font-size: 22px; font-weight: 800; color: #fff; margin-bottom: 8px;">Drag this button to your bookmarks bar:</p>
+        <p style="font-size: 14px; color: #8891a5; margin-bottom: 28px;">No installs. No extensions. Just drag &amp; drop.</p>
+        <a href="javascript:void((function(){if(window.__bbDocFillLoaded)return;window.__bbDocFillLoaded=true;var s=document.createElement('script');s.src='https://mybetterboss.ai/betterboss-docfill-loader.js?t='+Date.now();document.head.appendChild(s)})())" class="bb-btn-drag" onclick="event.preventDefault();alert('Don\u0027t click \u2014 drag this button up to your bookmarks bar!');">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          BB DocFill
+        </a>
+        <div class="bb-drag-hint" style="justify-content: center;">
+          <span class="bb-drag-arrow">&#8593;</span> Drag it up to your bookmarks bar
         </div>
       </div>
       <p class="bb-done">
-        That&rsquo;s it! Open any job in
+        Then open any job in
         <a href="https://app.jobtread.com" target="_blank" rel="noopener noreferrer">JobTread</a>
-        and look for the <strong>BB</strong> button in the bottom-right corner.
+        and click <strong>BB DocFill</strong> in your bookmarks bar. That&rsquo;s it!
       </p>
     </div>
 
@@ -309,9 +305,9 @@
     <div class="bb-sec">
       <div class="bb-sec-hd">
         <h2>How It <span>Works</span></h2>
-        <p>From job page to finished document in 4 steps</p>
+        <p>From job page to finished document in 3 steps</p>
       </div>
-      <div class="bb-how">
+      <div class="bb-how" style="grid-template-columns: repeat(3, 1fr);">
         <div class="bb-how-card">
           <div class="bb-how-n">1</div>
           <h4>Open a Job</h4>
@@ -319,18 +315,13 @@
         </div>
         <div class="bb-how-card">
           <div class="bb-how-n">2</div>
-          <h4>Click BB</h4>
-          <p>Hit the BB button in the bottom-right corner of the screen.</p>
+          <h4>Click BB DocFill</h4>
+          <p>Click the BB DocFill bookmark in your bookmarks bar. The panel appears instantly.</p>
         </div>
         <div class="bb-how-card">
           <div class="bb-how-n">3</div>
-          <h4>Auto-Fill</h4>
-          <p>DocFill detects client info and generates your document text.</p>
-        </div>
-        <div class="bb-how-card">
-          <div class="bb-how-n">4</div>
           <h4>Copy &amp; Paste</h4>
-          <p>Click &ldquo;Copy&rdquo; and paste directly into JobTread. Done.</p>
+          <p>DocFill auto-generates your document. Click &ldquo;Copy&rdquo; and paste into JobTread. Done.</p>
         </div>
       </div>
     </div>
