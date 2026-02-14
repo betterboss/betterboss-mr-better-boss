@@ -8,60 +8,66 @@
 </head>
 <body>
   <div class="popup">
-    <header class="popup__header">
-      <div class="popup__logo">
-        <div class="popup__mark">BB</div>
+    <header class="popup__hdr">
+      <div class="popup__brand">
+        <div class="popup__logo">BB</div>
         <div>
-          <h1>Better Boss</h1>
-          <span class="popup__sub">DocFill for JobTread</span>
+          <h1>Better Boss <span class="popup__accent">DocFill</span></h1>
+          <span class="popup__ver">v2.0 &middot; better-boss.ai</span>
         </div>
       </div>
     </header>
+
     <main class="popup__body">
-      <section class="popup__section" id="profile-section">
+      <section class="popup__sec" id="profile-section">
         <div class="popup__profile">
           <div class="popup__avatar" id="popup-avatar">BB</div>
           <div class="popup__profile-info">
-            <strong id="popup-name">Not logged in</strong>
+            <strong id="popup-name">Not set up</strong>
             <span id="popup-company"></span>
           </div>
         </div>
       </section>
-      <section class="popup__section">
+
+      <section class="popup__sec">
         <div class="popup__status">
           <span class="dot" id="dot"></span>
           <span id="status-text">Checking page...</span>
         </div>
       </section>
-      <section class="popup__section" id="setup-cta" style="display:none">
+
+      <section class="popup__sec" id="setup-cta" style="display:none">
         <div class="popup__cta">
           <p>Set up your business profile to get started.</p>
           <button class="btn btn--primary" id="btn-setup">Set Up Profile</button>
         </div>
       </section>
-      <section class="popup__section" id="how-section" style="display:none">
-        <h2>How It Works</h2>
-        <ol class="popup__steps">
-          <li>Go to any document page in JobTread</li>
-          <li>Click the orange <strong>BB</strong> button (bottom-right)</li>
-          <li>Fill in client company &amp; contact name</li>
-          <li>Click <strong>Copy Description</strong> or <strong>Copy Footer</strong></li>
-          <li>Paste into the correct field on your document</li>
-        </ol>
+
+      <section class="popup__sec" id="shortcuts-section">
+        <h2>Keyboard Shortcuts</h2>
+        <div class="popup__shortcuts">
+          <div class="shortcut"><kbd>Ctrl+Shift+B</kbd><span>Toggle panel</span></div>
+          <div class="shortcut"><kbd>Ctrl+Shift+D</kbd><span>Copy description</span></div>
+          <div class="shortcut"><kbd>Ctrl+Shift+F</kbd><span>Copy footer</span></div>
+        </div>
       </section>
-      <section class="popup__section" id="info-section" style="display:none">
+
+      <section class="popup__sec" id="info-section" style="display:none">
         <h2>Detected</h2>
         <div id="info-grid"></div>
       </section>
-      <section class="popup__section" id="actions-section" style="display:none">
-        <button class="btn btn--primary" id="btn-panel">Open Side Panel</button>
+
+      <section class="popup__sec" id="actions-section" style="display:none">
+        <button class="btn btn--primary" id="btn-panel">Open DocFill Panel</button>
       </section>
-      <section class="popup__section">
-        <button class="btn btn--ghost" id="btn-options">Settings &amp; Templates</button>
+
+      <section class="popup__sec">
+        <button class="btn btn--ghost" id="btn-options">Settings & Templates</button>
       </section>
     </main>
-    <footer class="popup__footer">
-      Better Boss DocFill v1.0 &middot; <a href="https://mybetterboss.ai" target="_blank">mybetterboss.ai</a>
+
+    <footer class="popup__foot">
+      Better Boss DocFill v2.0 &middot; <a href="https://better-boss.ai" target="_blank">better-boss.ai</a>
     </footer>
   </div>
   <script src="popup.js"></script>

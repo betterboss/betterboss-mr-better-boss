@@ -180,7 +180,7 @@ export default function SettingsPage() {
               <Globe className="w-3 h-3" />
               better-boss.ai
             </a>
-            <a href="https://mybetterboss.ai" target="_blank" rel="noopener noreferrer"
+            <a href="https://better-boss.ai" target="_blank" rel="noopener noreferrer"
                className="text-boss-400 hover:text-boss-300 flex items-center gap-1">
               <ExternalLink className="w-3 h-3" />
               Resources

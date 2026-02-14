@@ -8,12 +8,12 @@
 </head>
 <body>
   <div class="opt">
-    <header class="opt__header">
-      <div class="opt__logo">
-        <div class="opt__mark">BB</div>
+    <header class="opt__hdr">
+      <div class="opt__brand">
+        <div class="opt__logo">BB</div>
         <div>
-          <h1>Better Boss</h1>
-          <p>DocFill Settings &middot; <a href="https://mybetterboss.ai" target="_blank">mybetterboss.ai</a></p>
+          <h1>Better Boss <span class="opt__accent">DocFill</span></h1>
+          <p>Settings &middot; v2.0 &middot; <a href="https://better-boss.ai" target="_blank">better-boss.ai</a></p>
         </div>
       </div>
     </header>
@@ -21,30 +21,29 @@
     <!-- LOGIN -->
     <div id="login-screen" class="opt__screen" style="display:none">
       <div class="login-card">
-        <div class="login-card__icon"><div class="opt__mark opt__mark--lg">BB</div></div>
+        <div class="login-card__icon"><div class="opt__logo opt__logo--lg">BB</div></div>
         <h2>Welcome to Better Boss DocFill</h2>
-        <p class="login-card__sub">Set up your business profile. This info auto-fills into every proposal, contract, and SOW you generate.</p>
+        <p class="login-card__sub">Set up your business profile. This info auto-fills into every proposal, contract, and SOW you generate inside JobTread.</p>
         <form id="login-form">
           <div class="fg"><label for="l-name">Your Full Name <span class="req">*</span></label><input id="l-name" required placeholder="e.g. Nick Peret" maxlength="120"/></div>
-          <div class="fg"><label for="l-email">Email <span class="req">*</span></label><input id="l-email" type="email" required placeholder="e.g. nick@mybetterboss.ai" maxlength="200"/></div>
+          <div class="fg"><label for="l-email">Email <span class="req">*</span></label><input id="l-email" type="email" required placeholder="e.g. nick@better-boss.ai" maxlength="200"/></div>
           <div class="fg"><label for="l-company">Company Name <span class="req">*</span></label><input id="l-company" required placeholder="e.g. Better Boss" maxlength="200"/></div>
-          <div class="fg"><label for="l-phone">Phone</label><input id="l-phone" type="tel" placeholder="e.g. (303) 555-1234" maxlength="30"/></div>
+          <div class="fg"><label for="l-phone">Phone</label><input id="l-phone" type="tel" placeholder="e.g. (720) 636-9500" maxlength="30"/></div>
           <div class="fg"><label for="l-address">Address</label><input id="l-address" placeholder="e.g. Denver, CO" maxlength="300"/></div>
-          <div class="fg"><label for="l-website">Website</label><input id="l-website" type="url" placeholder="e.g. https://mybetterboss.ai" maxlength="200"/></div>
+          <div class="fg"><label for="l-website">Website</label><input id="l-website" type="url" placeholder="e.g. https://better-boss.ai" maxlength="200"/></div>
           <div class="fg"><label for="l-license">License #</label><input id="l-license" placeholder="e.g. CON-12345" maxlength="60"/></div>
-          <button type="submit" class="btn btn--primary btn--full">Save Profile &amp; Get Started</button>
+          <button type="submit" class="btn btn--primary btn--full">Save Profile & Get Started</button>
         </form>
       </div>
     </div>
 
     <!-- SETTINGS -->
     <main id="settings-screen" class="opt__screen" style="display:none">
-
       <!-- Profile bar -->
       <div class="pbar" id="pbar">
         <div class="pbar__info">
           <div class="pbar__avatar" id="p-avatar">BB</div>
-          <div><strong id="p-name">—</strong><span id="p-company">—</span></div>
+          <div><strong id="p-name">&mdash;</strong><span id="p-company">&mdash;</span></div>
         </div>
         <div class="pbar__actions">
           <button class="btn btn--sm" id="btn-edit">Edit Profile</button>
@@ -53,7 +52,7 @@
       </div>
 
       <!-- Profile edit (hidden) -->
-      <section class="opt__section" id="profile-edit" style="display:none">
+      <section class="opt__sec" id="profile-edit" style="display:none">
         <h2>Business Profile</h2>
         <div class="card">
           <div class="frow"><div class="fg"><label for="p-fname">Name</label><input id="p-fname" maxlength="120"/></div><div class="fg"><label for="p-femail">Email</label><input id="p-femail" type="email" maxlength="200"/></div></div>
@@ -64,54 +63,31 @@
         </div>
       </section>
 
-      <!-- Description Template -->
-      <section class="opt__section">
-        <h2>Description Template</h2>
-        <p class="help">Use <code>{{variable}}</code> for values. <code>{{#var}}...{{/var}}</code> for conditional blocks. Click a tag to insert.</p>
+      <!-- Info -->
+      <section class="opt__sec">
+        <h2>How It Works</h2>
         <div class="card">
-          <div class="tags">
-            <strong>Client/Job:</strong>
-            <span class="tag" data-v="company">company</span>
-            <span class="tag" data-v="customerName">customerName</span>
-            <span class="tag" data-v="jobName">jobName</span>
-            <span class="tag" data-v="jobNumber">jobNumber</span>
-            <span class="tag" data-v="date">date</span>
+          <ol class="steps">
+            <li>Navigate to any job, proposal, or contract in <strong>JobTread</strong></li>
+            <li>Click the <strong class="orange">DocFill</strong> button (bottom-right corner)</li>
+            <li>Choose your template, fill in client details</li>
+            <li>Click <strong>Copy Description</strong>, <strong>Copy Footer</strong>, or <strong>Copy All</strong></li>
+            <li>Paste directly into your JobTread document fields</li>
+          </ol>
+          <div class="shortcuts">
+            <h3>Keyboard Shortcuts</h3>
+            <div class="shortcut-row"><kbd>Ctrl+Shift+B</kbd><span>Toggle DocFill panel</span></div>
+            <div class="shortcut-row"><kbd>Ctrl+Shift+D</kbd><span>Copy description</span></div>
+            <div class="shortcut-row"><kbd>Ctrl+Shift+F</kbd><span>Copy footer</span></div>
           </div>
-          <div class="tags">
-            <strong>Your Business:</strong>
-            <span class="tag tag--biz" data-v="bizName">bizName</span>
-            <span class="tag tag--biz" data-v="bizEmail">bizEmail</span>
-            <span class="tag tag--biz" data-v="bizPhone">bizPhone</span>
-            <span class="tag tag--biz" data-v="bizAddress">bizAddress</span>
-            <span class="tag tag--biz" data-v="bizWebsite">bizWebsite</span>
-            <span class="tag tag--biz" data-v="bizLicense">bizLicense</span>
-            <span class="tag tag--biz" data-v="ownerName">ownerName</span>
-          </div>
-          <textarea id="desc-tpl" rows="18" spellcheck="false"></textarea>
-          <button class="btn btn--ghost" id="reset-desc">Reset to Default</button>
         </div>
-      </section>
-
-      <!-- Footer Template -->
-      <section class="opt__section">
-        <h2>Footer Template</h2>
-        <div class="card">
-          <textarea id="footer-tpl" rows="6" spellcheck="false"></textarea>
-          <button class="btn btn--ghost" id="reset-footer">Reset to Default</button>
-        </div>
-      </section>
-
-      <!-- Save Templates -->
-      <section class="opt__section opt__section--row">
-        <button class="btn btn--primary" id="save-tpl">Save Templates</button>
-        <span class="saved" id="tpl-saved">Templates saved!</span>
       </section>
 
       <!-- Data Management -->
-      <section class="opt__section">
+      <section class="opt__sec">
         <h2>Data Management</h2>
         <div class="card">
-          <p class="help" style="margin-bottom:10px">Export your profile + templates as a backup file. Import on another machine to restore.</p>
+          <p class="help" style="margin-bottom:10px">Export everything (profile, templates, snippets, custom variables) as a backup file. Import to restore on any machine.</p>
           <div class="faction">
             <button class="btn btn--sm" id="btn-export">Export Data</button>
             <label class="btn btn--sm" for="import-file" style="cursor:pointer">Import Data<input type="file" id="import-file" accept=".json" style="display:none"/></label>
@@ -120,7 +96,7 @@
       </section>
     </main>
 
-    <footer class="opt__footer">Better Boss DocFill v1.0 &middot; Built by <strong>Better Boss</strong> &middot; <a href="https://mybetterboss.ai" target="_blank">mybetterboss.ai</a></footer>
+    <footer class="opt__foot">Better Boss DocFill v2.0 &middot; Built by <strong>Better Boss</strong> &middot; <a href="https://better-boss.ai" target="_blank">better-boss.ai</a></footer>
   </div>
   <script src="options.js"></script>
 </body>
