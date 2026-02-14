@@ -1,41 +1,25 @@
-// =============================================================================
-// Better Boss DocFill — Options Page Script
-// Handles login (business profile setup), profile editing, and template config
-// =============================================================================
+// Better Boss — DocFill Options · mybetterboss.ai
 
 document.addEventListener('DOMContentLoaded', () => {
-  // ---- Element References ----
+  const $ = id => document.getElementById(id);
 
-  const loginScreen = document.getElementById('login-screen');
-  const settingsScreen = document.getElementById('settings-screen');
+  const loginScreen   = $('login-screen');
+  const settingsScreen = $('settings-screen');
+  const loginForm     = $('login-form');
 
-  // Login form
-  const loginForm = document.getElementById('login-form');
+  const pAvatar  = $('p-avatar');
+  const pName    = $('p-name');
+  const pCompany = $('p-company');
 
-  // Profile bar (logged-in header)
-  const profileAvatar = document.getElementById('profile-avatar');
-  const profileDisplayName = document.getElementById('profile-display-name');
-  const profileDisplayCompany = document.getElementById('profile-display-company');
-  const btnEditProfile = document.getElementById('btn-edit-profile');
-  const btnLogout = document.getElementById('btn-logout');
-
-  // Profile edit section
-  const profileEditSection = document.getElementById('profile-edit-section');
-  const saveProfileBtn = document.getElementById('save-profile-btn');
-  const cancelProfileBtn = document.getElementById('cancel-profile-btn');
-  const profileSavedMsg = document.getElementById('profile-saved-msg');
-
-  // Template fields
-  const descTemplate = document.getElementById('desc-template');
-  const footerTemplate = document.getElementById('footer-template');
-  const saveBtn = document.getElementById('save-btn');
-  const savedMsg = document.getElementById('saved-msg');
-  const resetDescBtn = document.getElementById('reset-desc');
-  const resetFooterBtn = document.getElementById('reset-footer');
+  const profileEdit   = $('profile-edit');
+  const profileSaved  = $('profile-saved');
+  const descTpl       = $('desc-tpl');
+  const footerTpl     = $('footer-tpl');
+  const tplSaved      = $('tpl-saved');
 
   // ---- Default Templates ----
 
-  const DEFAULT_DESC_TEMPLATE = `*JobTread Implementation Agreement \u2014 *^{{company}}^**
+  const DEF_DESC = `*JobTread Implementation Agreement \u2014 *^{{company}}^**
 *Client:* *^{{company}}^* (\u201CClient\u201D) \u2022 *Contact:* *^{{customerName}}^*
 *Provider:* {{bizName}} (\u201CProvider\u201D)
 *Project:* Full JobTread build-out operating system for remodeling and construction
@@ -53,7 +37,7 @@ Deploy a single, structured JobTread OS that speeds proposals, reduces chaos, an
 ####2.2 Implementation Schedule
 Custom implementation schedule built inside JobTread to track progress and milestones.
 ####2.3 Cost Catalog Build
-Complete cost catalog build including suppliers, labor, materials, cost groups, product and material catalog (Lowe\u2019s + local vendors) uploaded, standardized, and linked to cost codes.
+Complete cost catalog build including suppliers, labor, materials, cost groups, product and material catalog uploaded, standardized, and linked to cost codes.
 ####2.4 Job Costing Framework
 Job costing review including units, cost codes, and cost types configured for accurate project tracking.
 ####2.5 Custom Views
@@ -132,7 +116,7 @@ This agreement may be signed electronically and in counterparts.
 ##20) Acceptance & Signature
 This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019s acceptance is deemed upon (a) commencement of services or (b) receipt of the first payment.* No additional Provider signature required.`;
 
-  const DEFAULT_FOOTER_TEMPLATE =
+  const DEF_FOOTER =
     '{{#customerName}}*Prepared for:* {{customerName}}{{/customerName}}' +
     '{{#company}} | *{{company}}*{{/company}}' +
     '{{#jobName}} | Project: {{jobName}}{{/jobName}}' +
@@ -145,158 +129,166 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
 
   // ---- Helpers ----
 
-  function getInitials(name) {
-    if (!name) return 'BB';
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  function initials(n) {
+    if (!n) return 'BB';
+    const p = n.trim().split(/\s+/);
+    return p.length >= 2 ? (p[0][0]+p[p.length-1][0]).toUpperCase() : p[0].substring(0,2).toUpperCase();
+  }
+
+  function flash(el) {
+    el.classList.add('saved--show');
+    setTimeout(() => el.classList.remove('saved--show'), 2000);
+  }
+
+  function safeSave(data, cb) {
+    try {
+      chrome.storage.sync.set(data, () => {
+        if (chrome.runtime.lastError) {
+          alert('Save failed: ' + chrome.runtime.lastError.message);
+        } else if (cb) {
+          cb();
+        }
+      });
+    } catch (e) {
+      alert('Save error: ' + e.message);
     }
-    return parts[0].substring(0, 2).toUpperCase();
   }
 
-  function flashSaved(el) {
-    el.classList.add('options__saved--visible');
-    setTimeout(() => el.classList.remove('options__saved--visible'), 2000);
-  }
+  // ---- Screens ----
 
-  // ---- Screen Management ----
-
-  function showLoginScreen() {
-    loginScreen.style.display = 'block';
-    settingsScreen.style.display = 'none';
-  }
-
-  function showSettingsScreen(profile) {
+  function showLogin() { loginScreen.style.display = 'block'; settingsScreen.style.display = 'none'; }
+  function showSettings(p) {
     loginScreen.style.display = 'none';
     settingsScreen.style.display = 'block';
-
-    // Populate profile bar
-    profileAvatar.textContent = getInitials(profile.ownerName);
-    profileDisplayName.textContent = profile.ownerName || 'User';
-    profileDisplayCompany.textContent = profile.bizName || '';
-
-    // Populate profile edit fields
-    document.getElementById('profile-name').value = profile.ownerName || '';
-    document.getElementById('profile-email').value = profile.bizEmail || '';
-    document.getElementById('profile-company').value = profile.bizName || '';
-    document.getElementById('profile-phone').value = profile.bizPhone || '';
-    document.getElementById('profile-address').value = profile.bizAddress || '';
-    document.getElementById('profile-website').value = profile.bizWebsite || '';
-    document.getElementById('profile-license').value = profile.bizLicense || '';
+    pAvatar.textContent = initials(p.ownerName);
+    pName.textContent = p.ownerName || '—';
+    pCompany.textContent = p.bizName || '';
+    $('p-fname').value = p.ownerName || '';
+    $('p-femail').value = p.bizEmail || '';
+    $('p-fcompany').value = p.bizName || '';
+    $('p-fphone').value = p.bizPhone || '';
+    $('p-faddress').value = p.bizAddress || '';
+    $('p-fwebsite').value = p.bizWebsite || '';
+    $('p-flicense').value = p.bizLicense || '';
   }
 
-  // ---- Load Everything ----
+  // ---- Load ----
 
-  chrome.storage.sync.get(null, (result) => {
-    const profile = result.profile || null;
-
-    if (!profile || !profile.ownerName) {
-      showLoginScreen();
-    } else {
-      showSettingsScreen(profile);
+  chrome.storage.sync.get(null, (r) => {
+    if (chrome.runtime.lastError) {
+      alert('Could not load settings: ' + chrome.runtime.lastError.message);
+      return;
     }
-
-    // Load templates
-    descTemplate.value = result.descriptionTemplate || DEFAULT_DESC_TEMPLATE;
-    footerTemplate.value = result.footerTemplate || DEFAULT_FOOTER_TEMPLATE;
+    const p = r.profile;
+    if (p && p.ownerName) { showSettings(p); } else { showLogin(); }
+    descTpl.value = r.descriptionTemplate || DEF_DESC;
+    footerTpl.value = r.footerTemplate || DEF_FOOTER;
   });
 
-  // ---- Login Form Submit ----
+  // ---- Login ----
 
   loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
-
     const profile = {
-      ownerName: document.getElementById('login-name').value.trim(),
-      bizEmail: document.getElementById('login-email').value.trim(),
-      bizName: document.getElementById('login-company').value.trim(),
-      bizPhone: document.getElementById('login-phone').value.trim(),
-      bizAddress: document.getElementById('login-address').value.trim(),
-      bizWebsite: document.getElementById('login-website').value.trim(),
-      bizLicense: document.getElementById('login-license').value.trim(),
+      ownerName: $('l-name').value.trim(),
+      bizEmail:  $('l-email').value.trim(),
+      bizName:   $('l-company').value.trim(),
+      bizPhone:  $('l-phone').value.trim(),
+      bizAddress:$('l-address').value.trim(),
+      bizWebsite:$('l-website').value.trim(),
+      bizLicense:$('l-license').value.trim(),
     };
-
-    chrome.storage.sync.set({ profile }, () => {
-      showSettingsScreen(profile);
-    });
+    safeSave({ profile }, () => showSettings(profile));
   });
 
   // ---- Profile Edit ----
 
-  btnEditProfile.addEventListener('click', () => {
-    profileEditSection.style.display = 'block';
-    profileEditSection.scrollIntoView({ behavior: 'smooth' });
+  $('btn-edit').addEventListener('click', () => {
+    profileEdit.style.display = 'block';
+    profileEdit.scrollIntoView({ behavior: 'smooth' });
   });
+  $('cancel-profile').addEventListener('click', () => { profileEdit.style.display = 'none'; });
 
-  cancelProfileBtn.addEventListener('click', () => {
-    profileEditSection.style.display = 'none';
-  });
-
-  saveProfileBtn.addEventListener('click', () => {
+  $('save-profile').addEventListener('click', () => {
     const profile = {
-      ownerName: document.getElementById('profile-name').value.trim(),
-      bizEmail: document.getElementById('profile-email').value.trim(),
-      bizName: document.getElementById('profile-company').value.trim(),
-      bizPhone: document.getElementById('profile-phone').value.trim(),
-      bizAddress: document.getElementById('profile-address').value.trim(),
-      bizWebsite: document.getElementById('profile-website').value.trim(),
-      bizLicense: document.getElementById('profile-license').value.trim(),
+      ownerName: $('p-fname').value.trim(),
+      bizEmail:  $('p-femail').value.trim(),
+      bizName:   $('p-fcompany').value.trim(),
+      bizPhone:  $('p-fphone').value.trim(),
+      bizAddress:$('p-faddress').value.trim(),
+      bizWebsite:$('p-fwebsite').value.trim(),
+      bizLicense:$('p-flicense').value.trim(),
     };
-
-    chrome.storage.sync.set({ profile }, () => {
-      // Update profile bar
-      profileAvatar.textContent = getInitials(profile.ownerName);
-      profileDisplayName.textContent = profile.ownerName || 'User';
-      profileDisplayCompany.textContent = profile.bizName || '';
-      profileEditSection.style.display = 'none';
-      flashSaved(profileSavedMsg);
+    safeSave({ profile }, () => {
+      pAvatar.textContent = initials(profile.ownerName);
+      pName.textContent = profile.ownerName || '—';
+      pCompany.textContent = profile.bizName || '';
+      profileEdit.style.display = 'none';
+      flash(profileSaved);
     });
   });
 
   // ---- Logout ----
 
-  btnLogout.addEventListener('click', () => {
-    if (confirm('Log out? Your templates will be kept, but your profile will be cleared.')) {
-      chrome.storage.sync.remove('profile', () => {
-        showLoginScreen();
-      });
-    }
+  $('btn-logout').addEventListener('click', () => {
+    if (!confirm('Log out? Your templates stay, but your profile will be cleared.')) return;
+    chrome.storage.sync.remove('profile', () => showLogin());
   });
 
-  // ---- Save Templates ----
+  // ---- Templates ----
 
-  saveBtn.addEventListener('click', () => {
-    chrome.storage.sync.set(
-      {
-        descriptionTemplate: descTemplate.value,
-        footerTemplate: footerTemplate.value,
-      },
-      () => flashSaved(savedMsg)
-    );
+  $('save-tpl').addEventListener('click', () => {
+    safeSave({ descriptionTemplate: descTpl.value, footerTemplate: footerTpl.value }, () => flash(tplSaved));
   });
 
-  // ---- Reset Templates ----
+  $('reset-desc').addEventListener('click', () => { descTpl.value = DEF_DESC; });
+  $('reset-footer').addEventListener('click', () => { footerTpl.value = DEF_FOOTER; });
 
-  resetDescBtn.addEventListener('click', () => {
-    descTemplate.value = DEFAULT_DESC_TEMPLATE;
-  });
+  // ---- Tags ----
 
-  resetFooterBtn.addEventListener('click', () => {
-    footerTemplate.value = DEFAULT_FOOTER_TEMPLATE;
-  });
-
-  // ---- Variable Tags — Click to Insert ----
-
-  document.querySelectorAll('.tag[data-var]').forEach((tag) => {
+  document.querySelectorAll('.tag[data-v]').forEach(tag => {
     tag.addEventListener('click', () => {
-      const variable = `{{${tag.dataset.var}}}`;
-      const textarea = descTemplate;
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const text = textarea.value;
-      textarea.value = text.substring(0, start) + variable + text.substring(end);
-      textarea.focus();
-      textarea.selectionStart = textarea.selectionEnd = start + variable.length;
+      const v = `{{${tag.dataset.v}}}`;
+      const ta = descTpl;
+      const s = ta.selectionStart, e = ta.selectionEnd;
+      ta.value = ta.value.substring(0, s) + v + ta.value.substring(e);
+      ta.focus();
+      ta.selectionStart = ta.selectionEnd = s + v.length;
     });
+  });
+
+  // ---- Export ----
+
+  $('btn-export').addEventListener('click', () => {
+    chrome.storage.sync.get(null, (data) => {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'betterboss-docfill-backup.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  });
+
+  // ---- Import ----
+
+  $('import-file').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!data || typeof data !== 'object') throw new Error('Invalid format');
+        safeSave(data, () => {
+          alert('Data imported! Reloading settings...');
+          window.location.reload();
+        });
+      } catch (err) {
+        alert('Import failed: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
   });
 });

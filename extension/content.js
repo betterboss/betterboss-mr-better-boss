@@ -1,103 +1,122 @@
 // =============================================================================
-// Better Boss DocFill — Content Script
-// Generates pre-formatted document text (description & footer) using
-// job/customer info + saved business profile. User copies and pastes into
-// the correct JobTread fields.
+// Better Boss — DocFill Content Script
+// https://mybetterboss.ai
 //
-// JobTread formatting syntax (plaintext markdown):
+// Injects a side panel on JobTread document pages. User fills in client info,
+// extension merges it with saved business profile + template, user copies
+// the rendered text and pastes into JobTread Description / Footer fields.
+//
+// JobTread formatting:
 //   *bold*  ^italic^  _underline_  ~strikethrough~
 //   # H1  ## H2  ### H3  #### H4
-//   - bullet  1. numbered
-//   > quote   --- horizontal rule
-//   [text](url) links
+//   - bullet  1. numbered  > quote  --- hr  [text](url)
 // =============================================================================
 
 (function () {
   'use strict';
 
   const BUTTON_ID = 'bb-autofill-btn';
-  const PANEL_ID = 'bb-autofill-panel';
+  const PANEL_ID  = 'bb-autofill-panel';
+  const BRAND     = 'Better Boss';
 
   let currentJobInfo = null;
   let currentCustomerInfo = null;
-  let cachedProfile = null;
 
-  function log(...args) {
-    console.log('[BB DocFill]', ...args);
+  // ---- Helpers ----
+
+  function log(...a) { console.log('[Better Boss]', ...a); }
+
+  function debounce(fn, ms) {
+    let t;
+    return function (...args) { clearTimeout(t); t = setTimeout(() => fn.apply(this, args), ms); };
+  }
+
+  function getInitials(name) {
+    if (!name) return 'BB';
+    const p = name.trim().split(/\s+/);
+    return p.length >= 2
+      ? (p[0][0] + p[p.length - 1][0]).toUpperCase()
+      : p[0].substring(0, 2).toUpperCase();
+  }
+
+  function esc(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ---- Storage (with error handling) ----
+
+  function getStored() {
+    return new Promise((resolve) => {
+      try {
+        chrome.storage.sync.get(null, (r) => {
+          if (chrome.runtime.lastError) {
+            log('Storage read error:', chrome.runtime.lastError);
+            resolve({});
+          } else {
+            resolve(r || {});
+          }
+        });
+      } catch (e) {
+        log('Storage exception:', e);
+        resolve({});
+      }
+    });
   }
 
   // ---- Page Detection ----
 
-  function isRelevantPage() {
-    const path = window.location.pathname;
-    return (
-      path.includes('/jobs/') ||
-      path.includes('/documents/') ||
-      path.includes('/invoices/') ||
-      path.includes('/estimates/') ||
-      path.includes('/proposals/') ||
-      path.includes('/contracts/') ||
-      path.includes('/purchase-orders/') ||
-      path.includes('/change-orders/') ||
-      path.includes('/work-orders/') ||
-      path.includes('/bills/') ||
-      path.includes('/budget')
-    );
-  }
+  const DOC_PATHS = [
+    '/jobs/','/documents/','/invoices/','/estimates/','/proposals/',
+    '/contracts/','/purchase-orders/','/change-orders/','/work-orders/',
+    '/bills/','/budget','/quotes/'
+  ];
+  const EXCLUDE_PATHS = ['/settings','/plans','/catalog'];
 
+  function isRelevantPage() {
+    const p = window.location.pathname;
+    return DOC_PATHS.some(d => p.includes(d));
+  }
   function isExcludedPage() {
-    const path = window.location.pathname;
-    return (
-      path.includes('/settings') ||
-      path.includes('/plans') ||
-      path.includes('/catalog')
-    );
+    const p = window.location.pathname;
+    return EXCLUDE_PATHS.some(d => p.includes(d));
   }
 
   // ---- Info Extraction ----
 
   function extractJobInfo() {
-    const info = { jobName: '', jobNumber: '', jobAddress: '', jobId: '' };
-
-    const headings = document.querySelectorAll('h1, h2');
-    for (const h of headings) {
-      const text = h.textContent.trim();
-      if (text.length > 2 && text.length < 200) {
-        info.jobName = text;
-        break;
+    const info = { jobName:'', jobNumber:'', jobAddress:'', jobId:'' };
+    try {
+      for (const h of document.querySelectorAll('h1, h2')) {
+        const t = h.textContent.trim();
+        if (t.length > 2 && t.length < 200) { info.jobName = t; break; }
       }
-    }
-
-    if (!info.jobName) {
-      const m = document.title.match(/^(.+?)(?:\s*[-|]\s*JobTread)?$/i);
-      if (m) info.jobName = m[1].trim();
-    }
-
-    const numMatch = document.body.innerText.match(/(?:Job\s*#?\s*|#)(\d{3,})/i);
-    if (numMatch) info.jobNumber = numMatch[1];
-
-    const idMatch = window.location.pathname.match(/\/jobs\/([^/]+)/);
-    if (idMatch) info.jobId = idMatch[1];
-
+      if (!info.jobName) {
+        const m = document.title.match(/^(.+?)(?:\s*[-|]\s*JobTread)?$/i);
+        if (m) info.jobName = m[1].trim();
+      }
+      const nm = document.body.innerText.match(/(?:Job\s*#?\s*|#)(\d{3,})/i);
+      if (nm) info.jobNumber = nm[1];
+      const id = window.location.pathname.match(/\/jobs\/([^/]+)/);
+      if (id) info.jobId = id[1];
+    } catch (e) { log('extractJobInfo error:', e); }
     return info;
   }
 
   function extractCustomerInfo() {
-    const info = { customerName: '', company: '', email: '', phone: '' };
-
-    const allText = document.body.innerText;
-    const emailMatch = allText.match(/[\w.+-]+@[\w-]+\.[\w.]+/);
-    if (emailMatch) info.email = emailMatch[0];
-
-    const phoneMatch = allText.match(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
-    if (phoneMatch) info.phone = phoneMatch[0];
-
+    const info = { customerName:'', company:'', email:'', phone:'' };
+    try {
+      const txt = document.body.innerText;
+      const em = txt.match(/[\w.+-]+@[\w-]+\.[\w.]+/);
+      if (em) info.email = em[0];
+      const ph = txt.match(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
+      if (ph) info.phone = ph[0];
+    } catch (e) { log('extractCustomerInfo error:', e); }
     return info;
   }
 
-  // ---- Templates ----
+  // ---- Template Engine ----
 
-  function getDefaultDescriptionTemplate() {
+  function getDefaultDescTemplate() {
     return `*JobTread Implementation Agreement \u2014 *^{{company}}^**
 *Client:* *^{{company}}^* (\u201CClient\u201D) \u2022 *Contact:* *^{{customerName}}^*
 *Provider:* {{bizName}} (\u201CProvider\u201D)
@@ -116,7 +135,7 @@ Deploy a single, structured JobTread OS that speeds proposals, reduces chaos, an
 ####2.2 Implementation Schedule
 Custom implementation schedule built inside JobTread to track progress and milestones.
 ####2.3 Cost Catalog Build
-Complete cost catalog build including suppliers, labor, materials, cost groups, product and material catalog (Lowe\u2019s + local vendors) uploaded, standardized, and linked to cost codes.
+Complete cost catalog build including suppliers, labor, materials, cost groups, product and material catalog uploaded, standardized, and linked to cost codes.
 ####2.4 Job Costing Framework
 Job costing review including units, cost codes, and cost types configured for accurate project tracking.
 ####2.5 Custom Views
@@ -208,132 +227,87 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
       '{{#bizLicense}} | Lic #{{bizLicense}}{{/bizLicense}}';
   }
 
-  /**
-   * Mustache-style template renderer.
-   * {{variable}} — replaced with value
-   * {{#variable}}...{{/variable}} — only included if variable has a value
-   */
-  function renderTemplate(template, data) {
-    let result = template;
-
-    // Conditional blocks
-    result = result.replace(
-      /\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g,
-      (_, key, content) => {
-        if (data[key] && data[key].toString().trim()) {
-          return content.replace(/\{\{(\w+)\}\}/g, (__, k) => data[k] || '');
-        }
-        return '';
-      }
-    );
-
-    // Simple variables
-    result = result.replace(/\{\{(\w+)\}\}/g, (_, key) => data[key] || '');
-
-    // Clean up extra blank lines
-    result = result.replace(/\n{3,}/g, '\n\n').trim();
-
-    return result;
-  }
-
-  // ---- Storage ----
-
-  function getStoredSettings() {
-    return new Promise((resolve) => {
-      if (chrome && chrome.storage) {
-        chrome.storage.sync.get(null, (result) => resolve(result || {}));
-      } else {
-        resolve({});
-      }
+  function render(template, data) {
+    let r = template;
+    r = r.replace(/\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (_, k, c) => {
+      return (data[k] && data[k].toString().trim())
+        ? c.replace(/\{\{(\w+)\}\}/g, (__, kk) => data[kk] || '')
+        : '';
     });
+    r = r.replace(/\{\{(\w+)\}\}/g, (_, k) => data[k] || '');
+    return r.replace(/\n{3,}/g, '\n\n').trim();
   }
 
-  // ---- Copy to Clipboard ----
+  // ---- Clipboard (with validation) ----
 
-  async function copyToClipboard(text, buttonEl) {
+  async function copyText(text, btn) {
+    let ok = false;
     try {
       await navigator.clipboard.writeText(text);
-      const orig = buttonEl.textContent;
-      buttonEl.textContent = 'Copied!';
-      buttonEl.classList.add('bb-btn--copied');
-      setTimeout(() => {
-        buttonEl.textContent = orig;
-        buttonEl.classList.remove('bb-btn--copied');
-      }, 1500);
-    } catch (err) {
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.style.cssText = 'position:fixed;left:-9999px';
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-      const orig = buttonEl.textContent;
-      buttonEl.textContent = 'Copied!';
-      buttonEl.classList.add('bb-btn--copied');
-      setTimeout(() => {
-        buttonEl.textContent = orig;
-        buttonEl.classList.remove('bb-btn--copied');
-      }, 1500);
+      ok = true;
+    } catch (_) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;left:-9999px;opacity:0';
+        document.body.appendChild(ta);
+        ta.select();
+        ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch (__) { ok = false; }
     }
+    const orig = btn.textContent;
+    if (ok) {
+      btn.textContent = 'Copied!';
+      btn.classList.add('bb-btn--copied');
+    } else {
+      btn.textContent = 'Failed — select & copy manually';
+      btn.classList.add('bb-btn--error');
+    }
+    setTimeout(() => {
+      btn.textContent = orig;
+      btn.classList.remove('bb-btn--copied', 'bb-btn--error');
+    }, 2000);
   }
 
-  // ---- Floating Action Button ----
+  // ---- Floating Button ----
 
-  function createFloatingButton() {
+  function createFAB() {
     if (document.getElementById(BUTTON_ID)) return;
-
-    const btn = document.createElement('div');
-    btn.id = BUTTON_ID;
-    btn.innerHTML = `
-      <button class="bb-fab" title="Better Boss DocFill">
-        <span class="bb-fab__text">BB</span>
-      </button>
-    `;
-    btn.addEventListener('click', togglePanel);
-    document.body.appendChild(btn);
+    const el = document.createElement('div');
+    el.id = BUTTON_ID;
+    el.innerHTML = `<button class="bb-fab" title="${BRAND} DocFill" aria-label="Open ${BRAND} DocFill panel"><span class="bb-fab__text">BB</span></button>`;
+    el.addEventListener('click', togglePanel);
+    document.body.appendChild(el);
   }
 
-  // ---- Side Panel ----
+  // ---- Panel ----
 
   function togglePanel() {
-    const existing = document.getElementById(PANEL_ID);
-    if (existing) {
-      existing.remove();
-      return;
-    }
-    createPanel();
+    const ex = document.getElementById(PANEL_ID);
+    if (ex) { ex.remove(); return; }
+    buildPanel();
   }
 
-  function getInitials(name) {
-    if (!name) return 'BB';
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    }
-    return parts[0].substring(0, 2).toUpperCase();
-  }
+  async function buildPanel() {
+    const job = currentJobInfo || extractJobInfo();
+    const cust = currentCustomerInfo || extractCustomerInfo();
+    currentJobInfo = job;
+    currentCustomerInfo = cust;
 
-  async function createPanel() {
-    const jobInfo = currentJobInfo || extractJobInfo();
-    const customerInfo = currentCustomerInfo || extractCustomerInfo();
-    currentJobInfo = jobInfo;
-    currentCustomerInfo = customerInfo;
+    const stored = await getStored();
+    const p = stored.profile || {};
+    const loggedIn = !!(p && p.ownerName);
 
-    const stored = await getStoredSettings();
-    const profile = stored.profile || {};
-    cachedProfile = profile;
-
-    const isLoggedIn = profile && profile.ownerName;
-    const profileLabel = isLoggedIn
+    const profileHTML = loggedIn
       ? `<div class="bb-profile-badge">
-           <div class="bb-profile-badge__avatar">${getInitials(profile.ownerName)}</div>
-           <div class="bb-profile-badge__info">
-             <strong>${escapeAttr(profile.ownerName)}</strong>
-             <span>${escapeAttr(profile.bizName || '')}</span>
-           </div>
+           <div class="bb-avatar">${getInitials(p.ownerName)}</div>
+           <div><strong>${esc(p.ownerName)}</strong><span>${esc(p.bizName||'')}</span></div>
          </div>`
-      : `<p class="bb-help" style="color:#f97316;">No profile set up. <a href="#" id="bb-open-settings" style="color:#0c8ce9;text-decoration:underline;">Open Settings</a> to create one.</p>`;
+      : `<div class="bb-notice bb-notice--warn">
+           No profile set up yet.
+           <a href="#" id="bb-open-settings">Open Settings</a> to add your business info.
+         </div>`;
 
     const panel = document.createElement('div');
     panel.id = PANEL_ID;
@@ -341,94 +315,79 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
       <div class="bb-panel">
         <div class="bb-panel__header">
           <div class="bb-panel__brand">
-            <div class="bb-panel__logo">BB</div>
-            <div>
-              <h3>Better Boss <span style="color:#f97316;">DocFill</span></h3>
-            </div>
+            <div class="bb-logo">BB</div>
+            <div><h3>${BRAND} <span class="bb-accent">DocFill</span></h3></div>
           </div>
-          <button class="bb-panel__close" id="bb-close-panel">&times;</button>
+          <button class="bb-panel__close" id="bb-close" aria-label="Close panel">&times;</button>
         </div>
-
         <div class="bb-panel__body">
-          <!-- Profile badge -->
-          <div class="bb-panel__section">
-            ${profileLabel}
-          </div>
-
+          <div class="bb-section">${profileHTML}</div>
           <div class="bb-divider"></div>
 
-          <!-- Customer / Job fields -->
-          <div class="bb-panel__section">
-            <h4>Client & Job Details</h4>
-            <div class="bb-field-group">
-              <label>Client's Company</label>
-              <input type="text" id="bb-company" value="${escapeAttr(customerInfo.company)}" placeholder="e.g. Smith Remodeling LLC"/>
+          <div class="bb-section">
+            <h4>Client &amp; Job Details</h4>
+            <div class="bb-field">
+              <label for="bb-company">Client Company</label>
+              <input id="bb-company" type="text" value="${esc(cust.company)}" placeholder="e.g. Smith Roofing LLC" maxlength="200"/>
             </div>
-            <div class="bb-field-group">
-              <label>Client Contact Name</label>
-              <input type="text" id="bb-customer-name" value="${escapeAttr(customerInfo.customerName)}" placeholder="e.g. John Smith"/>
+            <div class="bb-field">
+              <label for="bb-name">Client Contact</label>
+              <input id="bb-name" type="text" value="${esc(cust.customerName)}" placeholder="e.g. John Smith" maxlength="120"/>
             </div>
-            <div class="bb-field-group">
-              <label>Job Name</label>
-              <input type="text" id="bb-job-name" value="${escapeAttr(jobInfo.jobName)}" placeholder="e.g. Kitchen Remodel"/>
+            <div class="bb-field">
+              <label for="bb-job">Job Name</label>
+              <input id="bb-job" type="text" value="${esc(job.jobName)}" placeholder="e.g. Roof Replacement — 123 Main" maxlength="200"/>
             </div>
-            <div class="bb-field-group">
-              <label>Job Number</label>
-              <input type="text" id="bb-job-number" value="${escapeAttr(jobInfo.jobNumber)}" placeholder="e.g. 1234"/>
+            <div class="bb-field">
+              <label for="bb-jobnum">Job #</label>
+              <input id="bb-jobnum" type="text" value="${esc(job.jobNumber)}" placeholder="e.g. 4821" maxlength="30"/>
             </div>
           </div>
 
           <div class="bb-divider"></div>
 
-          <!-- DESCRIPTION output -->
-          <div class="bb-panel__section">
-            <div class="bb-section-header">
-              <h4>Description Text</h4>
+          <div class="bb-section">
+            <div class="bb-row">
+              <h4>Description</h4>
               <button class="bb-btn bb-btn--copy" id="bb-copy-desc">Copy Description</button>
             </div>
-            <p class="bb-help">Copy and paste into the Description field.</p>
-            <div class="bb-output" id="bb-desc-output"></div>
+            <p class="bb-hint">Paste into the Description field on your document.</p>
+            <div class="bb-output" id="bb-desc-out" tabindex="0" role="textbox" aria-readonly="true" aria-label="Generated description text"></div>
           </div>
 
           <div class="bb-divider"></div>
 
-          <!-- FOOTER output -->
-          <div class="bb-panel__section">
-            <div class="bb-section-header">
-              <h4>Footer Text</h4>
+          <div class="bb-section">
+            <div class="bb-row">
+              <h4>Footer</h4>
               <button class="bb-btn bb-btn--copy" id="bb-copy-footer">Copy Footer</button>
             </div>
-            <p class="bb-help">Copy and paste into the Footer field.</p>
-            <div class="bb-output bb-output--small" id="bb-footer-output"></div>
+            <p class="bb-hint">Paste into the Footer field on your document.</p>
+            <div class="bb-output bb-output--sm" id="bb-footer-out" tabindex="0" role="textbox" aria-readonly="true" aria-label="Generated footer text"></div>
           </div>
 
-          <!-- Generate button -->
-          <div class="bb-panel__section">
-            <button class="bb-btn bb-btn--primary" id="bb-generate">Generate Text</button>
+          <div class="bb-section">
+            <button class="bb-btn bb-btn--primary" id="bb-regen">Regenerate</button>
           </div>
         </div>
-
         <div class="bb-panel__footer">
-          Better Boss DocFill v1.0.0
+          ${BRAND} DocFill v1.0 &nbsp;\u00B7&nbsp;
+          <a href="https://mybetterboss.ai" target="_blank" rel="noopener">mybetterboss.ai</a>
         </div>
-      </div>
-    `;
+      </div>`;
 
     document.body.appendChild(panel);
 
-    // Wire up events
-    document.getElementById('bb-close-panel').addEventListener('click', () => panel.remove());
-    document.getElementById('bb-generate').addEventListener('click', generateOutput);
+    // Events
+    document.getElementById('bb-close').addEventListener('click', () => panel.remove());
+    document.getElementById('bb-regen').addEventListener('click', generate);
     document.getElementById('bb-copy-desc').addEventListener('click', function () {
-      const text = document.getElementById('bb-desc-output').getAttribute('data-raw') || '';
-      copyToClipboard(text, this);
+      copyText(document.getElementById('bb-desc-out').getAttribute('data-raw')||'', this);
     });
     document.getElementById('bb-copy-footer').addEventListener('click', function () {
-      const text = document.getElementById('bb-footer-output').getAttribute('data-raw') || '';
-      copyToClipboard(text, this);
+      copyText(document.getElementById('bb-footer-out').getAttribute('data-raw')||'', this);
     });
 
-    // Settings link (if not logged in)
     const settingsLink = document.getElementById('bb-open-settings');
     if (settingsLink) {
       settingsLink.addEventListener('click', (e) => {
@@ -437,77 +396,53 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
       });
     }
 
-    // Re-generate on input change
-    ['bb-company', 'bb-customer-name', 'bb-job-name', 'bb-job-number'].forEach((id) => {
-      document.getElementById(id).addEventListener('input', generateOutput);
+    // Live re-generate on input (debounced)
+    const debouncedGen = debounce(generate, 300);
+    ['bb-company','bb-name','bb-job','bb-jobnum'].forEach(id => {
+      document.getElementById(id).addEventListener('input', debouncedGen);
     });
 
-    // Generate immediately
-    generateOutput();
+    generate();
   }
 
-  async function generateOutput() {
-    const company = document.getElementById('bb-company')?.value || '';
-    const customerName = document.getElementById('bb-customer-name')?.value || '';
-    const jobName = document.getElementById('bb-job-name')?.value || '';
-    const jobNumber = document.getElementById('bb-job-number')?.value || '';
-
-    const stored = await getStoredSettings();
-    const profile = stored.profile || {};
+  async function generate() {
+    const stored = await getStored();
+    const p = stored.profile || {};
 
     const data = {
-      // Client/job fields (entered per-document)
-      company,
-      customerName,
-      jobName,
-      jobNumber,
-      jobAddress: '',
-      customerEmail: '',
-      customerPhone: '',
-      date: new Date().toLocaleDateString(),
-      // Business profile fields (from settings)
-      bizName: profile.bizName || '',
-      bizEmail: profile.bizEmail || '',
-      bizPhone: profile.bizPhone || '',
-      bizAddress: profile.bizAddress || '',
-      bizWebsite: profile.bizWebsite || '',
-      bizLicense: profile.bizLicense || '',
-      ownerName: profile.ownerName || '',
+      company:       document.getElementById('bb-company')?.value || '',
+      customerName:  document.getElementById('bb-name')?.value || '',
+      jobName:       document.getElementById('bb-job')?.value || '',
+      jobNumber:     document.getElementById('bb-jobnum')?.value || '',
+      jobAddress:    '', customerEmail: '', customerPhone: '',
+      date:          new Date().toLocaleDateString(),
+      bizName:       p.bizName || '',
+      bizEmail:      p.bizEmail || '',
+      bizPhone:      p.bizPhone || '',
+      bizAddress:    p.bizAddress || '',
+      bizWebsite:    p.bizWebsite || '',
+      bizLicense:    p.bizLicense || '',
+      ownerName:     p.ownerName || '',
     };
 
-    const descTemplate = stored.descriptionTemplate || getDefaultDescriptionTemplate();
-    const footerTemplate = stored.footerTemplate || getDefaultFooterTemplate();
+    const dT = stored.descriptionTemplate || getDefaultDescTemplate();
+    const fT = stored.footerTemplate || getDefaultFooterTemplate();
 
-    const descText = renderTemplate(descTemplate, data);
-    const footerText = renderTemplate(footerTemplate, data);
+    const descText   = render(dT, data);
+    const footerText = render(fT, data);
 
-    const descOutput = document.getElementById('bb-desc-output');
-    const footerOutput = document.getElementById('bb-footer-output');
-
-    if (descOutput) {
-      descOutput.setAttribute('data-raw', descText);
-      descOutput.textContent = descText;
-    }
-    if (footerOutput) {
-      footerOutput.setAttribute('data-raw', footerText);
-      footerOutput.textContent = footerText;
-    }
+    const dEl = document.getElementById('bb-desc-out');
+    const fEl = document.getElementById('bb-footer-out');
+    if (dEl) { dEl.setAttribute('data-raw', descText); dEl.textContent = descText; }
+    if (fEl) { fEl.setAttribute('data-raw', footerText); fEl.textContent = footerText; }
   }
 
-  function escapeAttr(str) {
-    return (str || '')
-      .replace(/&/g, '&amp;')
-      .replace(/"/g, '&quot;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-  }
-
-  // ---- Message Handling (from popup) ----
+  // ---- Messages ----
 
   if (chrome && chrome.runtime) {
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      if (message.action === 'getPageInfo') {
-        sendResponse({
+    chrome.runtime.onMessage.addListener((msg, _, reply) => {
+      if (msg.action === 'getPageInfo') {
+        reply({
           jobInfo: currentJobInfo || extractJobInfo(),
           customerInfo: currentCustomerInfo || extractCustomerInfo(),
           isRelevantPage: isRelevantPage(),
@@ -515,68 +450,54 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
         });
         return false;
       }
-
-      if (message.action === 'togglePanel') {
+      if (msg.action === 'togglePanel') {
         togglePanel();
-        sendResponse({ success: true });
+        reply({ success: true });
         return false;
       }
     });
   }
 
-  // ---- URL Change Detection (SPA) ----
+  // ---- SPA URL Watcher ----
 
-  function setupUrlWatcher() {
-    let lastUrl = window.location.href;
-
+  function watchURL() {
+    let last = window.location.href;
     const check = () => {
-      if (window.location.href !== lastUrl) {
-        lastUrl = window.location.href;
-        currentJobInfo = null;
-        currentCustomerInfo = null;
-        cachedProfile = null;
-        const oldPanel = document.getElementById(PANEL_ID);
-        if (oldPanel) oldPanel.remove();
-        const oldBtn = document.getElementById(BUTTON_ID);
-        if (oldBtn) oldBtn.remove();
-        handlePageChange();
+      if (window.location.href !== last) {
+        last = window.location.href;
+        currentJobInfo = currentCustomerInfo = null;
+        const p = document.getElementById(PANEL_ID);
+        if (p) p.remove();
+        const b = document.getElementById(BUTTON_ID);
+        if (b) b.remove();
+        onPageChange();
       }
     };
-
     const origPush = history.pushState;
-    history.pushState = function (...args) {
-      origPush.apply(this, args);
-      check();
-    };
-
+    history.pushState = function (...a) { origPush.apply(this, a); check(); };
     const origReplace = history.replaceState;
-    history.replaceState = function (...args) {
-      origReplace.apply(this, args);
-      check();
-    };
-
+    history.replaceState = function (...a) { origReplace.apply(this, a); check(); };
     window.addEventListener('popstate', check);
   }
 
-  function handlePageChange() {
-    if (!isExcludedPage() && isRelevantPage()) {
-      createFloatingButton();
-    }
+  function onPageChange() {
+    if (!isExcludedPage() && isRelevantPage()) createFAB();
   }
 
   // ---- Init ----
 
   function init() {
-    log('Initializing on', window.location.href);
-    handlePageChange();
-    setupUrlWatcher();
-
-    const observer = new MutationObserver(() => {
+    log('Init on', window.location.href);
+    onPageChange();
+    watchURL();
+    // Debounced MutationObserver to prevent button duplication
+    const debouncedCheck = debounce(() => {
       if (!document.getElementById(BUTTON_ID) && !isExcludedPage() && isRelevantPage()) {
-        createFloatingButton();
+        createFAB();
       }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
+    }, 500);
+    const obs = new MutationObserver(debouncedCheck);
+    obs.observe(document.body, { childList: true, subtree: true });
   }
 
   if (document.readyState === 'loading') {

@@ -1,159 +1,94 @@
-// =============================================================================
-// Better Boss DocFill — Popup Script
-// Shows profile status, page detection, and quick actions
-// =============================================================================
+// Better Boss — DocFill Popup · mybetterboss.ai
 
 document.addEventListener('DOMContentLoaded', () => {
-  const btnOpenPanel = document.getElementById('btn-open-panel');
-  const btnOptions = document.getElementById('btn-options');
-  const btnSetup = document.getElementById('btn-setup');
-  const statusDot = document.getElementById('status-dot');
-  const statusText = document.getElementById('status-text');
-  const pageInfoSection = document.getElementById('page-info-section');
-  const infoGrid = document.getElementById('info-grid');
-  const setupCta = document.getElementById('setup-cta');
-  const howItWorks = document.getElementById('how-it-works');
-  const actionsSection = document.getElementById('actions-section');
-  const popupAvatar = document.getElementById('popup-avatar');
-  const popupName = document.getElementById('popup-name');
-  const popupCompany = document.getElementById('popup-company');
+  const $ = id => document.getElementById(id);
+  const dot       = $('dot');
+  const statusTxt = $('status-text');
+  const setupCta  = $('setup-cta');
+  const howSec    = $('how-section');
+  const infoSec   = $('info-section');
+  const infoGrid  = $('info-grid');
+  const actionSec = $('actions-section');
+  const avatar    = $('popup-avatar');
+  const name      = $('popup-name');
+  const company   = $('popup-company');
 
-  // ---- Helpers ----
+  let loggedIn = false;
 
-  function getInitials(name) {
-    if (!name) return 'BB';
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  function initials(n) {
+    if (!n) return 'BB';
+    const p = n.trim().split(/\s+/);
+    return p.length >= 2 ? (p[0][0]+p[p.length-1][0]).toUpperCase() : p[0].substring(0,2).toUpperCase();
+  }
+  function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  // Load profile
+  chrome.storage.sync.get(['profile'], (r) => {
+    if (chrome.runtime.lastError) {
+      statusTxt.textContent = 'Storage error — try reloading';
+      return;
     }
-    return parts[0].substring(0, 2).toUpperCase();
-  }
-
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
-  // ---- Load Profile ----
-
-  let isLoggedIn = false;
-
-  chrome.storage.sync.get(['profile'], (result) => {
-    const profile = result.profile || null;
-
-    if (profile && profile.ownerName) {
-      isLoggedIn = true;
-      popupAvatar.textContent = getInitials(profile.ownerName);
-      popupName.textContent = profile.ownerName;
-      popupCompany.textContent = profile.bizName || '';
+    const p = r.profile;
+    if (p && p.ownerName) {
+      loggedIn = true;
+      avatar.textContent = initials(p.ownerName);
+      name.textContent = p.ownerName;
+      company.textContent = p.bizName || '';
       setupCta.style.display = 'none';
-      howItWorks.style.display = 'block';
+      howSec.style.display = 'block';
     } else {
-      popupAvatar.textContent = 'BB';
-      popupName.textContent = 'Not logged in';
-      popupCompany.textContent = '';
       setupCta.style.display = 'block';
-      howItWorks.style.display = 'none';
     }
-
-    // Now check the active tab
-    checkActiveTab();
+    checkTab();
   });
 
-  // ---- Check Active Tab ----
-
-  function checkActiveTab() {
+  function checkTab() {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tab = tabs[0];
-
       if (!tab || !tab.url || !tab.url.includes('app.jobtread.com')) {
-        statusDot.className = 'status-dot status-dot--inactive';
-        statusText.textContent = 'Not on a JobTread page';
-        if (btnOpenPanel) btnOpenPanel.disabled = true;
+        dot.className = 'dot dot--off';
+        statusTxt.textContent = 'Not on a JobTread page';
         return;
       }
-
-      chrome.tabs.sendMessage(tab.id, { action: 'getPageInfo' }, (response) => {
-        if (chrome.runtime.lastError || !response) {
-          statusDot.className = 'status-dot status-dot--warning';
-          statusText.textContent = 'Extension loading... try refreshing';
+      chrome.tabs.sendMessage(tab.id, { action: 'getPageInfo' }, (resp) => {
+        if (chrome.runtime.lastError || !resp) {
+          dot.className = 'dot dot--warn';
+          statusTxt.textContent = 'Loading... refresh the page if stuck';
           return;
         }
-
-        if (response.isRelevantPage) {
-          statusDot.className = 'status-dot status-dot--active';
-          statusText.textContent = 'Ready — click the BB button on the page';
-          if (isLoggedIn) {
-            actionsSection.style.display = 'block';
-          }
+        if (resp.isRelevantPage) {
+          dot.className = 'dot dot--on';
+          statusTxt.textContent = 'Ready — click the BB button on the page';
+          if (loggedIn) actionSec.style.display = 'block';
         } else {
-          statusDot.className = 'status-dot status-dot--warning';
-          statusText.textContent = 'Navigate to a document page to get started';
+          dot.className = 'dot dot--warn';
+          statusTxt.textContent = 'Navigate to a document page';
         }
-
         // Show detected info
-        if (response.jobInfo || response.customerInfo) {
-          const rows = [];
-
-          if (response.jobInfo.jobName) {
-            rows.push({ label: 'Job', value: response.jobInfo.jobName });
-          }
-          if (response.jobInfo.jobNumber) {
-            rows.push({ label: 'Job #', value: response.jobInfo.jobNumber });
-          }
-          if (response.customerInfo.email) {
-            rows.push({ label: 'Email', value: response.customerInfo.email });
-          }
-          if (response.customerInfo.phone) {
-            rows.push({ label: 'Phone', value: response.customerInfo.phone });
-          }
-
-          if (rows.length > 0) {
-            pageInfoSection.style.display = 'block';
-            infoGrid.innerHTML = rows
-              .map(
-                (r) => `
-                <div class="info-row">
-                  <span class="info-row__label">${r.label}</span>
-                  <span class="info-row__value">${escapeHtml(r.value)}</span>
-                </div>
-              `
-              )
-              .join('');
-          }
+        const rows = [];
+        if (resp.jobInfo?.jobName) rows.push(['Job', resp.jobInfo.jobName]);
+        if (resp.jobInfo?.jobNumber) rows.push(['Job #', resp.jobInfo.jobNumber]);
+        if (resp.customerInfo?.email) rows.push(['Email', resp.customerInfo.email]);
+        if (resp.customerInfo?.phone) rows.push(['Phone', resp.customerInfo.phone]);
+        if (rows.length) {
+          infoSec.style.display = 'block';
+          infoGrid.innerHTML = rows.map(([l,v]) =>
+            `<div class="info-row"><span class="info-l">${l}</span><span class="info-v">${escHtml(v)}</span></div>`
+          ).join('');
         }
       });
     });
   }
 
-  // ---- Open Side Panel ----
-
-  btnOpenPanel.addEventListener('click', () => {
+  $('btn-panel').addEventListener('click', () => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const tab = tabs[0];
-      if (!tab) return;
-
-      chrome.tabs.sendMessage(tab.id, { action: 'togglePanel' }, () => {
-        if (chrome.runtime.lastError) {
-          statusDot.className = 'status-dot status-dot--warning';
-          statusText.textContent = 'Could not reach page — try refreshing';
-          return;
-        }
-        window.close();
+      if (!tabs[0]) return;
+      chrome.tabs.sendMessage(tabs[0].id, { action: 'togglePanel' }, () => {
+        if (!chrome.runtime.lastError) window.close();
       });
     });
   });
 
-  // ---- Set Up Profile ----
-
-  btnSetup.addEventListener('click', () => {
-    chrome.runtime.openOptionsPage();
-  });
-
-  // ---- Settings ----
-
-  btnOptions.addEventListener('click', () => {
-    chrome.runtime.openOptionsPage();
-  });
+  $('btn-setup').addEventListener('click', () => chrome.runtime.openOptionsPage());
+  $('btn-options').addEventListener('click', () => chrome.runtime.openOptionsPage());
 });

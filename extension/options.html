@@ -3,198 +3,125 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Better Boss DocFill — Settings</title>
+  <title>Better Boss — DocFill Settings</title>
   <link rel="stylesheet" href="options.css" />
 </head>
 <body>
-  <div class="options">
-    <header class="options__header">
-      <div class="options__logo">
-        <div class="options__logo-icon">
-          <span>BB</span>
-        </div>
+  <div class="opt">
+    <header class="opt__header">
+      <div class="opt__logo">
+        <div class="opt__mark">BB</div>
         <div>
-          <h1>Better Boss <span class="brand-accent">DocFill</span></h1>
-          <p>Smart document builder for JobTread</p>
+          <h1>Better Boss</h1>
+          <p>DocFill Settings &middot; <a href="https://mybetterboss.ai" target="_blank">mybetterboss.ai</a></p>
         </div>
       </div>
     </header>
 
-    <!-- ============================================================ -->
-    <!-- LOGIN SCREEN (shown when not logged in)                      -->
-    <!-- ============================================================ -->
-    <div id="login-screen" class="options__screen" style="display:none;">
+    <!-- LOGIN -->
+    <div id="login-screen" class="opt__screen" style="display:none">
       <div class="login-card">
-        <div class="login-card__icon">
-          <div class="options__logo-icon options__logo-icon--lg">
-            <span>BB</span>
-          </div>
-        </div>
+        <div class="login-card__icon"><div class="opt__mark opt__mark--lg">BB</div></div>
         <h2>Welcome to Better Boss DocFill</h2>
-        <p class="login-card__subtitle">Set up your business profile to get started. Your info will be used to auto-generate proposals, contracts, and scopes of work.</p>
-
-        <form id="login-form" class="login-form">
-          <div class="form-group">
-            <label for="login-name">Your Full Name <span class="required">*</span></label>
-            <input type="text" id="login-name" placeholder="e.g. Jordan Rivera" required />
-          </div>
-          <div class="form-group">
-            <label for="login-email">Email Address <span class="required">*</span></label>
-            <input type="email" id="login-email" placeholder="e.g. jordan@yourbiz.com" required />
-          </div>
-          <div class="form-group">
-            <label for="login-company">Company / Business Name <span class="required">*</span></label>
-            <input type="text" id="login-company" placeholder="e.g. Rivera Construction LLC" required />
-          </div>
-          <div class="form-group">
-            <label for="login-phone">Business Phone</label>
-            <input type="tel" id="login-phone" placeholder="e.g. (303) 555-1234" />
-          </div>
-          <div class="form-group">
-            <label for="login-address">Business Address</label>
-            <input type="text" id="login-address" placeholder="e.g. 123 Main St, Denver, CO 80202" />
-          </div>
-          <div class="form-group">
-            <label for="login-website">Website</label>
-            <input type="url" id="login-website" placeholder="e.g. https://riveraconstruction.com" />
-          </div>
-          <div class="form-group">
-            <label for="login-license">License # (optional)</label>
-            <input type="text" id="login-license" placeholder="e.g. CON-2024-12345" />
-          </div>
-
-          <button type="submit" class="btn btn--primary btn--full">
-            Save Profile & Get Started
-          </button>
+        <p class="login-card__sub">Set up your business profile. This info auto-fills into every proposal, contract, and SOW you generate.</p>
+        <form id="login-form">
+          <div class="fg"><label for="l-name">Your Full Name <span class="req">*</span></label><input id="l-name" required placeholder="e.g. Nick Peret" maxlength="120"/></div>
+          <div class="fg"><label for="l-email">Email <span class="req">*</span></label><input id="l-email" type="email" required placeholder="e.g. nick@mybetterboss.ai" maxlength="200"/></div>
+          <div class="fg"><label for="l-company">Company Name <span class="req">*</span></label><input id="l-company" required placeholder="e.g. Better Boss" maxlength="200"/></div>
+          <div class="fg"><label for="l-phone">Phone</label><input id="l-phone" type="tel" placeholder="e.g. (303) 555-1234" maxlength="30"/></div>
+          <div class="fg"><label for="l-address">Address</label><input id="l-address" placeholder="e.g. Denver, CO" maxlength="300"/></div>
+          <div class="fg"><label for="l-website">Website</label><input id="l-website" type="url" placeholder="e.g. https://mybetterboss.ai" maxlength="200"/></div>
+          <div class="fg"><label for="l-license">License #</label><input id="l-license" placeholder="e.g. CON-12345" maxlength="60"/></div>
+          <button type="submit" class="btn btn--primary btn--full">Save Profile &amp; Get Started</button>
         </form>
       </div>
     </div>
 
-    <!-- ============================================================ -->
-    <!-- SETTINGS SCREEN (shown when logged in)                       -->
-    <!-- ============================================================ -->
-    <main id="settings-screen" class="options__screen" style="display:none;">
+    <!-- SETTINGS -->
+    <main id="settings-screen" class="opt__screen" style="display:none">
 
-      <!-- Profile Summary Bar -->
-      <div class="profile-bar" id="profile-bar">
-        <div class="profile-bar__info">
-          <div class="profile-bar__avatar" id="profile-avatar">JR</div>
-          <div>
-            <strong id="profile-display-name">Jordan Rivera</strong>
-            <span id="profile-display-company">Rivera Construction LLC</span>
-          </div>
+      <!-- Profile bar -->
+      <div class="pbar" id="pbar">
+        <div class="pbar__info">
+          <div class="pbar__avatar" id="p-avatar">BB</div>
+          <div><strong id="p-name">—</strong><span id="p-company">—</span></div>
         </div>
-        <div class="profile-bar__actions">
-          <button class="btn btn--ghost-sm" id="btn-edit-profile">Edit Profile</button>
-          <button class="btn btn--ghost-sm btn--danger" id="btn-logout">Log Out</button>
+        <div class="pbar__actions">
+          <button class="btn btn--sm" id="btn-edit">Edit Profile</button>
+          <button class="btn btn--sm btn--danger" id="btn-logout">Log Out</button>
         </div>
       </div>
 
-      <!-- Business Profile (Edit Mode — hidden by default) -->
-      <section class="options__section" id="profile-edit-section" style="display:none;">
+      <!-- Profile edit (hidden) -->
+      <section class="opt__section" id="profile-edit" style="display:none">
         <h2>Business Profile</h2>
-        <div class="options__card">
-          <div class="form-row">
-            <div class="form-group">
-              <label for="profile-name">Full Name</label>
-              <input type="text" id="profile-name" />
-            </div>
-            <div class="form-group">
-              <label for="profile-email">Email</label>
-              <input type="email" id="profile-email" />
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="profile-company">Company Name</label>
-              <input type="text" id="profile-company" />
-            </div>
-            <div class="form-group">
-              <label for="profile-phone">Phone</label>
-              <input type="tel" id="profile-phone" />
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="profile-address">Address</label>
-              <input type="text" id="profile-address" />
-            </div>
-            <div class="form-group">
-              <label for="profile-website">Website</label>
-              <input type="url" id="profile-website" />
-            </div>
-          </div>
-          <div class="form-group">
-            <label for="profile-license">License #</label>
-            <input type="text" id="profile-license" />
-          </div>
-          <div class="form-actions">
-            <button class="btn btn--primary" id="save-profile-btn">Save Profile</button>
-            <button class="btn btn--ghost-sm" id="cancel-profile-btn">Cancel</button>
-            <span class="options__saved" id="profile-saved-msg">Profile saved!</span>
-          </div>
+        <div class="card">
+          <div class="frow"><div class="fg"><label for="p-fname">Name</label><input id="p-fname" maxlength="120"/></div><div class="fg"><label for="p-femail">Email</label><input id="p-femail" type="email" maxlength="200"/></div></div>
+          <div class="frow"><div class="fg"><label for="p-fcompany">Company</label><input id="p-fcompany" maxlength="200"/></div><div class="fg"><label for="p-fphone">Phone</label><input id="p-fphone" type="tel" maxlength="30"/></div></div>
+          <div class="frow"><div class="fg"><label for="p-faddress">Address</label><input id="p-faddress" maxlength="300"/></div><div class="fg"><label for="p-fwebsite">Website</label><input id="p-fwebsite" type="url" maxlength="200"/></div></div>
+          <div class="fg"><label for="p-flicense">License #</label><input id="p-flicense" maxlength="60"/></div>
+          <div class="faction"><button class="btn btn--primary" id="save-profile">Save Profile</button><button class="btn btn--sm" id="cancel-profile">Cancel</button><span class="saved" id="profile-saved">Saved!</span></div>
         </div>
       </section>
 
       <!-- Description Template -->
-      <section class="options__section">
+      <section class="opt__section">
         <h2>Description Template</h2>
-        <p class="options__help">
-          This template generates the text you copy into the Description field.
-          Use <code>{{variableName}}</code> for variables and <code>{{#variableName}}...{{/variableName}}</code> for conditional blocks.
-        </p>
-        <div class="options__card">
-          <div class="options__variables">
-            <strong>Available variables (click to insert):</strong>
-            <div class="options__tags">
-              <span class="tag" data-var="company">company</span>
-              <span class="tag" data-var="customerName">customerName</span>
-              <span class="tag" data-var="jobName">jobName</span>
-              <span class="tag" data-var="jobNumber">jobNumber</span>
-              <span class="tag" data-var="jobAddress">jobAddress</span>
-              <span class="tag" data-var="customerEmail">customerEmail</span>
-              <span class="tag" data-var="customerPhone">customerPhone</span>
-              <span class="tag" data-var="date">date</span>
-              <span class="tag tag--profile" data-var="bizName">bizName</span>
-              <span class="tag tag--profile" data-var="bizEmail">bizEmail</span>
-              <span class="tag tag--profile" data-var="bizPhone">bizPhone</span>
-              <span class="tag tag--profile" data-var="bizAddress">bizAddress</span>
-              <span class="tag tag--profile" data-var="bizWebsite">bizWebsite</span>
-              <span class="tag tag--profile" data-var="bizLicense">bizLicense</span>
-              <span class="tag tag--profile" data-var="ownerName">ownerName</span>
-            </div>
+        <p class="help">Use <code>{{variable}}</code> for values. <code>{{#var}}...{{/var}}</code> for conditional blocks. Click a tag to insert.</p>
+        <div class="card">
+          <div class="tags">
+            <strong>Client/Job:</strong>
+            <span class="tag" data-v="company">company</span>
+            <span class="tag" data-v="customerName">customerName</span>
+            <span class="tag" data-v="jobName">jobName</span>
+            <span class="tag" data-v="jobNumber">jobNumber</span>
+            <span class="tag" data-v="date">date</span>
           </div>
-          <textarea id="desc-template" rows="16" placeholder="Enter your description template..."></textarea>
+          <div class="tags">
+            <strong>Your Business:</strong>
+            <span class="tag tag--biz" data-v="bizName">bizName</span>
+            <span class="tag tag--biz" data-v="bizEmail">bizEmail</span>
+            <span class="tag tag--biz" data-v="bizPhone">bizPhone</span>
+            <span class="tag tag--biz" data-v="bizAddress">bizAddress</span>
+            <span class="tag tag--biz" data-v="bizWebsite">bizWebsite</span>
+            <span class="tag tag--biz" data-v="bizLicense">bizLicense</span>
+            <span class="tag tag--biz" data-v="ownerName">ownerName</span>
+          </div>
+          <textarea id="desc-tpl" rows="18" spellcheck="false"></textarea>
           <button class="btn btn--ghost" id="reset-desc">Reset to Default</button>
         </div>
       </section>
 
       <!-- Footer Template -->
-      <section class="options__section">
+      <section class="opt__section">
         <h2>Footer Template</h2>
-        <p class="options__help">
-          This template generates the text you copy into the Footer field.
-        </p>
-        <div class="options__card">
-          <textarea id="footer-template" rows="6" placeholder="Enter your footer template..."></textarea>
+        <div class="card">
+          <textarea id="footer-tpl" rows="6" spellcheck="false"></textarea>
           <button class="btn btn--ghost" id="reset-footer">Reset to Default</button>
         </div>
       </section>
 
       <!-- Save Templates -->
-      <section class="options__section options__section--actions">
-        <button class="btn btn--primary" id="save-btn">Save Templates</button>
-        <span class="options__saved" id="saved-msg">Templates saved!</span>
+      <section class="opt__section opt__section--row">
+        <button class="btn btn--primary" id="save-tpl">Save Templates</button>
+        <span class="saved" id="tpl-saved">Templates saved!</span>
+      </section>
+
+      <!-- Data Management -->
+      <section class="opt__section">
+        <h2>Data Management</h2>
+        <div class="card">
+          <p class="help" style="margin-bottom:10px">Export your profile + templates as a backup file. Import on another machine to restore.</p>
+          <div class="faction">
+            <button class="btn btn--sm" id="btn-export">Export Data</button>
+            <label class="btn btn--sm" for="import-file" style="cursor:pointer">Import Data<input type="file" id="import-file" accept=".json" style="display:none"/></label>
+          </div>
+        </div>
       </section>
     </main>
 
-    <footer class="options__footer">
-      <span>Better Boss DocFill v1.0.0</span>
-      <span class="options__footer-sep">|</span>
-      <span>Built by <strong>Better Boss</strong></span>
-    </footer>
+    <footer class="opt__footer">Better Boss DocFill v1.0 &middot; Built by <strong>Better Boss</strong> &middot; <a href="https://mybetterboss.ai" target="_blank">mybetterboss.ai</a></footer>
   </div>
-
   <script src="options.js"></script>
 </body>
 </html>
