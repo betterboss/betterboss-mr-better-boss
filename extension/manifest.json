@@ -1,11 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "BetterBoss - JobTread Auto-Populate",
+  "name": "Better Boss — DocFill for JobTread",
+  "short_name": "Better Boss",
   "version": "1.0.0",
-  "description": "Automatically pre-populates job and customer information into JobTread document description and footer fields.",
+  "description": "AI-powered document builder for JobTread by Better Boss. Auto-generates proposals, contracts, and scopes of work with your business branding. Built for roofing and construction pros.",
+  "homepage_url": "https://mybetterboss.ai",
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "clipboardWrite"
   ],
   "host_permissions": [
     "https://app.jobtread.com/*"
@@ -34,5 +37,8 @@
   "background": {
     "service_worker": "background.js"
   },
-  "options_page": "options.html"
+  "options_page": "options.html",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
 }

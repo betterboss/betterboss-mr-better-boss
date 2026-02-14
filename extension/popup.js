@@ -1,157 +1,94 @@
-// =============================================================================
-// BetterBoss Auto-Populate — Popup Script
-// Controls the extension popup interface
-// =============================================================================
+// Better Boss — DocFill Popup · mybetterboss.ai
 
 document.addEventListener('DOMContentLoaded', () => {
-  const autoToggle = document.getElementById('auto-toggle');
-  const btnPopulate = document.getElementById('btn-populate');
-  const btnDescOnly = document.getElementById('btn-desc-only');
-  const btnFooterOnly = document.getElementById('btn-footer-only');
-  const btnOptions = document.getElementById('btn-options');
-  const statusDot = document.getElementById('status-dot');
-  const statusText = document.getElementById('status-text');
-  const pageInfoSection = document.getElementById('page-info-section');
-  const infoGrid = document.getElementById('info-grid');
+  const $ = id => document.getElementById(id);
+  const dot       = $('dot');
+  const statusTxt = $('status-text');
+  const setupCta  = $('setup-cta');
+  const howSec    = $('how-section');
+  const infoSec   = $('info-section');
+  const infoGrid  = $('info-grid');
+  const actionSec = $('actions-section');
+  const avatar    = $('popup-avatar');
+  const name      = $('popup-name');
+  const company   = $('popup-company');
 
-  // ---- Load Settings ----
+  let loggedIn = false;
 
-  chrome.storage.sync.get(['autoPopulateEnabled'], (result) => {
-    autoToggle.checked = result.autoPopulateEnabled !== false;
-  });
+  function initials(n) {
+    if (!n) return 'BB';
+    const p = n.trim().split(/\s+/);
+    return p.length >= 2 ? (p[0][0]+p[p.length-1][0]).toUpperCase() : p[0].substring(0,2).toUpperCase();
+  }
+  function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
-  // ---- Save Toggle State ----
-
-  autoToggle.addEventListener('change', () => {
-    chrome.storage.sync.set({ autoPopulateEnabled: autoToggle.checked });
-  });
-
-  // ---- Query Active Tab ----
-
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    const tab = tabs[0];
-
-    if (!tab || !tab.url || !tab.url.includes('app.jobtread.com')) {
-      statusDot.className = 'status-dot status-dot--inactive';
-      statusText.textContent = 'Not on a JobTread page';
-      btnPopulate.disabled = true;
-      btnDescOnly.disabled = true;
-      btnFooterOnly.disabled = true;
+  // Load profile
+  chrome.storage.sync.get(['profile'], (r) => {
+    if (chrome.runtime.lastError) {
+      statusTxt.textContent = 'Storage error — try reloading';
       return;
     }
-
-    // Ask content script for page info
-    chrome.tabs.sendMessage(tab.id, { action: 'getPageInfo' }, (response) => {
-      if (chrome.runtime.lastError || !response) {
-        statusDot.className = 'status-dot status-dot--warning';
-        statusText.textContent = 'Extension loading... try refreshing';
-        return;
-      }
-
-      // Update status
-      if (response.isDocumentPage) {
-        statusDot.className = 'status-dot status-dot--active';
-        statusText.textContent = `Document page — ${response.editableFieldCount} editable field(s) found`;
-      } else if (response.isJobPage) {
-        statusDot.className = 'status-dot status-dot--active';
-        statusText.textContent = `Job page — ${response.editableFieldCount} editable field(s)`;
-      } else {
-        statusDot.className = 'status-dot status-dot--warning';
-        statusText.textContent = 'Navigate to a document to auto-populate';
-      }
-
-      // Show detected info
-      if (response.jobInfo || response.customerInfo) {
-        pageInfoSection.style.display = 'block';
-        const rows = [];
-
-        if (response.jobInfo.jobName) {
-          rows.push({ label: 'Job', value: response.jobInfo.jobName });
-        }
-        if (response.jobInfo.jobNumber) {
-          rows.push({ label: 'Job #', value: response.jobInfo.jobNumber });
-        }
-        if (response.jobInfo.jobAddress) {
-          rows.push({ label: 'Address', value: response.jobInfo.jobAddress });
-        }
-        if (response.customerInfo.customerName) {
-          rows.push({ label: 'Customer', value: response.customerInfo.customerName });
-        }
-        if (response.customerInfo.company) {
-          rows.push({ label: 'Company', value: response.customerInfo.company });
-        }
-        if (response.customerInfo.email) {
-          rows.push({ label: 'Email', value: response.customerInfo.email });
-        }
-        if (response.customerInfo.phone) {
-          rows.push({ label: 'Phone', value: response.customerInfo.phone });
-        }
-
-        if (rows.length === 0) {
-          rows.push({ label: 'Info', value: '', empty: true });
-        }
-
-        infoGrid.innerHTML = rows
-          .map(
-            (r) => `
-            <div class="info-row">
-              <span class="info-row__label">${r.label}</span>
-              <span class="info-row__value ${r.empty ? 'info-row__value--empty' : ''}">
-                ${r.empty ? 'No info detected — click the panel on page to enter manually' : escapeHtml(r.value)}
-              </span>
-            </div>
-          `
-          )
-          .join('');
-      }
-    });
+    const p = r.profile;
+    if (p && p.ownerName) {
+      loggedIn = true;
+      avatar.textContent = initials(p.ownerName);
+      name.textContent = p.ownerName;
+      company.textContent = p.bizName || '';
+      setupCta.style.display = 'none';
+      howSec.style.display = 'block';
+    } else {
+      setupCta.style.display = 'block';
+    }
+    checkTab();
   });
 
-  // ---- Populate Actions ----
-
-  btnPopulate.addEventListener('click', () => {
-    sendPopulateMessage('both');
-  });
-
-  btnDescOnly.addEventListener('click', () => {
-    sendPopulateMessage('description');
-  });
-
-  btnFooterOnly.addEventListener('click', () => {
-    sendPopulateMessage('footer');
-  });
-
-  function sendPopulateMessage(mode) {
+  function checkTab() {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tab = tabs[0];
-      if (!tab) return;
-
-      chrome.tabs.sendMessage(tab.id, { action: 'populate', mode }, (response) => {
-        if (chrome.runtime.lastError) {
-          statusDot.className = 'status-dot status-dot--warning';
-          statusText.textContent = 'Could not reach page — try refreshing';
+      if (!tab || !tab.url || !tab.url.includes('app.jobtread.com')) {
+        dot.className = 'dot dot--off';
+        statusTxt.textContent = 'Not on a JobTread page';
+        return;
+      }
+      chrome.tabs.sendMessage(tab.id, { action: 'getPageInfo' }, (resp) => {
+        if (chrome.runtime.lastError || !resp) {
+          dot.className = 'dot dot--warn';
+          statusTxt.textContent = 'Loading... refresh the page if stuck';
           return;
         }
-
-        if (response && response.success) {
-          statusDot.className = 'status-dot status-dot--active';
-          statusText.textContent = 'Fields populated successfully!';
+        if (resp.isRelevantPage) {
+          dot.className = 'dot dot--on';
+          statusTxt.textContent = 'Ready — click the BB button on the page';
+          if (loggedIn) actionSec.style.display = 'block';
+        } else {
+          dot.className = 'dot dot--warn';
+          statusTxt.textContent = 'Navigate to a document page';
+        }
+        // Show detected info
+        const rows = [];
+        if (resp.jobInfo?.jobName) rows.push(['Job', resp.jobInfo.jobName]);
+        if (resp.jobInfo?.jobNumber) rows.push(['Job #', resp.jobInfo.jobNumber]);
+        if (resp.customerInfo?.email) rows.push(['Email', resp.customerInfo.email]);
+        if (resp.customerInfo?.phone) rows.push(['Phone', resp.customerInfo.phone]);
+        if (rows.length) {
+          infoSec.style.display = 'block';
+          infoGrid.innerHTML = rows.map(([l,v]) =>
+            `<div class="info-row"><span class="info-l">${l}</span><span class="info-v">${escHtml(v)}</span></div>`
+          ).join('');
         }
       });
     });
   }
 
-  // ---- Options Page ----
-
-  btnOptions.addEventListener('click', () => {
-    chrome.runtime.openOptionsPage();
+  $('btn-panel').addEventListener('click', () => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (!tabs[0]) return;
+      chrome.tabs.sendMessage(tabs[0].id, { action: 'togglePanel' }, () => {
+        if (!chrome.runtime.lastError) window.close();
+      });
+    });
   });
 
-  // ---- Helpers ----
-
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
+  $('btn-setup').addEventListener('click', () => chrome.runtime.openOptionsPage());
+  $('btn-options').addEventListener('click', () => chrome.runtime.openOptionsPage());
 });

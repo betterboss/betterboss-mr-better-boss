@@ -1,0 +1,290 @@
+<!--
+  Better Boss DocFill — WordPress Install Page
+
+  HOW TO USE:
+  1. Go to your WordPress admin at better-boss.ai/wp-admin
+  2. Pages → Add New Page
+  3. Title: "DocFill" (or whatever you want)
+  4. Set the URL slug to "docfill"
+  5. Add a "Custom HTML" block (click + → search "Custom HTML")
+  6. Paste EVERYTHING in this file into that block
+  7. Publish
+
+  Your page will be live at: better-boss.ai/docfill
+-->
+
+<style>
+  /* Reset WordPress theme interference */
+  .bb-install-page { all: initial; display: block; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; color: #e5e5e5; background: #050505; max-width: 100vw; overflow-x: hidden; box-sizing: border-box; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  .bb-install-page *, .bb-install-page *::before, .bb-install-page *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* Layout */
+  .bb-ip-wrap { max-width: 720px; margin: 0 auto; padding: 0 24px; }
+
+  /* Header */
+  .bb-ip-header { border-bottom: 1px solid #262626; padding: 40px 0; }
+  .bb-ip-header-inner { display: flex; align-items: center; gap: 16px; }
+  .bb-ip-logo { width: 56px; height: 56px; border-radius: 14px; background: linear-gradient(135deg, #f97316, #ea580c); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 20px; flex-shrink: 0; }
+  .bb-ip-header h1 { font-size: 28px; font-weight: 800; color: #fff; line-height: 1.2; margin: 0; }
+  .bb-ip-header h1 span { color: #f97316; }
+  .bb-ip-header p { font-size: 14px; color: #737373; margin-top: 4px; }
+
+  /* Sections */
+  .bb-ip-main { padding: 48px 0 32px; }
+  .bb-ip-section { margin-bottom: 48px; }
+  .bb-ip-section h2 { font-size: 22px; font-weight: 800; color: #fff; margin-bottom: 12px; }
+  .bb-ip-section h2.bb-orange { color: #f97316; }
+  .bb-ip-section p.bb-desc { font-size: 15px; color: #a3a3a3; line-height: 1.7; margin-bottom: 0; }
+
+  /* Method Chooser */
+  .bb-ip-methods { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 600px) { .bb-ip-methods { grid-template-columns: 1fr; } }
+  .bb-ip-method { text-align: left; background: #111; border: 2px solid #262626; border-radius: 14px; padding: 24px; cursor: pointer; transition: border-color 0.2s, transform 0.15s; }
+  .bb-ip-method:hover { border-color: #f97316; transform: translateY(-2px); }
+  .bb-ip-method-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .bb-ip-method-icon { width: 40px; height: 40px; border-radius: 10px; background: rgba(249,115,22,0.1); color: #f97316; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .bb-ip-method h3 { font-size: 16px; font-weight: 700; color: #fff; margin: 0; line-height: 1.2; }
+  .bb-ip-method .bb-badge { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
+  .bb-badge-rec { color: #f97316; }
+  .bb-badge-alt { color: #737373; }
+  .bb-ip-method p { font-size: 13px; color: #a3a3a3; line-height: 1.6; margin: 0; }
+
+  /* Steps Card */
+  .bb-ip-steps { background: #111; border: 1px solid #262626; border-radius: 14px; padding: 28px; }
+  .bb-ip-step { display: flex; gap: 16px; }
+  .bb-ip-step + .bb-ip-step { margin-top: 20px; padding-top: 20px; border-top: 1px solid #1a1a1a; }
+  .bb-ip-num { width: 40px; height: 40px; border-radius: 50%; background: rgba(249,115,22,0.1); color: #f97316; font-weight: 700; font-size: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .bb-ip-step-body { flex: 1; }
+  .bb-ip-step-body strong { display: block; font-size: 15px; color: #fff; margin-bottom: 6px; }
+  .bb-ip-step-body p { font-size: 13px; color: #a3a3a3; line-height: 1.6; margin: 0 0 10px; }
+
+  /* Buttons */
+  .bb-ip-btn { display: inline-flex; align-items: center; gap: 8px; font-family: inherit; font-weight: 700; border-radius: 10px; cursor: pointer; transition: all 0.2s; text-decoration: none !important; border: none; }
+  .bb-ip-btn-chrome { background: #1a1a1a; border: 1px solid #333; color: #fff; padding: 10px 20px; font-size: 14px; }
+  .bb-ip-btn-chrome:hover { border-color: #f97316; color: #fff; }
+  .bb-ip-btn-install { background: linear-gradient(135deg, #f97316, #ea580c); color: #fff !important; padding: 16px 32px; font-size: 18px; box-shadow: 0 4px 20px rgba(249,115,22,0.3); }
+  .bb-ip-btn-install:hover { background: linear-gradient(135deg, #fb923c, #f97316); box-shadow: 0 6px 28px rgba(249,115,22,0.4); transform: translateY(-1px); color: #fff !important; }
+  .bb-ip-btn-bookmark { background: linear-gradient(135deg, #f97316, #ea580c); color: #fff !important; padding: 12px 24px; font-size: 16px; box-shadow: 0 4px 20px rgba(249,115,22,0.3); cursor: grab; user-select: none; -webkit-user-select: none; }
+  .bb-ip-btn-bookmark:active { cursor: grabbing; }
+  .bb-ip-btn-back { background: none; border: none; color: #737373; font-size: 13px; cursor: pointer; padding: 0; margin-left: 12px; font-family: inherit; }
+  .bb-ip-btn-back:hover { color: #f97316; }
+
+  .bb-ip-note { background: rgba(17,17,17,0.8); border: 1px solid #262626; border-radius: 10px; padding: 16px; font-size: 13px; color: #a3a3a3; line-height: 1.6; margin-top: 16px; }
+  .bb-ip-note strong { color: #d4d4d4; }
+
+  .bb-ip-done { text-align: center; color: #737373; font-size: 13px; margin-top: 16px; }
+  .bb-ip-done a { color: #f97316 !important; text-decoration: none !important; }
+  .bb-ip-done a:hover { color: #fb923c !important; }
+  .bb-ip-done strong { color: #fff; }
+
+  /* How it works */
+  .bb-ip-how { list-style: none; padding: 0; margin: 0; }
+  .bb-ip-how li { display: flex; gap: 14px; margin-bottom: 16px; font-size: 14px; color: #d4d4d4; line-height: 1.6; }
+  .bb-ip-how li strong { color: #fff; }
+  .bb-ip-how-num { width: 32px; height: 32px; border-radius: 50%; background: rgba(249,115,22,0.1); color: #f97316; font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+  /* Features grid */
+  .bb-ip-features { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 600px) { .bb-ip-features { grid-template-columns: 1fr; } }
+  .bb-ip-feat { background: #111; border: 1px solid #262626; border-radius: 12px; padding: 20px; }
+  .bb-ip-feat h3 { font-size: 14px; font-weight: 700; color: #fff; margin: 0 0 6px; }
+  .bb-ip-feat p { font-size: 12px; color: #a3a3a3; line-height: 1.6; margin: 0; }
+
+  /* Footer */
+  .bb-ip-cta { text-align: center; padding-top: 32px; border-top: 1px solid #262626; }
+  .bb-ip-cta p { color: #737373; font-size: 14px; margin-bottom: 8px; }
+  .bb-ip-cta a { color: #f97316 !important; font-weight: 700; text-decoration: none !important; font-size: 15px; }
+  .bb-ip-cta a:hover { color: #fb923c !important; }
+  .bb-ip-footer { border-top: 1px solid #1a1a1a; text-align: center; color: #525252; font-size: 11px; padding: 24px 0; margin-top: 48px; }
+
+  .bb-ip-drag-hint { color: #f97316; font-size: 13px; margin-top: 8px; animation: bb-pulse 1.5s ease-in-out infinite; }
+  @keyframes bb-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+  .bb-hidden { display: none !important; }
+
+  /* Keyboard shortcut tag */
+  .bb-kbd { background: #1a1a1a; color: #f97316; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-family: 'SF Mono', Menlo, monospace; }
+</style>
+
+<div class="bb-install-page">
+
+  <!-- HEADER -->
+  <div class="bb-ip-header">
+    <div class="bb-ip-wrap">
+      <div class="bb-ip-header-inner">
+        <div class="bb-ip-logo">BB</div>
+        <div>
+          <h1>Better Boss <span>DocFill</span></h1>
+          <p>Smart document builder for JobTread</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bb-ip-wrap bb-ip-main">
+
+    <!-- HERO -->
+    <div class="bb-ip-section">
+      <h2>Auto-generate proposals, contracts &amp; SOWs inside JobTread</h2>
+      <p class="bb-desc">
+        Stop retyping the same contract language. DocFill lets you set up your business profile once,
+        then instantly generates perfectly formatted descriptions and footers for every document.
+        Just copy and paste.
+      </p>
+    </div>
+
+    <!-- METHOD CHOOSER -->
+    <div class="bb-ip-section" id="bb-chooser">
+      <h2 class="bb-orange">Choose How to Install</h2>
+      <div class="bb-ip-methods">
+        <div class="bb-ip-method" onclick="bbShowMethod('auto')">
+          <div class="bb-ip-method-top">
+            <div class="bb-ip-method-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14m-7-7l7 7 7-7"/></svg>
+            </div>
+            <div>
+              <h3>Auto-Run</h3>
+              <div class="bb-badge bb-badge-rec">Recommended</div>
+            </div>
+          </div>
+          <p>Runs automatically every time you open JobTread. Auto-updates when we push new features. 2 quick steps.</p>
+        </div>
+        <div class="bb-ip-method" onclick="bbShowMethod('bookmark')">
+          <div class="bb-ip-method-top">
+            <div class="bb-ip-method-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <div>
+              <h3>Bookmarklet</h3>
+              <div class="bb-badge bb-badge-alt">Zero Install</div>
+            </div>
+          </div>
+          <p>Nothing to install at all. Just drag a button to your bookmarks bar and click it on JobTread. Done.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- AUTO-RUN METHOD -->
+    <div class="bb-ip-section bb-hidden" id="bb-auto">
+      <h2 class="bb-orange">Auto-Run Setup <button class="bb-ip-btn-back" onclick="bbShowMethod('choose')">&larr; Back</button></h2>
+      <div class="bb-ip-steps">
+        <div class="bb-ip-step">
+          <div class="bb-ip-num">1</div>
+          <div class="bb-ip-step-body">
+            <strong>Install Tampermonkey (free, one time)</strong>
+            <p>Tampermonkey is a trusted browser add-on used by 10M+ people. It lets scripts like DocFill run automatically.</p>
+            <a href="https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo" target="_blank" rel="noopener noreferrer" class="bb-ip-btn bb-ip-btn-chrome">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              Get Tampermonkey (Chrome Web Store)
+            </a>
+          </div>
+        </div>
+        <div class="bb-ip-step">
+          <div class="bb-ip-num">2</div>
+          <div class="bb-ip-step-body">
+            <strong>Click to install DocFill</strong>
+            <p>Tampermonkey will pop up asking to confirm. Click &ldquo;Install&rdquo; and you&rsquo;re done. Updates happen automatically.</p>
+            <a href="https://mybetterboss.ai/betterboss-docfill.user.js" class="bb-ip-btn bb-ip-btn-install">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Install Better Boss DocFill
+            </a>
+          </div>
+        </div>
+      </div>
+      <p class="bb-ip-done">
+        That&rsquo;s it. Open any job or document in
+        <a href="https://app.jobtread.com" target="_blank" rel="noopener noreferrer">JobTread</a>
+        and look for the orange <strong>BB</strong> button in the bottom-right.
+      </p>
+    </div>
+
+    <!-- BOOKMARKLET METHOD -->
+    <div class="bb-ip-section bb-hidden" id="bb-bookmark">
+      <h2 class="bb-orange">Bookmarklet Setup <button class="bb-ip-btn-back" onclick="bbShowMethod('choose')">&larr; Back</button></h2>
+      <div class="bb-ip-steps">
+        <div class="bb-ip-step">
+          <div class="bb-ip-num">1</div>
+          <div class="bb-ip-step-body">
+            <strong>Drag this button to your bookmarks bar</strong>
+            <p>
+              Click and drag the orange button below up to your browser&rsquo;s bookmarks bar.
+              If you don&rsquo;t see a bookmarks bar, press <span class="bb-kbd">Ctrl+Shift+B</span>
+              (or <span class="bb-kbd">Cmd+Shift+B</span> on Mac).
+            </p>
+            <div>
+              <!-- THE BOOKMARKLET LINK -->
+              <a href="javascript:void((function(){if(window.__bbDocFillLoaded)return;window.__bbDocFillLoaded=true;var s=document.createElement('script');s.src='https://mybetterboss.ai/betterboss-docfill-loader.js?t='+Date.now();document.head.appendChild(s)})())"
+                 class="bb-ip-btn bb-ip-btn-bookmark"
+                 onclick="event.preventDefault();document.getElementById('bb-drag-hint').classList.remove('bb-hidden');setTimeout(function(){document.getElementById('bb-drag-hint').classList.add('bb-hidden')},4000);"
+                 draggable="true">
+                <strong>BB</strong> DocFill
+              </a>
+              <p class="bb-ip-drag-hint bb-hidden" id="bb-drag-hint">&#8593; Drag it up to your bookmarks bar!</p>
+            </div>
+          </div>
+        </div>
+        <div class="bb-ip-step">
+          <div class="bb-ip-num">2</div>
+          <div class="bb-ip-step-body">
+            <strong>Go to JobTread and click the bookmark</strong>
+            <p>
+              Navigate to any job or document in
+              <a href="https://app.jobtread.com" target="_blank" rel="noopener noreferrer" style="color:#f97316;">JobTread</a>,
+              then click the <strong style="color:#fff;">BB DocFill</strong> bookmark.
+              The orange <strong style="color:#fff;">BB</strong> button appears and you&rsquo;re ready.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="bb-ip-note">
+        <strong>Good to know:</strong> The bookmarklet always loads the latest version from our server,
+        so you automatically get new features. Your settings are saved in your browser.
+        Click the bookmark once per JobTread session.
+      </div>
+    </div>
+
+    <!-- HOW IT WORKS -->
+    <div class="bb-ip-section">
+      <h2 class="bb-orange">How It Works</h2>
+      <ol class="bb-ip-how">
+        <li><span class="bb-ip-how-num">1</span><div>Navigate to any <strong>job, proposal, contract, or document</strong> in JobTread.</div></li>
+        <li><span class="bb-ip-how-num">2</span><div>Click the orange <strong>BB</strong> button in the bottom-right corner.</div></li>
+        <li><span class="bb-ip-how-num">3</span><div>Fill in client details (or let DocFill auto-detect them). Click <strong>Settings</strong> to set up your business profile.</div></li>
+        <li><span class="bb-ip-how-num">4</span><div>Click <strong>&ldquo;Copy Description&rdquo;</strong> or <strong>&ldquo;Copy Footer&rdquo;</strong> and paste into JobTread. Done.</div></li>
+      </ol>
+    </div>
+
+    <!-- FEATURES -->
+    <div class="bb-ip-section">
+      <h2 class="bb-orange">What You Get</h2>
+      <div class="bb-ip-features">
+        <div class="bb-ip-feat"><h3>Business Profile</h3><p>Set up once &mdash; your company name, phone, email, license, and address auto-fill into every document.</p></div>
+        <div class="bb-ip-feat"><h3>Copy &amp; Paste</h3><p>Click &ldquo;Copy Description&rdquo; or &ldquo;Copy Footer&rdquo; and paste directly into JobTread fields.</p></div>
+        <div class="bb-ip-feat"><h3>Custom Templates</h3><p>Full template editor with variables like &#123;&#123;bizName&#125;&#125; and &#123;&#123;company&#125;&#125;. Conditional blocks supported.</p></div>
+        <div class="bb-ip-feat"><h3>Export / Import</h3><p>Back up your profile and templates. Share across machines or team members with a JSON file.</p></div>
+        <div class="bb-ip-feat"><h3>Auto-Updates</h3><p>Updates deploy instantly to everyone &mdash; no reinstalls, no Chrome Web Store review delays.</p></div>
+        <div class="bb-ip-feat"><h3>Built for Contractors</h3><p>Default SOW template covers the full 20-section implementation agreement with financing terms.</p></div>
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <div class="bb-ip-cta">
+      <p>Questions? Need a custom template built for your business?</p>
+      <a href="https://better-boss.ai">Visit better-boss.ai &rarr;</a>
+    </div>
+
+    <div class="bb-ip-footer">
+      Better Boss DocFill v1.0 &middot; Built by Better Boss &middot; better-boss.ai
+    </div>
+  </div>
+</div>
+
+<script>
+function bbShowMethod(m) {
+  document.getElementById('bb-chooser').classList.toggle('bb-hidden', m !== 'choose');
+  document.getElementById('bb-auto').classList.toggle('bb-hidden', m !== 'auto');
+  document.getElementById('bb-bookmark').classList.toggle('bb-hidden', m !== 'bookmark');
+  if (m !== 'choose') {
+    document.getElementById('bb-' + m).scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+</script>

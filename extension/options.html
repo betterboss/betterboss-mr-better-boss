@@ -3,93 +3,125 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BetterBoss Auto-Populate — Settings</title>
+  <title>Better Boss — DocFill Settings</title>
   <link rel="stylesheet" href="options.css" />
 </head>
 <body>
-  <div class="options">
-    <header class="options__header">
-      <div class="options__logo">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-          <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z" fill="#0c8ce9" opacity="0.3"/>
-          <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z" stroke="#0c8ce9" stroke-width="1.5" fill="none"/>
-          <polyline points="14,2 14,8 20,8" stroke="#0c8ce9" stroke-width="1.5" fill="none"/>
-          <line x1="8" y1="13" x2="16" y2="13" stroke="#0c8ce9" stroke-width="1.5"/>
-          <line x1="8" y1="17" x2="13" y2="17" stroke="#0c8ce9" stroke-width="1.5"/>
-        </svg>
+  <div class="opt">
+    <header class="opt__header">
+      <div class="opt__logo">
+        <div class="opt__mark">BB</div>
         <div>
-          <h1>BetterBoss Auto-Populate</h1>
-          <p>Customize your document templates</p>
+          <h1>Better Boss</h1>
+          <p>DocFill Settings &middot; <a href="https://mybetterboss.ai" target="_blank">mybetterboss.ai</a></p>
         </div>
       </div>
     </header>
 
-    <main class="options__body">
-      <!-- General Settings -->
-      <section class="options__section">
-        <h2>General Settings</h2>
-        <div class="options__card">
-          <div class="options__toggle-row">
-            <div>
-              <label for="auto-toggle">Auto-populate on page load</label>
-              <p class="options__help">Automatically fill document fields when you navigate to a JobTread document page.</p>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="auto-toggle" checked />
-              <span class="toggle__slider"></span>
-            </label>
-          </div>
+    <!-- LOGIN -->
+    <div id="login-screen" class="opt__screen" style="display:none">
+      <div class="login-card">
+        <div class="login-card__icon"><div class="opt__mark opt__mark--lg">BB</div></div>
+        <h2>Welcome to Better Boss DocFill</h2>
+        <p class="login-card__sub">Set up your business profile. This info auto-fills into every proposal, contract, and SOW you generate.</p>
+        <form id="login-form">
+          <div class="fg"><label for="l-name">Your Full Name <span class="req">*</span></label><input id="l-name" required placeholder="e.g. Nick Peret" maxlength="120"/></div>
+          <div class="fg"><label for="l-email">Email <span class="req">*</span></label><input id="l-email" type="email" required placeholder="e.g. nick@mybetterboss.ai" maxlength="200"/></div>
+          <div class="fg"><label for="l-company">Company Name <span class="req">*</span></label><input id="l-company" required placeholder="e.g. Better Boss" maxlength="200"/></div>
+          <div class="fg"><label for="l-phone">Phone</label><input id="l-phone" type="tel" placeholder="e.g. (303) 555-1234" maxlength="30"/></div>
+          <div class="fg"><label for="l-address">Address</label><input id="l-address" placeholder="e.g. Denver, CO" maxlength="300"/></div>
+          <div class="fg"><label for="l-website">Website</label><input id="l-website" type="url" placeholder="e.g. https://mybetterboss.ai" maxlength="200"/></div>
+          <div class="fg"><label for="l-license">License #</label><input id="l-license" placeholder="e.g. CON-12345" maxlength="60"/></div>
+          <button type="submit" class="btn btn--primary btn--full">Save Profile &amp; Get Started</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <main id="settings-screen" class="opt__screen" style="display:none">
+
+      <!-- Profile bar -->
+      <div class="pbar" id="pbar">
+        <div class="pbar__info">
+          <div class="pbar__avatar" id="p-avatar">BB</div>
+          <div><strong id="p-name">—</strong><span id="p-company">—</span></div>
+        </div>
+        <div class="pbar__actions">
+          <button class="btn btn--sm" id="btn-edit">Edit Profile</button>
+          <button class="btn btn--sm btn--danger" id="btn-logout">Log Out</button>
+        </div>
+      </div>
+
+      <!-- Profile edit (hidden) -->
+      <section class="opt__section" id="profile-edit" style="display:none">
+        <h2>Business Profile</h2>
+        <div class="card">
+          <div class="frow"><div class="fg"><label for="p-fname">Name</label><input id="p-fname" maxlength="120"/></div><div class="fg"><label for="p-femail">Email</label><input id="p-femail" type="email" maxlength="200"/></div></div>
+          <div class="frow"><div class="fg"><label for="p-fcompany">Company</label><input id="p-fcompany" maxlength="200"/></div><div class="fg"><label for="p-fphone">Phone</label><input id="p-fphone" type="tel" maxlength="30"/></div></div>
+          <div class="frow"><div class="fg"><label for="p-faddress">Address</label><input id="p-faddress" maxlength="300"/></div><div class="fg"><label for="p-fwebsite">Website</label><input id="p-fwebsite" type="url" maxlength="200"/></div></div>
+          <div class="fg"><label for="p-flicense">License #</label><input id="p-flicense" maxlength="60"/></div>
+          <div class="faction"><button class="btn btn--primary" id="save-profile">Save Profile</button><button class="btn btn--sm" id="cancel-profile">Cancel</button><span class="saved" id="profile-saved">Saved!</span></div>
         </div>
       </section>
 
       <!-- Description Template -->
-      <section class="options__section">
+      <section class="opt__section">
         <h2>Description Template</h2>
-        <p class="options__help">
-          This template is used to populate the description/scope of work field on documents.
-          Use <code>{{variableName}}</code> for variables and <code>{{#variableName}}...{{/variableName}}</code> for conditional blocks.
-        </p>
-        <div class="options__card">
-          <div class="options__variables">
-            <strong>Available variables:</strong>
-            <div class="options__tags">
-              <span class="tag" data-var="jobName">jobName</span>
-              <span class="tag" data-var="jobNumber">jobNumber</span>
-              <span class="tag" data-var="jobStatus">jobStatus</span>
-              <span class="tag" data-var="jobDescription">jobDescription</span>
-              <span class="tag" data-var="jobAddress">jobAddress</span>
-              <span class="tag" data-var="customerName">customerName</span>
-              <span class="tag" data-var="company">company</span>
-              <span class="tag" data-var="customerEmail">customerEmail</span>
-              <span class="tag" data-var="customerPhone">customerPhone</span>
-              <span class="tag" data-var="date">date</span>
-            </div>
+        <p class="help">Use <code>{{variable}}</code> for values. <code>{{#var}}...{{/var}}</code> for conditional blocks. Click a tag to insert.</p>
+        <div class="card">
+          <div class="tags">
+            <strong>Client/Job:</strong>
+            <span class="tag" data-v="company">company</span>
+            <span class="tag" data-v="customerName">customerName</span>
+            <span class="tag" data-v="jobName">jobName</span>
+            <span class="tag" data-v="jobNumber">jobNumber</span>
+            <span class="tag" data-v="date">date</span>
           </div>
-          <textarea id="desc-template" rows="12" placeholder="Enter your description template..."></textarea>
+          <div class="tags">
+            <strong>Your Business:</strong>
+            <span class="tag tag--biz" data-v="bizName">bizName</span>
+            <span class="tag tag--biz" data-v="bizEmail">bizEmail</span>
+            <span class="tag tag--biz" data-v="bizPhone">bizPhone</span>
+            <span class="tag tag--biz" data-v="bizAddress">bizAddress</span>
+            <span class="tag tag--biz" data-v="bizWebsite">bizWebsite</span>
+            <span class="tag tag--biz" data-v="bizLicense">bizLicense</span>
+            <span class="tag tag--biz" data-v="ownerName">ownerName</span>
+          </div>
+          <textarea id="desc-tpl" rows="18" spellcheck="false"></textarea>
           <button class="btn btn--ghost" id="reset-desc">Reset to Default</button>
         </div>
       </section>
 
       <!-- Footer Template -->
-      <section class="options__section">
+      <section class="opt__section">
         <h2>Footer Template</h2>
-        <p class="options__help">
-          This template is used to populate the footer/terms area on documents.
-        </p>
-        <div class="options__card">
-          <textarea id="footer-template" rows="6" placeholder="Enter your footer template..."></textarea>
+        <div class="card">
+          <textarea id="footer-tpl" rows="6" spellcheck="false"></textarea>
           <button class="btn btn--ghost" id="reset-footer">Reset to Default</button>
         </div>
       </section>
 
-      <!-- Save Button -->
-      <section class="options__section options__section--actions">
-        <button class="btn btn--primary" id="save-btn">Save Settings</button>
-        <span class="options__saved" id="saved-msg">Settings saved!</span>
+      <!-- Save Templates -->
+      <section class="opt__section opt__section--row">
+        <button class="btn btn--primary" id="save-tpl">Save Templates</button>
+        <span class="saved" id="tpl-saved">Templates saved!</span>
+      </section>
+
+      <!-- Data Management -->
+      <section class="opt__section">
+        <h2>Data Management</h2>
+        <div class="card">
+          <p class="help" style="margin-bottom:10px">Export your profile + templates as a backup file. Import on another machine to restore.</p>
+          <div class="faction">
+            <button class="btn btn--sm" id="btn-export">Export Data</button>
+            <label class="btn btn--sm" for="import-file" style="cursor:pointer">Import Data<input type="file" id="import-file" accept=".json" style="display:none"/></label>
+          </div>
+        </div>
       </section>
     </main>
-  </div>
 
+    <footer class="opt__footer">Better Boss DocFill v1.0 &middot; Built by <strong>Better Boss</strong> &middot; <a href="https://mybetterboss.ai" target="_blank">mybetterboss.ai</a></footer>
+  </div>
   <script src="options.js"></script>
 </body>
 </html>
