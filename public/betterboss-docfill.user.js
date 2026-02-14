@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Better Boss — DocFill for JobTread
 // @namespace    https://mybetterboss.ai
-// @version      1.0.0
+// @version      1.0.1
 // @description  Auto-generate proposals, contracts & SOWs inside JobTread. Set up your business profile once, then instantly copy perfectly formatted descriptions and footers.
 // @author       Better Boss (mybetterboss.ai)
 // @match        https://app.jobtread.com/*
@@ -20,10 +20,34 @@
   'use strict';
 
   // ==========================================================================
-  // STYLES
+  // UNIVERSAL STORAGE — works with Tampermonkey (GM_*) or localStorage
   // ==========================================================================
 
-  GM_addStyle(`
+  const HAS_GM = (typeof GM_getValue !== 'undefined' && typeof GM_setValue !== 'undefined');
+
+  const store = {
+    get(key, fallback) {
+      try {
+        if (HAS_GM) return GM_getValue(key, fallback);
+        const raw = localStorage.getItem('bb_' + key);
+        if (raw === null) return fallback;
+        try { return JSON.parse(raw); } catch { return raw; }
+      } catch { return fallback; }
+    },
+    set(key, val) {
+      try {
+        if (HAS_GM) { GM_setValue(key, val); return true; }
+        localStorage.setItem('bb_' + key, JSON.stringify(val));
+        return true;
+      } catch { return false; }
+    }
+  };
+
+  // ==========================================================================
+  // INJECT STYLES — works with GM_addStyle or plain <style> injection
+  // ==========================================================================
+
+  const CSS = `
     #bb-autofill-btn{position:fixed;bottom:24px;right:24px;z-index:999999}
     .bb-fab{width:52px;height:52px;border-radius:50%;border:none;background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(249,115,22,.4),0 2px 6px rgba(0,0,0,.2);transition:all .2s}
     .bb-fab:hover{transform:scale(1.08);box-shadow:0 6px 24px rgba(249,115,22,.5)}
@@ -111,7 +135,15 @@
     .bb-tags strong{font-size:11px;color:#a3a3a3;display:block;margin-bottom:4px}
     .bb-tag{display:inline-block;padding:2px 6px;background:#1a1a1a;border:1px solid #333;border-radius:3px;font-size:10px;color:#f97316;font-family:'SF Mono',Menlo,monospace;cursor:pointer;transition:all .15s;margin:0 3px 3px 0}
     .bb-tag:hover{background:rgba(249,115,22,.1);border-color:#f97316}
-  `);
+  `;
+
+  if (typeof GM_addStyle !== 'undefined') {
+    GM_addStyle(CSS);
+  } else {
+    const s = document.createElement('style');
+    s.textContent = CSS;
+    (document.head || document.documentElement).appendChild(s);
+  }
 
   // ==========================================================================
   // CONSTANTS
@@ -148,35 +180,28 @@
   }
 
   // ==========================================================================
-  // STORAGE (GM_setValue / GM_getValue)
+  // STORAGE WRAPPERS (use universal store)
   // ==========================================================================
 
   function getProfile() {
     try {
-      const raw = GM_getValue('profile', null);
+      const raw = store.get('profile', null);
       return raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : {};
     } catch (e) { log('getProfile error:', e); return {}; }
   }
 
-  function saveProfile(profile) {
-    try { GM_setValue('profile', profile); return true; }
-    catch (e) { log('saveProfile error:', e); return false; }
-  }
+  function saveProfile(profile) { return store.set('profile', profile); }
 
   function getDescTemplate() {
-    return GM_getValue('descriptionTemplate', '') || getDefaultDescTemplate();
+    return store.get('descriptionTemplate', '') || getDefaultDescTemplate();
   }
 
   function getFooterTemplate() {
-    return GM_getValue('footerTemplate', '') || getDefaultFooterTemplate();
+    return store.get('footerTemplate', '') || getDefaultFooterTemplate();
   }
 
   function saveTemplates(desc, footer) {
-    try {
-      GM_setValue('descriptionTemplate', desc);
-      GM_setValue('footerTemplate', footer);
-      return true;
-    } catch (e) { log('saveTemplates error:', e); return false; }
+    return store.set('descriptionTemplate', desc) && store.set('footerTemplate', footer);
   }
 
   // ==========================================================================
@@ -191,12 +216,10 @@
   const EXCLUDE_PATHS = ['/settings','/plans','/catalog'];
 
   function isRelevantPage() {
-    const p = window.location.pathname;
-    return DOC_PATHS.some(d => p.includes(d));
+    return DOC_PATHS.some(d => window.location.pathname.includes(d));
   }
   function isExcludedPage() {
-    const p = window.location.pathname;
-    return EXCLUDE_PATHS.some(d => p.includes(d));
+    return EXCLUDE_PATHS.some(d => window.location.pathname.includes(d));
   }
 
   // ==========================================================================
@@ -411,7 +434,7 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
   // PANEL
   // ==========================================================================
 
-  let activeTab = 'generate'; // 'generate' or 'settings'
+  let activeTab = 'generate';
 
   function togglePanel() {
     const ex = document.getElementById(PANEL_ID);
@@ -429,9 +452,6 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
     const cust = currentCustomerInfo || extractCustomerInfo();
     currentJobInfo = job;
     currentCustomerInfo = cust;
-
-    const p = getProfile();
-    const loggedIn = !!(p && p.ownerName);
 
     const panel = document.createElement('div');
     panel.id = PANEL_ID;
@@ -457,7 +477,6 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
 
     document.body.appendChild(panel);
 
-    // Tab switching
     panel.querySelectorAll('.bb-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         panel.querySelectorAll('.bb-tab').forEach(t => t.classList.remove('bb-tab--active'));
@@ -500,7 +519,6 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
     body.innerHTML = `
       <div class="bb-section">${profileHTML}</div>
       <div class="bb-divider"></div>
-
       <div class="bb-section">
         <h4>Client &amp; Job Details</h4>
         <div class="bb-field">
@@ -520,9 +538,7 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
           <input id="bb-jobnum" type="text" value="${esc(job.jobNumber)}" placeholder="e.g. 4821" maxlength="30"/>
         </div>
       </div>
-
       <div class="bb-divider"></div>
-
       <div class="bb-section">
         <div class="bb-row">
           <h4>Description</h4>
@@ -531,9 +547,7 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
         <p class="bb-hint">Paste into the Description field on your document.</p>
         <div class="bb-output" id="bb-desc-out" tabindex="0" role="textbox" aria-readonly="true" aria-label="Generated description text"></div>
       </div>
-
       <div class="bb-divider"></div>
-
       <div class="bb-section">
         <div class="bb-row">
           <h4>Footer</h4>
@@ -542,12 +556,10 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
         <p class="bb-hint">Paste into the Footer field on your document.</p>
         <div class="bb-output bb-output--sm" id="bb-footer-out" tabindex="0" role="textbox" aria-readonly="true" aria-label="Generated footer text"></div>
       </div>
-
       <div class="bb-section">
         <button class="bb-btn bb-btn--primary" id="bb-regen">Regenerate</button>
       </div>`;
 
-    // Events
     document.getElementById('bb-regen').addEventListener('click', generate);
     document.getElementById('bb-copy-desc').addEventListener('click', function () {
       copyText(document.getElementById('bb-desc-out').getAttribute('data-raw')||'', this);
@@ -570,7 +582,6 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
       });
     }
 
-    // Live re-generate on input (debounced)
     const debouncedGen = debounce(generate, 300);
     ['bb-company','bb-name','bb-job','bb-jobnum'].forEach(id => {
       const el = document.getElementById(id);
@@ -582,7 +593,6 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
 
   function generate() {
     const p = getProfile();
-
     const data = {
       company:       document.getElementById('bb-company')?.value || '',
       customerName:  document.getElementById('bb-name')?.value || '',
@@ -638,9 +648,7 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
           </div>
         </div>
       </div>
-
       <div class="bb-divider"></div>
-
       <div class="bb-section">
         <h4>Description Template</h4>
         <p class="bb-hint">Use <code style="background:#1a1a1a;padding:1px 4px;border-radius:3px;font-size:10px;color:#f97316">{{variable}}</code> for values. <code style="background:#1a1a1a;padding:1px 4px;border-radius:3px;font-size:10px;color:#f97316">{{#var}}...{{/var}}</code> for conditional blocks.</p>
@@ -667,7 +675,6 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
           <button class="bb-btn bb-btn--ghost" id="bb-reset-desc">Reset to Default</button>
         </div>
       </div>
-
       <div class="bb-section">
         <h4>Footer Template</h4>
         <div class="bb-settings-card">
@@ -675,16 +682,13 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
           <button class="bb-btn bb-btn--ghost" id="bb-reset-footer">Reset to Default</button>
         </div>
       </div>
-
       <div class="bb-section">
         <div class="bb-faction">
           <button class="bb-btn bb-btn--primary" style="width:auto;display:inline-block;padding:8px 20px;font-size:12px" id="bb-save-tpl">Save Templates</button>
           <span class="bb-saved" id="bb-tpl-saved">Templates saved!</span>
         </div>
       </div>
-
       <div class="bb-divider"></div>
-
       <div class="bb-section">
         <h4>Data Management</h4>
         <div class="bb-settings-card">
@@ -697,9 +701,6 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
         </div>
       </div>`;
 
-    // --- Events ---
-
-    // Save profile
     document.getElementById('bb-save-profile').addEventListener('click', () => {
       const profile = {
         ownerName:  document.getElementById('bb-s-name').value.trim(),
@@ -717,18 +718,14 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
       }
     });
 
-    // Save templates
     document.getElementById('bb-save-tpl').addEventListener('click', () => {
-      const d = document.getElementById('bb-s-desc').value;
-      const f = document.getElementById('bb-s-footer').value;
-      if (saveTemplates(d, f)) {
+      if (saveTemplates(document.getElementById('bb-s-desc').value, document.getElementById('bb-s-footer').value)) {
         flash(document.getElementById('bb-tpl-saved'));
       } else {
         alert('Failed to save templates.');
       }
     });
 
-    // Reset
     document.getElementById('bb-reset-desc').addEventListener('click', () => {
       document.getElementById('bb-s-desc').value = getDefaultDescTemplate();
     });
@@ -736,7 +733,6 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
       document.getElementById('bb-s-footer').value = getDefaultFooterTemplate();
     });
 
-    // Tags — click to insert into description textarea
     body.querySelectorAll('.bb-tag[data-v]').forEach(tag => {
       tag.addEventListener('click', () => {
         const v = `{{${tag.dataset.v}}}`;
@@ -749,7 +745,6 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
       });
     });
 
-    // Export
     document.getElementById('bb-export').addEventListener('click', () => {
       const data = {
         profile: getProfile(),
@@ -765,7 +760,6 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
       URL.revokeObjectURL(url);
     });
 
-    // Import
     document.getElementById('bb-import-file').addEventListener('change', (ev) => {
       const file = ev.target.files[0];
       if (!file) return;
@@ -775,8 +769,8 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
           const data = JSON.parse(e.target.result);
           if (!data || typeof data !== 'object') throw new Error('Invalid format');
           if (data.profile) saveProfile(data.profile);
-          if (data.descriptionTemplate) GM_setValue('descriptionTemplate', data.descriptionTemplate);
-          if (data.footerTemplate) GM_setValue('footerTemplate', data.footerTemplate);
+          if (data.descriptionTemplate) store.set('descriptionTemplate', data.descriptionTemplate);
+          if (data.footerTemplate) store.set('footerTemplate', data.footerTemplate);
           alert('Data imported! Reloading panel...');
           renderSettingsTab(body);
         } catch (err) {
@@ -786,12 +780,11 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
       reader.readAsText(file);
     });
 
-    // Clear all
     document.getElementById('bb-clear-data').addEventListener('click', () => {
       if (!confirm('Clear all DocFill data? This removes your profile and templates.')) return;
-      GM_setValue('profile', {});
-      GM_setValue('descriptionTemplate', '');
-      GM_setValue('footerTemplate', '');
+      store.set('profile', {});
+      store.set('descriptionTemplate', '');
+      store.set('footerTemplate', '');
       alert('All data cleared.');
       renderSettingsTab(body);
     });
@@ -830,12 +823,11 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
   // ==========================================================================
 
   function init() {
-    log('DocFill userscript loaded on', window.location.href);
+    log('DocFill v1.0.1 loaded on', window.location.href, HAS_GM ? '(Tampermonkey)' : '(Bookmarklet)');
 
-    // First run — show welcome
-    const hasRun = GM_getValue('hasRunBefore', false);
+    const hasRun = store.get('hasRunBefore', false);
     if (!hasRun) {
-      GM_setValue('hasRunBefore', true);
+      store.set('hasRunBefore', true);
       log('First run — navigate to a job or document page to get started');
     }
 
