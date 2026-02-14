@@ -1,15 +1,15 @@
 // =============================================================================
-// Better Boss — DocFill v3.0
+// Better Boss — DocFill v3.1
 // https://better-boss.ai
 //
-// Dead-simple document filler for JobTread.
-// Generates description + footer text, one click to copy.
+// Auto-populate document description + footer for JobTread.
+// Pulls all fields from the JT page automatically — zero typing.
 // =============================================================================
 
 (function () {
   'use strict';
 
-  const VERSION = '3.0.0';
+  const VERSION = '3.1.0';
   const PANEL_ID = 'bb-panel';
   const TRIGGER_ID = 'bb-trigger';
 
@@ -51,7 +51,7 @@
     setTimeout(() => {
       el.classList.remove('bb-toast--show');
       setTimeout(() => el.remove(), 300);
-    }, 2000);
+    }, 2200);
   }
 
   // ---------------------------------------------------------------------------
@@ -292,13 +292,12 @@ Client Signature: _________________________ Date: _________
           chrome.storage.local.set(_data);
         } else {
           _data = r;
-          // Fill missing keys from defaults
           const d = defaults();
-          let save = false;
+          let needSave = false;
           for (const k of Object.keys(d)) {
-            if (_data[k] === undefined) { _data[k] = d[k]; save = true; }
+            if (_data[k] === undefined) { _data[k] = d[k]; needSave = true; }
           }
-          if (save) chrome.storage.local.set(_data);
+          if (needSave) chrome.storage.local.set(_data);
         }
         resolve(_data);
       });
@@ -311,7 +310,7 @@ Client Signature: _________________________ Date: _________
   }
 
   // ---------------------------------------------------------------------------
-  // Page detection
+  // Smart JT page scraper — auto-pull everything
   // ---------------------------------------------------------------------------
 
   const DOC_PATHS = ['/jobs/', '/documents/', '/invoices/', '/estimates/', '/proposals/', '/contracts/', '/purchase-orders/', '/change-orders/', '/work-orders/', '/bills/', '/budget', '/quotes/'];
@@ -322,21 +321,196 @@ Client Signature: _________________________ Date: _________
     return DOC_PATHS.some(x => p.includes(x));
   }
 
-  function extractJobInfo() {
-    const info = { jobName: '', jobNumber: '' };
+  // Helper: find text content near a label
+  function findValueByLabel(labelText) {
+    const all = document.querySelectorAll('span, div, td, dt, dd, label, p');
+    const labels = Array.from(all).filter(el => {
+      const t = el.textContent.trim().toLowerCase();
+      return t === labelText.toLowerCase() || t === labelText.toLowerCase() + ':';
+    });
+    for (const lbl of labels) {
+      // Check next sibling
+      let next = lbl.nextElementSibling;
+      if (next) {
+        const v = next.textContent.trim();
+        if (v && v.length < 200 && v.toLowerCase() !== labelText.toLowerCase()) return v;
+      }
+      // Check parent's next sibling (label/value pattern)
+      const par = lbl.parentElement;
+      if (par) {
+        next = par.nextElementSibling;
+        if (next) {
+          const v = next.textContent.trim();
+          if (v && v.length < 200) return v;
+        }
+        // Check sibling within same row
+        const siblings = par.querySelectorAll('span, div, a');
+        for (const s of siblings) {
+          if (s === lbl) continue;
+          const v = s.textContent.trim();
+          if (v && v !== lbl.textContent.trim() && v.length < 200) return v;
+        }
+      }
+    }
+    return '';
+  }
+
+  // Helper: search page text for patterns
+  function findByPattern(pattern) {
+    const text = document.body.innerText || '';
+    const m = text.match(pattern);
+    return m ? m[1].trim() : '';
+  }
+
+  function scrapePageData() {
+    const data = {
+      customerName: '',
+      company: '',
+      customerEmail: '',
+      customerPhone: '',
+      customerAddress: '',
+      jobName: '',
+      jobNumber: '',
+      jobAddress: '',
+      docType: '',
+    };
+
     try {
+      // --- Customer / Contact ---
+      // Try common JT label patterns
+      const customerLabels = ['Customer', 'Client', 'Contact', 'Bill To', 'Sold To', 'Owner'];
+      for (const lbl of customerLabels) {
+        const v = findValueByLabel(lbl);
+        if (v && !data.customerName) {
+          // Could be "Company Name" or "First Last" — use it
+          data.customerName = v;
+        }
+      }
+
+      // Company name (separate from contact name)
+      const companyLabels = ['Company', 'Organization', 'Business'];
+      for (const lbl of companyLabels) {
+        const v = findValueByLabel(lbl);
+        if (v) { data.company = v; break; }
+      }
+
+      // If customer name looks like a company and we have no company, swap
+      if (data.customerName && !data.company) {
+        const words = data.customerName.split(/\s+/);
+        const bizWords = ['llc', 'inc', 'corp', 'co', 'ltd', 'group', 'services', 'construction', 'builders', 'contracting', 'enterprises', 'homes', 'roofing', 'plumbing', 'electric', 'remodeling', 'renovations', 'design', 'solutions'];
+        if (words.some(w => bizWords.includes(w.toLowerCase().replace(/[.,]/g, '')))) {
+          data.company = data.customerName;
+        }
+      }
+
+      // --- Email ---
+      const emailMatch = findByPattern(/[\w.+-]+@[\w-]+\.[\w.]+/);
+      if (emailMatch) data.customerEmail = emailMatch;
+
+      // Also try label-based
+      const emailLabels = ['Email', 'E-mail'];
+      for (const lbl of emailLabels) {
+        const v = findValueByLabel(lbl);
+        if (v && v.includes('@')) { data.customerEmail = v; break; }
+      }
+
+      // --- Phone ---
+      const phoneLabels = ['Phone', 'Mobile', 'Cell', 'Tel', 'Telephone'];
+      for (const lbl of phoneLabels) {
+        const v = findValueByLabel(lbl);
+        if (v && v.match(/[\d()\-\s.+]{7,}/)) { data.customerPhone = v; break; }
+      }
+      if (!data.customerPhone) {
+        const ph = findByPattern(/(\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/);
+        if (ph) data.customerPhone = ph;
+      }
+
+      // --- Address ---
+      const addrLabels = ['Address', 'Job Address', 'Project Address', 'Site Address', 'Location'];
+      for (const lbl of addrLabels) {
+        const v = findValueByLabel(lbl);
+        if (v && v.length > 5) {
+          if (lbl.toLowerCase().includes('job') || lbl.toLowerCase().includes('site') || lbl.toLowerCase().includes('project')) {
+            data.jobAddress = v;
+          } else {
+            data.customerAddress = v;
+          }
+          break;
+        }
+      }
+
+      // --- Job Name ---
+      // Try h1/h2 headings first
       for (const h of document.querySelectorAll('h1, h2')) {
         const t = h.textContent.trim();
-        if (t.length > 2 && t.length < 200) { info.jobName = t; break; }
+        // Skip generic headings
+        if (t.length > 2 && t.length < 200 && !['jobs', 'documents', 'settings', 'dashboard'].includes(t.toLowerCase())) {
+          data.jobName = t;
+          break;
+        }
       }
-      if (!info.jobName) {
+      if (!data.jobName) {
         const m = document.title.match(/^(.+?)(?:\s*[-|]\s*JobTread)?$/i);
-        if (m) info.jobName = m[1].trim();
+        if (m) data.jobName = m[1].trim();
       }
-      const nm = document.body.innerText.match(/(?:Job\s*#?\s*|#)(\d{3,})/i);
-      if (nm) info.jobNumber = nm[1];
+
+      // Try label-based
+      if (!data.jobName) {
+        const jobLabels = ['Job Name', 'Project Name', 'Job', 'Project'];
+        for (const lbl of jobLabels) {
+          const v = findValueByLabel(lbl);
+          if (v) { data.jobName = v; break; }
+        }
+      }
+
+      // --- Job Number ---
+      const jnLabels = ['Job Number', 'Job #', 'Job No', 'Project Number', 'Number'];
+      for (const lbl of jnLabels) {
+        const v = findValueByLabel(lbl);
+        if (v && v.match(/\d/)) { data.jobNumber = v; break; }
+      }
+      if (!data.jobNumber) {
+        const nm = findByPattern(/(?:Job\s*#?\s*|#)(\d{3,})/i);
+        if (nm) data.jobNumber = nm;
+      }
+
+      // --- Doc Type ---
+      const path = window.location.pathname.toLowerCase();
+      if (path.includes('/proposals/')) data.docType = 'Proposal';
+      else if (path.includes('/contracts/')) data.docType = 'Contract';
+      else if (path.includes('/invoices/')) data.docType = 'Invoice';
+      else if (path.includes('/estimates/')) data.docType = 'Estimate';
+      else if (path.includes('/change-orders/')) data.docType = 'Change Order';
+      else if (path.includes('/purchase-orders/')) data.docType = 'Purchase Order';
+      else if (path.includes('/work-orders/')) data.docType = 'Work Order';
+      else if (path.includes('/bills/')) data.docType = 'Bill';
+      else if (path.includes('/quotes/')) data.docType = 'Quote';
+
+      // --- Scrape from breadcrumbs if available ---
+      const breadcrumbs = document.querySelectorAll('nav a, [class*="breadcrumb"] a, [aria-label*="breadcrumb"] a');
+      for (const bc of breadcrumbs) {
+        const t = bc.textContent.trim();
+        if (t.length > 2 && t.length < 100 && !['Home', 'Jobs', 'Documents', 'Dashboard'].includes(t)) {
+          if (!data.jobName) data.jobName = t;
+        }
+      }
+
+      // --- Try to get customer from sidebar/details section ---
+      const detailSections = document.querySelectorAll('[class*="detail"], [class*="sidebar"], [class*="info"], [class*="summary"]');
+      for (const sec of detailSections) {
+        const text = sec.innerText || '';
+        // Look for name-like patterns near customer labels
+        const custMatch = text.match(/(?:Customer|Client|Contact)[:\s]+([A-Z][a-z]+ [A-Z][a-z]+(?:\s[A-Z][a-z]+)?)/);
+        if (custMatch && !data.customerName) data.customerName = custMatch[1].trim();
+
+        // Look for company pattern
+        const compMatch = text.match(/(?:Company|Organization|Business)[:\s]+(.+?)(?:\n|$)/i);
+        if (compMatch && !data.company) data.company = compMatch[1].trim();
+      }
+
     } catch (_) {}
-    return info;
+
+    return data;
   }
 
   // ---------------------------------------------------------------------------
@@ -377,7 +551,7 @@ Client Signature: _________________________ Date: _________
   }
 
   // ---------------------------------------------------------------------------
-  // Trigger button (floating)
+  // Trigger button
   // ---------------------------------------------------------------------------
 
   function createTrigger() {
@@ -401,12 +575,11 @@ Client Signature: _________________________ Date: _________
   // ---------------------------------------------------------------------------
 
   let panelOpen = false;
-  let currentView = 'main'; // 'main' | 'templates' | 'editTemplate'
-  let editTarget = null; // { type: 'desc'|'footer', id: string }
+  let currentView = 'main';
+  let editTarget = null;
+  let _pageData = null; // cached page scrape
 
-  function toggle() {
-    panelOpen ? close() : open();
-  }
+  function toggle() { panelOpen ? close() : open(); }
 
   function close() {
     const p = document.getElementById(PANEL_ID);
@@ -419,31 +592,55 @@ Client Signature: _________________________ Date: _________
 
   async function open() {
     if (!_data) await load();
-    close(); // remove any existing
+    close();
 
-    const job = extractJobInfo();
+    // Scrape the JT page for all available data
+    _pageData = scrapePageData();
     const p = _data.profile || {};
     const hasProfile = !!(p.ownerName);
 
     const panel = document.createElement('div');
     panel.id = PANEL_ID;
-    panel.innerHTML = buildPanelHTML(job, p, hasProfile);
+    panel.innerHTML = buildPanelHTML(p, hasProfile);
     document.body.appendChild(panel);
     panelOpen = true;
     currentView = 'main';
 
-    bindPanelEvents(panel, job);
+    bindPanelEvents(panel);
     generate();
   }
 
-  function buildPanelHTML(job, p, hasProfile) {
+  function buildPanelHTML(p, hasProfile) {
     const descTpls = _data.descTemplates || [];
     const footerTpls = _data.footerTemplates || [];
     const descOpts = descTpls.map(t => `<option value="${esc(t.id)}"${t.id === _data.activeDesc ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
     const footerOpts = footerTpls.map(t => `<option value="${esc(t.id)}"${t.id === _data.activeFooter ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
 
+    const pg = _pageData || {};
+    const detected = [];
+    if (pg.customerName) detected.push(['Contact', pg.customerName]);
+    if (pg.company) detected.push(['Company', pg.company]);
+    if (pg.customerEmail) detected.push(['Email', pg.customerEmail]);
+    if (pg.customerPhone) detected.push(['Phone', pg.customerPhone]);
+    if (pg.jobName) detected.push(['Job', pg.jobName]);
+    if (pg.jobNumber) detected.push(['Job #', pg.jobNumber]);
+    if (pg.jobAddress) detected.push(['Site', pg.jobAddress]);
+    if (pg.docType) detected.push(['Type', pg.docType]);
+
+    const detectedHTML = detected.length > 0
+      ? `<div class="bb-detected">
+          <div class="bb-detected-hd">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Auto-detected from page
+          </div>
+          ${detected.map(([l, v]) => `<div class="bb-detected-row"><span class="bb-detected-label">${l}</span><span class="bb-detected-value">${esc(v)}</span></div>`).join('')}
+        </div>`
+      : `<div class="bb-detected bb-detected--empty">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Navigate to a job or document to auto-detect fields
+        </div>`;
+
     return `<div class="bb">
-      <!-- Header -->
       <div class="bb-hd">
         <div class="bb-hd-left">
           <div class="bb-logo">B</div>
@@ -453,6 +650,9 @@ Client Signature: _________________________ Date: _________
           </div>
         </div>
         <div class="bb-hd-right">
+          <button class="bb-icon-btn" id="bb-refresh" title="Re-scan page">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
           <button class="bb-icon-btn" id="bb-gear" title="Manage templates">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           </button>
@@ -462,45 +662,39 @@ Client Signature: _________________________ Date: _________
         </div>
       </div>
 
-      <!-- Main view -->
       <div class="bb-main" id="bb-main">
         ${!hasProfile ? `
-        <div class="bb-notice" id="bb-notice">
+        <div class="bb-notice">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          <span>Set up your profile in <a href="#" id="bb-open-opts">extension settings</a> to auto-fill business info.</span>
+          <span>Set up your profile in <a href="#" id="bb-open-opts">extension settings</a> to auto-fill your biz info.</span>
         </div>` : `
         <div class="bb-profile">
           <div class="bb-avatar">${initials(p.ownerName)}</div>
           <div class="bb-profile-info"><strong>${esc(p.ownerName)}</strong><span>${esc(p.bizName || '')}</span></div>
         </div>`}
 
-        <!-- Client / Job fields -->
-        <div class="bb-fields">
-          <div class="bb-row">
-            <div class="bb-field">
-              <label>Company</label>
-              <input id="bb-company" value="" placeholder="Client company" />
+        ${detectedHTML}
+
+        <!-- Override fields (collapsed by default, expandable) -->
+        <details class="bb-overrides">
+          <summary class="bb-overrides-toggle">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            Edit fields manually
+          </summary>
+          <div class="bb-fields">
+            <div class="bb-row">
+              <div class="bb-field"><label>Company</label><input id="bb-company" value="${esc(pg.company || '')}" placeholder="Auto-detected" /></div>
+              <div class="bb-field"><label>Contact</label><input id="bb-name" value="${esc(pg.customerName || '')}" placeholder="Auto-detected" /></div>
             </div>
-            <div class="bb-field">
-              <label>Contact Name</label>
-              <input id="bb-name" value="" placeholder="Client name" />
-            </div>
-          </div>
-          <div class="bb-row">
-            <div class="bb-field bb-field--grow">
-              <label>Job Name</label>
-              <input id="bb-job" value="${esc(job.jobName)}" placeholder="Project name" />
-            </div>
-            <div class="bb-field bb-field--sm">
-              <label>Job #</label>
-              <input id="bb-jobnum" value="${esc(job.jobNumber)}" placeholder="#" />
+            <div class="bb-row">
+              <div class="bb-field bb-field--grow"><label>Job</label><input id="bb-job" value="${esc(pg.jobName || '')}" placeholder="Auto-detected" /></div>
+              <div class="bb-field bb-field--sm"><label>Job #</label><input id="bb-jobnum" value="${esc(pg.jobNumber || '')}" placeholder="#" /></div>
             </div>
           </div>
-        </div>
+        </details>
 
         <div class="bb-divider"></div>
 
-        <!-- Description -->
         <div class="bb-section">
           <div class="bb-section-hd">
             <div class="bb-section-label">Description</div>
@@ -515,7 +709,6 @@ Client Signature: _________________________ Date: _________
 
         <div class="bb-divider"></div>
 
-        <!-- Footer -->
         <div class="bb-section">
           <div class="bb-section-hd">
             <div class="bb-section-label">Footer</div>
@@ -530,7 +723,6 @@ Client Signature: _________________________ Date: _________
 
         <div class="bb-divider"></div>
 
-        <!-- Copy All -->
         <button class="bb-primary-btn" id="bb-copy-all">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           Copy All
@@ -543,22 +735,13 @@ Client Signature: _________________________ Date: _________
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
           Back
         </button>
-
         <div class="bb-section">
-          <div class="bb-section-hd">
-            <div class="bb-section-label">Description Templates</div>
-            <button class="bb-sm-btn" id="bb-add-desc">+ Add</button>
-          </div>
+          <div class="bb-section-hd"><div class="bb-section-label">Description Templates</div><button class="bb-sm-btn" id="bb-add-desc">+ Add</button></div>
           <div class="bb-tpl-list" id="bb-desc-list"></div>
         </div>
-
         <div class="bb-divider"></div>
-
         <div class="bb-section">
-          <div class="bb-section-hd">
-            <div class="bb-section-label">Footer Templates</div>
-            <button class="bb-sm-btn" id="bb-add-footer">+ Add</button>
-          </div>
+          <div class="bb-section-hd"><div class="bb-section-label">Footer Templates</div><button class="bb-sm-btn" id="bb-add-footer">+ Add</button></div>
           <div class="bb-tpl-list" id="bb-footer-list"></div>
         </div>
       </div>
@@ -571,10 +754,7 @@ Client Signature: _________________________ Date: _________
         </button>
         <div class="bb-section">
           <div class="bb-section-label" id="bb-edit-title">Edit Template</div>
-          <div class="bb-field" style="margin-top:10px">
-            <label>Name</label>
-            <input id="bb-edit-name" maxlength="80" />
-          </div>
+          <div class="bb-field" style="margin-top:10px"><label>Name</label><input id="bb-edit-name" maxlength="80" /></div>
           <div class="bb-field" style="margin-top:8px">
             <label>Content <span class="bb-hint">Use {{variable}} for auto-fill</span></label>
             <textarea id="bb-edit-body" rows="14"></textarea>
@@ -582,8 +762,12 @@ Client Signature: _________________________ Date: _________
           <div class="bb-edit-vars">
             <span class="bb-var" data-v="company">company</span>
             <span class="bb-var" data-v="customerName">customerName</span>
+            <span class="bb-var" data-v="customerEmail">customerEmail</span>
+            <span class="bb-var" data-v="customerPhone">customerPhone</span>
             <span class="bb-var" data-v="jobName">jobName</span>
             <span class="bb-var" data-v="jobNumber">jobNumber</span>
+            <span class="bb-var" data-v="jobAddress">jobAddress</span>
+            <span class="bb-var" data-v="docType">docType</span>
             <span class="bb-var" data-v="date">date</span>
             <span class="bb-var bb-var--biz" data-v="bizName">bizName</span>
             <span class="bb-var bb-var--biz" data-v="bizEmail">bizEmail</span>
@@ -598,10 +782,9 @@ Client Signature: _________________________ Date: _________
         </div>
       </div>
 
-      <!-- Footer -->
       <div class="bb-ft">
         <span>Better Boss</span>
-        <span class="bb-ft-dot">·</span>
+        <span class="bb-ft-dot">&middot;</span>
         <a href="https://better-boss.ai" target="_blank" rel="noopener">better-boss.ai</a>
       </div>
     </div>`;
@@ -611,65 +794,60 @@ Client Signature: _________________________ Date: _________
   // Bind events
   // ---------------------------------------------------------------------------
 
-  function bindPanelEvents(panel, job) {
+  function bindPanelEvents(panel) {
     const debouncedGen = debounce(generate, 200);
 
-    // Close
     panel.querySelector('#bb-x').addEventListener('click', close);
 
-    // Input changes → regenerate
+    // Re-scan page
+    panel.querySelector('#bb-refresh').addEventListener('click', () => {
+      _pageData = scrapePageData();
+      // Update fields
+      const fields = { 'bb-company': _pageData.company, 'bb-name': _pageData.customerName, 'bb-job': _pageData.jobName, 'bb-jobnum': _pageData.jobNumber };
+      for (const [id, val] of Object.entries(fields)) {
+        const el = panel.querySelector('#' + id);
+        if (el && val) el.value = val;
+      }
+      generate();
+      toast('Page re-scanned');
+    });
+
+    // Manual override inputs → regenerate
     ['bb-company', 'bb-name', 'bb-job', 'bb-jobnum'].forEach(id => {
       const el = panel.querySelector('#' + id);
       if (el) el.addEventListener('input', debouncedGen);
     });
 
     // Template selectors
-    panel.querySelector('#bb-desc-tpl').addEventListener('change', (e) => {
-      save('activeDesc', e.target.value);
-      generate();
-    });
-    panel.querySelector('#bb-footer-tpl').addEventListener('change', (e) => {
-      save('activeFooter', e.target.value);
-      generate();
-    });
+    panel.querySelector('#bb-desc-tpl').addEventListener('change', (e) => { save('activeDesc', e.target.value); generate(); });
+    panel.querySelector('#bb-footer-tpl').addEventListener('change', (e) => { save('activeFooter', e.target.value); generate(); });
 
     // Copy buttons
     panel.querySelector('#bb-copy-desc').addEventListener('click', async function () {
       const raw = panel.querySelector('#bb-desc-preview')?.dataset.raw || '';
-      if (await copyText(raw)) {
-        flashCopy(this, 'Description copied');
-      }
+      if (await copyText(raw)) flashCopy(this, 'Description copied');
     });
     panel.querySelector('#bb-copy-footer').addEventListener('click', async function () {
       const raw = panel.querySelector('#bb-footer-preview')?.dataset.raw || '';
-      if (await copyText(raw)) {
-        flashCopy(this, 'Footer copied');
-      }
+      if (await copyText(raw)) flashCopy(this, 'Footer copied');
     });
     panel.querySelector('#bb-copy-all').addEventListener('click', async function () {
       const desc = panel.querySelector('#bb-desc-preview')?.dataset.raw || '';
       const footer = panel.querySelector('#bb-footer-preview')?.dataset.raw || '';
       const combined = desc + (footer ? '\n\n---\n\n' + footer : '');
-      if (await copyText(combined)) {
-        flashCopy(this, 'Copied!');
-      }
+      if (await copyText(combined)) flashCopy(this, 'Copied!');
     });
 
     // Open options
     const openOpts = panel.querySelector('#bb-open-opts');
-    if (openOpts) {
-      openOpts.addEventListener('click', (e) => {
-        e.preventDefault();
-        chrome.runtime.sendMessage({ action: 'openOptions' });
-      });
-    }
+    if (openOpts) openOpts.addEventListener('click', (e) => { e.preventDefault(); chrome.runtime.sendMessage({ action: 'openOptions' }); });
 
-    // Gear → templates view
+    // Views
     panel.querySelector('#bb-gear').addEventListener('click', () => showView('templates'));
     panel.querySelector('#bb-back-main').addEventListener('click', () => showView('main'));
     panel.querySelector('#bb-back-tpls').addEventListener('click', () => showView('templates'));
 
-    // Add template buttons
+    // Add templates
     panel.querySelector('#bb-add-desc').addEventListener('click', () => {
       const id = 'desc_' + Date.now().toString(36);
       _data.descTemplates.push({ id, name: 'New Template', body: '' });
@@ -697,14 +875,12 @@ Client Signature: _________________________ Date: _________
       tpl.body = panel.querySelector('#bb-edit-body').value;
       save(key, _data[key]);
       toast('Template saved');
-      // Refresh selectors on main view
       refreshSelectors();
       showView('templates');
     });
-
     panel.querySelector('#bb-cancel-edit').addEventListener('click', () => showView('templates'));
 
-    // Variable tag click → insert into textarea
+    // Variable tag insertion
     panel.querySelectorAll('.bb-var[data-v]').forEach(tag => {
       tag.addEventListener('click', () => {
         const ta = panel.querySelector('#bb-edit-body');
@@ -730,7 +906,6 @@ Client Signature: _________________________ Date: _________
     panel.querySelector('#bb-main').style.display = view === 'main' ? '' : 'none';
     panel.querySelector('#bb-templates').style.display = view === 'templates' ? '' : 'none';
     panel.querySelector('#bb-edit').style.display = view === 'editTemplate' ? '' : 'none';
-
     if (view === 'templates') renderTemplatesList();
     if (view === 'editTemplate') renderEditTemplate();
     if (view === 'main') generate();
@@ -739,38 +914,17 @@ Client Signature: _________________________ Date: _________
   function renderTemplatesList() {
     const panel = document.getElementById(PANEL_ID);
     if (!panel) return;
-
-    const descList = panel.querySelector('#bb-desc-list');
-    const footerList = panel.querySelector('#bb-footer-list');
-
-    descList.innerHTML = (_data.descTemplates || []).map(t => tplCard(t, 'desc', t.id === _data.activeDesc)).join('');
-    footerList.innerHTML = (_data.footerTemplates || []).map(t => tplCard(t, 'footer', t.id === _data.activeFooter)).join('');
-
-    // Bind card actions
+    panel.querySelector('#bb-desc-list').innerHTML = (_data.descTemplates || []).map(t => tplCard(t, 'desc', t.id === _data.activeDesc)).join('');
+    panel.querySelector('#bb-footer-list').innerHTML = (_data.footerTemplates || []).map(t => tplCard(t, 'footer', t.id === _data.activeFooter)).join('');
     panel.querySelectorAll('[data-tpl-action]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const action = btn.dataset.tplAction;
-        const type = btn.dataset.tplType;
-        const id = btn.dataset.tplId;
+        const { tplAction: action, tplType: type, tplId: id } = btn.dataset;
         const key = type === 'desc' ? 'descTemplates' : 'footerTemplates';
         const activeKey = type === 'desc' ? 'activeDesc' : 'activeFooter';
-
-        if (action === 'use') {
-          save(activeKey, id);
-          refreshSelectors();
-          toast('Template activated');
-          renderTemplatesList();
-        } else if (action === 'edit') {
-          editTarget = { type, id };
-          showView('editTemplate');
-        } else if (action === 'delete') {
-          _data[key] = _data[key].filter(t => t.id !== id);
-          save(key, _data[key]);
-          refreshSelectors();
-          toast('Deleted');
-          renderTemplatesList();
-        }
+        if (action === 'use') { save(activeKey, id); refreshSelectors(); toast('Activated'); renderTemplatesList(); }
+        else if (action === 'edit') { editTarget = { type, id }; showView('editTemplate'); }
+        else if (action === 'delete') { _data[key] = _data[key].filter(t => t.id !== id); save(key, _data[key]); refreshSelectors(); toast('Deleted'); renderTemplatesList(); }
       });
     });
   }
@@ -778,10 +932,7 @@ Client Signature: _________________________ Date: _________
   function tplCard(t, type, active) {
     const preview = (t.body || '').substring(0, 60).replace(/\n/g, ' ');
     return `<div class="bb-tpl-card${active ? ' bb-tpl-card--active' : ''}">
-      <div class="bb-tpl-card-info">
-        <div class="bb-tpl-card-name">${esc(t.name)}${active ? '<span class="bb-tpl-badge">Active</span>' : ''}</div>
-        <div class="bb-tpl-card-preview">${esc(preview)}${preview.length >= 60 ? '…' : ''}</div>
-      </div>
+      <div class="bb-tpl-card-info"><div class="bb-tpl-card-name">${esc(t.name)}${active ? '<span class="bb-tpl-badge">Active</span>' : ''}</div><div class="bb-tpl-card-preview">${esc(preview)}${preview.length >= 60 ? '…' : ''}</div></div>
       <div class="bb-tpl-card-actions">
         ${!active ? `<button class="bb-sm-btn" data-tpl-action="use" data-tpl-type="${type}" data-tpl-id="${esc(t.id)}">Use</button>` : ''}
         <button class="bb-sm-btn" data-tpl-action="edit" data-tpl-type="${type}" data-tpl-id="${esc(t.id)}">Edit</button>
@@ -805,42 +956,42 @@ Client Signature: _________________________ Date: _________
   function refreshSelectors() {
     const panel = document.getElementById(PANEL_ID);
     if (!panel) return;
-    const descSel = panel.querySelector('#bb-desc-tpl');
-    const footerSel = panel.querySelector('#bb-footer-tpl');
-    if (descSel) {
-      descSel.innerHTML = (_data.descTemplates || []).map(t =>
-        `<option value="${esc(t.id)}"${t.id === _data.activeDesc ? ' selected' : ''}>${esc(t.name)}</option>`
-      ).join('');
-    }
-    if (footerSel) {
-      footerSel.innerHTML = (_data.footerTemplates || []).map(t =>
-        `<option value="${esc(t.id)}"${t.id === _data.activeFooter ? ' selected' : ''}>${esc(t.name)}</option>`
-      ).join('');
-    }
+    const ds = panel.querySelector('#bb-desc-tpl');
+    const fs = panel.querySelector('#bb-footer-tpl');
+    if (ds) ds.innerHTML = (_data.descTemplates || []).map(t => `<option value="${esc(t.id)}"${t.id === _data.activeDesc ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
+    if (fs) fs.innerHTML = (_data.footerTemplates || []).map(t => `<option value="${esc(t.id)}"${t.id === _data.activeFooter ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
   }
 
   // ---------------------------------------------------------------------------
-  // Generate
+  // Generate — merges auto-detected + manual overrides + profile
   // ---------------------------------------------------------------------------
 
   function generate() {
     const panel = document.getElementById(PANEL_ID);
     if (!panel || currentView !== 'main') return;
 
-    const p = _data.profile || {};
+    const prof = _data.profile || {};
+    const pg = _pageData || {};
+
+    // Manual overrides take precedence over auto-detected
     const data = {
-      company: panel.querySelector('#bb-company')?.value || '',
-      customerName: panel.querySelector('#bb-name')?.value || '',
-      jobName: panel.querySelector('#bb-job')?.value || '',
-      jobNumber: panel.querySelector('#bb-jobnum')?.value || '',
+      company: panel.querySelector('#bb-company')?.value || pg.company || '',
+      customerName: panel.querySelector('#bb-name')?.value || pg.customerName || '',
+      customerEmail: pg.customerEmail || '',
+      customerPhone: pg.customerPhone || '',
+      customerAddress: pg.customerAddress || '',
+      jobName: panel.querySelector('#bb-job')?.value || pg.jobName || '',
+      jobNumber: panel.querySelector('#bb-jobnum')?.value || pg.jobNumber || '',
+      jobAddress: pg.jobAddress || '',
+      docType: pg.docType || '',
       date: new Date().toLocaleDateString(),
-      bizName: p.bizName || '',
-      bizEmail: p.bizEmail || '',
-      bizPhone: p.bizPhone || '',
-      bizAddress: p.bizAddress || '',
-      bizWebsite: p.bizWebsite || '',
-      bizLicense: p.bizLicense || '',
-      ownerName: p.ownerName || '',
+      bizName: prof.bizName || '',
+      bizEmail: prof.bizEmail || '',
+      bizPhone: prof.bizPhone || '',
+      bizAddress: prof.bizAddress || '',
+      bizWebsite: prof.bizWebsite || '',
+      bizLicense: prof.bizLicense || '',
+      ownerName: prof.ownerName || '',
     };
 
     const descTpl = (_data.descTemplates || []).find(t => t.id === _data.activeDesc) || _data.descTemplates[0];
@@ -855,10 +1006,6 @@ Client Signature: _________________________ Date: _________
     if (footerEl) { footerEl.dataset.raw = footerText; footerEl.textContent = footerText || '(empty)'; }
   }
 
-  // ---------------------------------------------------------------------------
-  // Copy flash animation
-  // ---------------------------------------------------------------------------
-
   function flashCopy(btn, msg) {
     toast(msg);
     btn.classList.add('bb-copied');
@@ -866,12 +1013,11 @@ Client Signature: _________________________ Date: _________
   }
 
   // ---------------------------------------------------------------------------
-  // Keyboard shortcuts
+  // Keyboard shortcut
   // ---------------------------------------------------------------------------
 
   document.addEventListener('keydown', (e) => {
-    if (!e.ctrlKey || !e.shiftKey) return;
-    if (e.key === 'B' || e.key === 'b') { e.preventDefault(); toggle(); }
+    if (e.ctrlKey && e.shiftKey && (e.key === 'B' || e.key === 'b')) { e.preventDefault(); toggle(); }
   });
 
   // ---------------------------------------------------------------------------
@@ -882,7 +1028,7 @@ Client Signature: _________________________ Date: _________
     chrome.runtime.onMessage.addListener((msg, _, reply) => {
       if (msg.action === 'togglePanel') { toggle(); reply({ ok: true }); }
       if (msg.action === 'getPageInfo') {
-        reply({ isDocPage: isDocPage(), job: extractJobInfo(), url: location.href });
+        reply({ isDocPage: isDocPage(), pageData: scrapePageData(), url: location.href });
       }
       return false;
     });
@@ -917,8 +1063,6 @@ Client Signature: _________________________ Date: _________
     await load();
     if (isDocPage()) createTrigger();
     watchURL();
-
-    // Re-check after JT SPA renders
     const obs = new MutationObserver(debounce(() => {
       if (!document.getElementById(TRIGGER_ID) && isDocPage()) createTrigger();
     }, 500));
