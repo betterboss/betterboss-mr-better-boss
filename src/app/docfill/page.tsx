@@ -4,274 +4,446 @@ import { useState } from 'react';
 
 const BOOKMARKLET_CODE = `javascript:void((function(){if(window.__bbDocFillLoaded)return;window.__bbDocFillLoaded=true;var s=document.createElement('script');s.src='https://mybetterboss.ai/betterboss-docfill-loader.js?t='+Date.now();document.head.appendChild(s)})())`;
 
+const features = [
+  { icon: 'user', title: 'Business Profile', desc: 'Set up once — your company name, phone, email, license & address auto-fill into every document.', accent: 'indigo' },
+  { icon: 'copy', title: 'Copy & Paste', desc: 'One-click copy for descriptions and footers. Paste directly into JobTread fields. No mistakes.', accent: 'violet' },
+  { icon: 'file', title: 'Custom Templates', desc: 'Full template editor with variables like {{bizName}} and conditional blocks.', accent: 'indigo' },
+  { icon: 'upload', title: 'Export / Import', desc: 'Back up your profile and templates. Share across machines or team members with JSON.', accent: 'violet' },
+  { icon: 'trend', title: 'Auto-Updates', desc: 'Updates deploy instantly — no reinstalls, no Chrome Web Store review delays.', accent: 'indigo' },
+  { icon: 'home', title: 'Built for Contractors', desc: 'Default SOW template covers the full 20-section implementation agreement with financing.', accent: 'violet' },
+] as const;
+
+const FeatureIcon = ({ type }: { type: string }) => {
+  const icons: Record<string, React.ReactNode> = {
+    user: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+    copy: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
+    file: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
+    upload: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>,
+    trend: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
+    home: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+  };
+  return <>{icons[type]}</>;
+};
+
 export default function DocFillPage() {
   const [method, setMethod] = useState<'auto' | 'bookmark' | null>(null);
   const [dragHint, setDragHint] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white font-sans">
+    <div className="min-h-screen text-[#c8cdd8] font-sans" style={{ background: '#06060f' }}>
+      {/* Ambient orbs */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
+        <div className="absolute -top-[20%] left-[10%] w-[500px] h-[500px] rounded-full opacity-100" style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.1) 0%, transparent 70%)', animation: 'float-orb 12s ease-in-out infinite' }} />
+        <div className="absolute -top-[10%] right-[5%] w-[400px] h-[400px] rounded-full opacity-100" style={{ background: 'radial-gradient(circle, rgba(167,139,250,0.06) 0%, transparent 70%)', animation: 'float-orb 15s ease-in-out infinite reverse' }} />
+      </div>
+
+      <style>{`
+        @keyframes float-orb { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(30px,-20px) scale(1.05); } 66% { transform: translate(-20px,15px) scale(0.95); } }
+        @keyframes shimmer-text { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
+        @keyframes pulse-ring { 0% { transform: scale(1); opacity: 0.5; } 100% { transform: scale(1.5); opacity: 0; } }
+        @keyframes glow-box { 0%,100% { box-shadow: 0 0 20px rgba(99,102,241,0.12), 0 0 60px rgba(99,102,241,0.04); } 50% { box-shadow: 0 0 30px rgba(99,102,241,0.25), 0 0 80px rgba(99,102,241,0.08); } }
+        @keyframes float-up { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+        @keyframes count-pop { from { opacity: 0; transform: scale(0.8) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+      `}</style>
+
       {/* Header */}
-      <header className="border-b border-neutral-800">
-        <div className="max-w-3xl mx-auto px-6 py-8 flex items-center gap-4">
-          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-extrabold text-xl shrink-0">
-            BB
+      <header className="relative z-10 pt-16 pb-10">
+        <div className="max-w-[920px] mx-auto px-7 flex items-center gap-6">
+          <div className="relative shrink-0">
+            <div
+              className="w-[76px] h-[76px] rounded-[20px] flex items-center justify-center text-white font-black text-[28px] tracking-tight"
+              style={{
+                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                boxShadow: '0 8px 40px rgba(99,102,241,0.35), inset 0 1px 0 rgba(255,255,255,0.15)',
+                animation: 'float-up 5s ease-in-out infinite',
+              }}
+            >
+              BB
+            </div>
+            <div
+              className="absolute -inset-[5px] rounded-[24px] pointer-events-none"
+              style={{ border: '2px solid rgba(99,102,241,0.25)', animation: 'pulse-ring 3s ease-out infinite' }}
+            />
           </div>
           <div>
-            <h1 className="text-3xl font-bold">Better Boss <span className="text-orange-500">DocFill</span></h1>
-            <p className="text-neutral-500 text-sm mt-1">
-              Smart document builder for JobTread
+            <h1 className="text-[40px] font-black text-white leading-none tracking-[-0.03em]">
+              Better Boss{' '}
+              <span
+                className="bg-clip-text text-transparent"
+                style={{
+                  backgroundImage: 'linear-gradient(135deg, #818cf8, #a78bfa, #c4b5fd, #818cf8)',
+                  backgroundSize: '300% auto',
+                  animation: 'shimmer-text 4s linear infinite',
+                }}
+              >
+                DocFill
+              </span>
+            </h1>
+            <p className="text-[#6b7280] text-[15px] mt-2 font-medium">
+              <span className="text-[#a78bfa] mr-1">&#9889;</span>
+              Smart document automation for JobTread &mdash; Better Starts Now
             </p>
           </div>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-6 py-12 space-y-12">
-        {/* Hero */}
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold">Auto-generate proposals, contracts &amp; SOWs inside JobTread</h2>
-          <p className="text-neutral-400 leading-relaxed">
-            Stop retyping the same contract language. DocFill lets you set up your business profile once,
-            then instantly generates perfectly formatted descriptions and footers for every document.
-            Just copy and paste.
+      <main className="relative z-10 max-w-[920px] mx-auto px-7 pb-16">
+        {/* Headline */}
+        <section className="text-center mb-16">
+          <h2 className="text-[36px] font-extrabold text-white leading-[1.2] tracking-[-0.02em] max-w-[700px] mx-auto mb-5">
+            Auto-generate proposals, contracts &amp; SOWs{' '}
+            <span className="bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(90deg, #818cf8, #a78bfa)' }}>
+              inside JobTread
+            </span>
+          </h2>
+          <p className="text-[18px] text-[#8891a5] leading-relaxed max-w-[620px] mx-auto">
+            Stop retyping the same contract language. Set up your business profile once, then instantly generate perfectly formatted documents. One click. Done.
           </p>
         </section>
 
-        {/* Choose install method */}
+        {/* Stats */}
+        <section className="flex justify-center gap-14 py-10 mb-16 relative" style={{ borderTop: '1px solid rgba(99,102,241,0.1)', borderBottom: '1px solid rgba(99,102,241,0.1)', background: 'linear-gradient(180deg, rgba(99,102,241,0.02) 0%, transparent 100%)' }}>
+          <div className="absolute top-[-1px] left-[20%] right-[20%] h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(99,102,241,0.3), transparent)' }} />
+          {[
+            { num: '4 min', label: 'Per Document' },
+            { num: '600+', label: 'Hours Saved / Year' },
+            { num: '100%', label: 'Free to Use' },
+          ].map((s, i) => (
+            <div key={s.label} className="text-center" style={{ animation: `count-pop 0.5s ease-out ${0.3 + i * 0.15}s both` }}>
+              <div className="text-[40px] font-black leading-none bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(135deg, #818cf8, #6366f1)' }}>
+                {s.num}
+              </div>
+              <div className="text-[12px] text-[#6b7280] font-bold uppercase tracking-[0.1em] mt-1.5">{s.label}</div>
+            </div>
+          ))}
+        </section>
+
+        {/* Demo */}
+        <section className="mb-16">
+          <div className="rounded-[24px] p-[3px] overflow-hidden" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.1), rgba(99,102,241,0.05))', animation: 'glow-box 5s ease-in-out infinite' }}>
+            <div className="rounded-[22px] py-12 px-10 text-center" style={{ background: 'linear-gradient(180deg, #0d0d1a 0%, #0a0a14 100%)' }}>
+              <div className="flex justify-center items-center gap-9 flex-wrap">
+                {/* JobTread screen */}
+                <div className="w-[260px] h-[170px] rounded-[14px] flex flex-col items-center justify-center gap-1.5 relative overflow-hidden" style={{ background: 'linear-gradient(180deg, rgba(20,20,40,0.9), rgba(13,13,26,0.95))', border: '1px solid rgba(99,102,241,0.15)' }}>
+                  <div className="absolute top-0 inset-x-0 h-[30px]" style={{ background: 'rgba(20,20,40,0.8)', borderBottom: '1px solid rgba(99,102,241,0.08)' }}>
+                    <div className="absolute top-[9px] left-3 flex gap-[5px]">
+                      <span className="w-[7px] h-[7px] rounded-full bg-red-500" />
+                      <span className="w-[7px] h-[7px] rounded-full bg-amber-500" />
+                      <span className="w-[7px] h-[7px] rounded-full bg-emerald-500" />
+                    </div>
+                  </div>
+                  <div className="text-[15px] font-bold text-[#818cf8] mt-3.5">JobTread</div>
+                  <div className="flex flex-col gap-[5px] mt-2.5 w-[55%]">
+                    <div className="h-[5px] rounded-full w-[90%]" style={{ background: 'rgba(99,102,241,0.15)' }} />
+                    <div className="h-[5px] rounded-full w-[65%]" style={{ background: 'rgba(99,102,241,0.1)' }} />
+                    <div className="h-[5px] rounded-full w-[80%]" style={{ background: 'rgba(99,102,241,0.08)' }} />
+                  </div>
+                  <div className="text-[10px] font-bold text-[#4b5563] uppercase tracking-[0.1em] mt-2.5">Your Job</div>
+                </div>
+
+                {/* Arrow */}
+                <div className="text-[32px] text-[#6366f1]" style={{ filter: 'drop-shadow(0 0 8px rgba(99,102,241,0.4))' }}>&#10230;</div>
+
+                {/* DocFill screen */}
+                <div className="w-[260px] h-[170px] rounded-[14px] flex flex-col items-center justify-center gap-1 relative overflow-hidden" style={{ background: 'linear-gradient(180deg, rgba(20,20,40,0.9), rgba(13,13,26,0.95))', border: '1px solid rgba(99,102,241,0.15)' }}>
+                  <div className="absolute top-0 inset-x-0 h-[30px]" style={{ background: 'rgba(20,20,40,0.8)', borderBottom: '1px solid rgba(99,102,241,0.08)' }}>
+                    <div className="absolute top-[9px] left-3 flex gap-[5px]">
+                      <span className="w-[7px] h-[7px] rounded-full bg-red-500" />
+                      <span className="w-[7px] h-[7px] rounded-full bg-amber-500" />
+                      <span className="w-[7px] h-[7px] rounded-full bg-emerald-500" />
+                    </div>
+                  </div>
+                  <div className="text-[28px] font-black mt-3.5 bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(135deg, #6366f1, #a78bfa)' }}>BB</div>
+                  <div className="text-[11px] text-[#6b7280] tracking-[0.05em]">DocFill</div>
+                  <div className="text-[11px] text-emerald-500 font-bold mt-2 tracking-[0.03em]">&#10003; Auto-Generated</div>
+                  <div className="text-[10px] font-bold text-[#4b5563] uppercase tracking-[0.1em] mt-2">Your Document</div>
+                </div>
+              </div>
+              <p className="text-[15px] text-[#6b7280] mt-7">DocFill reads your job data and <strong className="text-[#c8cdd8]">auto-generates</strong> professional proposals, contracts &amp; SOWs.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Install Method Selection */}
         {!method && (
-          <section className="space-y-6">
-            <h2 className="text-xl font-bold text-orange-500">Choose How to Install</h2>
-            <div className="grid sm:grid-cols-2 gap-4">
+          <section className="mb-16">
+            <p className="text-center text-[12px] font-extrabold uppercase tracking-[0.15em] text-[#818cf8] mb-6">
+              &#9889; Get Started in 2 Minutes
+            </p>
+            <div className="grid sm:grid-cols-2 gap-5">
               <button
                 onClick={() => setMethod('auto')}
-                className="text-left bg-neutral-900 border-2 border-neutral-800 hover:border-orange-500 rounded-xl p-6 transition-all group"
+                className="text-left rounded-[20px] p-8 transition-all duration-300 group relative overflow-hidden"
+                style={{ background: 'linear-gradient(180deg, rgba(17,17,35,0.9), rgba(10,10,20,0.95))', border: '1px solid rgba(99,102,241,0.12)' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(99,102,241,0.35)'; e.currentTarget.style.transform = 'translateY(-6px)'; e.currentTarget.style.boxShadow = '0 16px 48px rgba(0,0,0,0.4), 0 0 40px rgba(99,102,241,0.08)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(99,102,241,0.12)'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
               >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-lg bg-orange-500/10 text-orange-500 font-bold text-lg flex items-center justify-center">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14m-7-7l7 7 7-7"/></svg>
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-white text-base group-hover:text-orange-500 transition-colors">Auto-Run</h3>
-                    <span className="text-orange-500 text-xs font-semibold uppercase">Recommended</span>
-                  </div>
+                <div className="w-[52px] h-[52px] rounded-[14px] flex items-center justify-center text-[#818cf8] mb-5" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(99,102,241,0.04))', border: '1px solid rgba(99,102,241,0.08)' }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14m-7-7l7 7 7-7"/></svg>
                 </div>
-                <p className="text-neutral-400 text-sm leading-relaxed">
-                  Runs automatically every time you open JobTread. Auto-updates when we push new features. 2 quick steps.
-                </p>
+                <h3 className="text-[22px] font-extrabold text-white mb-1.5 tracking-[-0.01em] group-hover:text-[#a78bfa] transition-colors">Auto-Run</h3>
+                <span className="inline-block text-[10px] font-extrabold uppercase tracking-[0.08em] px-3 py-1 rounded-full mb-4" style={{ background: 'rgba(99,102,241,0.1)', color: '#a78bfa', border: '1px solid rgba(99,102,241,0.15)' }}>
+                  &#9733; Recommended
+                </span>
+                <p className="text-[14px] text-[#8891a5] leading-relaxed">Runs automatically every time you open JobTread. Auto-updates with new features. Just 2 quick steps.</p>
               </button>
 
               <button
                 onClick={() => setMethod('bookmark')}
-                className="text-left bg-neutral-900 border-2 border-neutral-800 hover:border-orange-500 rounded-xl p-6 transition-all group"
+                className="text-left rounded-[20px] p-8 transition-all duration-300 group relative overflow-hidden"
+                style={{ background: 'linear-gradient(180deg, rgba(17,17,35,0.9), rgba(10,10,20,0.95))', border: '1px solid rgba(99,102,241,0.12)' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(99,102,241,0.35)'; e.currentTarget.style.transform = 'translateY(-6px)'; e.currentTarget.style.boxShadow = '0 16px 48px rgba(0,0,0,0.4), 0 0 40px rgba(99,102,241,0.08)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(99,102,241,0.12)'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
               >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-lg bg-orange-500/10 text-orange-500 font-bold text-lg flex items-center justify-center">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-white text-base group-hover:text-orange-500 transition-colors">Bookmarklet</h3>
-                    <span className="text-neutral-500 text-xs font-semibold uppercase">Zero Install</span>
-                  </div>
+                <div className="w-[52px] h-[52px] rounded-[14px] flex items-center justify-center text-[#818cf8] mb-5" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(99,102,241,0.04))', border: '1px solid rgba(99,102,241,0.08)' }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
                 </div>
-                <p className="text-neutral-400 text-sm leading-relaxed">
-                  Nothing to install at all. Just drag a button to your bookmarks bar and click it on JobTread. Done.
-                </p>
+                <h3 className="text-[22px] font-extrabold text-white mb-1.5 tracking-[-0.01em] group-hover:text-[#a78bfa] transition-colors">Bookmarklet</h3>
+                <span className="inline-block text-[10px] font-extrabold uppercase tracking-[0.08em] px-3 py-1 rounded-full mb-4" style={{ background: 'rgba(107,114,128,0.1)', color: '#9ca3af', border: '1px solid rgba(107,114,128,0.1)' }}>
+                  Zero Install
+                </span>
+                <p className="text-[14px] text-[#8891a5] leading-relaxed">Nothing to install. Drag a button to your bookmarks bar and click it when you&apos;re in JobTread. Done.</p>
               </button>
             </div>
           </section>
         )}
 
-        {/* AUTO-RUN METHOD (Tampermonkey) */}
+        {/* Auto-Run Setup */}
         {method === 'auto' && (
-          <section className="space-y-6">
-            <div className="flex items-center gap-3">
-              <h2 className="text-xl font-bold text-orange-500">Auto-Run Setup</h2>
-              <button onClick={() => setMethod(null)} className="text-neutral-500 text-sm hover:text-orange-500 transition-colors">&larr; Back</button>
+          <section className="mb-16">
+            <div className="flex items-center gap-3.5 mb-7">
+              <h2 className="text-[26px] font-extrabold text-white tracking-[-0.01em]">
+                <span className="bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(90deg, #818cf8, #a78bfa)' }}>Auto-Run</span> Setup
+              </h2>
+              <button onClick={() => setMethod(null)} className="text-[#8891a5] text-[13px] font-semibold px-4 py-1.5 rounded-lg transition-all hover:text-[#a78bfa]" style={{ border: '1px solid rgba(99,102,241,0.2)' }}>&larr; Back</button>
             </div>
 
-            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-5">
-              <div className="flex gap-4">
-                <span className="w-10 h-10 rounded-full bg-orange-500/10 text-orange-500 font-bold text-lg flex items-center justify-center shrink-0">1</span>
-                <div className="space-y-2">
-                  <p className="text-white font-semibold text-base">Install Tampermonkey (free, one time)</p>
-                  <p className="text-neutral-400 text-sm">Tampermonkey is a trusted browser add-on used by 10M+ people. It lets scripts like DocFill run automatically.</p>
+            <div className="rounded-[22px] p-9" style={{ background: 'linear-gradient(180deg, rgba(17,17,35,0.7), rgba(10,10,20,0.85))', border: '1px solid rgba(99,102,241,0.12)', animation: 'glow-box 5s ease-in-out infinite' }}>
+              <div className="flex gap-5">
+                <div className="w-[50px] h-[50px] rounded-[14px] flex items-center justify-center text-[#818cf8] font-extrabold text-[20px] shrink-0" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.05))', border: '1px solid rgba(99,102,241,0.1)' }}>1</div>
+                <div>
+                  <p className="text-white font-bold text-[17px] mb-2">Install Tampermonkey (free, one time)</p>
+                  <p className="text-[#8891a5] text-[14px] leading-relaxed mb-4">Tampermonkey is a trusted browser extension used by 10M+ people. It lets scripts like DocFill run automatically.</p>
                   <a
                     href="https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 bg-neutral-800 border border-neutral-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm hover:border-orange-500 transition-all"
+                    className="inline-flex items-center gap-2.5 text-[#c8cdd8] font-bold px-6 py-3 rounded-xl text-[14px] transition-all hover:text-white"
+                    style={{ background: 'rgba(17,17,35,0.8)', border: '1px solid rgba(99,102,241,0.2)' }}
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                      <polyline points="15 3 21 3 21 9" />
-                      <line x1="10" y1="14" x2="21" y2="3" />
-                    </svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                     Get Tampermonkey (Chrome Web Store)
                   </a>
                 </div>
               </div>
 
-              <div className="border-t border-neutral-800" />
+              <div className="my-7" style={{ borderTop: '1px solid rgba(99,102,241,0.08)' }} />
 
-              <div className="flex gap-4">
-                <span className="w-10 h-10 rounded-full bg-orange-500/10 text-orange-500 font-bold text-lg flex items-center justify-center shrink-0">2</span>
-                <div className="space-y-2">
-                  <p className="text-white font-semibold text-base">Click to install DocFill</p>
-                  <p className="text-neutral-400 text-sm">
-                    Tampermonkey will pop up asking to confirm. Click &ldquo;Install&rdquo; and you&apos;re done. Updates happen automatically.
-                  </p>
+              <div className="flex gap-5">
+                <div className="w-[50px] h-[50px] rounded-[14px] flex items-center justify-center text-[#818cf8] font-extrabold text-[20px] shrink-0" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.05))', border: '1px solid rgba(99,102,241,0.1)' }}>2</div>
+                <div>
+                  <p className="text-white font-bold text-[17px] mb-2">Click to install DocFill</p>
+                  <p className="text-[#8891a5] text-[14px] leading-relaxed mb-4">Tampermonkey will pop up asking to confirm. Click &ldquo;Install&rdquo; and you&apos;re done. Updates happen automatically.</p>
                   <a
                     href="/betterboss-docfill.user.js"
-                    className="inline-flex items-center gap-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold px-8 py-4 rounded-xl text-lg hover:from-orange-400 hover:to-orange-500 transition-all shadow-lg shadow-orange-500/20"
+                    className="inline-flex items-center gap-3 text-white font-extrabold px-10 py-[18px] rounded-[14px] text-[18px] transition-all hover:-translate-y-0.5"
+                    style={{ background: 'linear-gradient(135deg, #6366f1, #7c3aed)', boxShadow: '0 8px 32px rgba(99,102,241,0.35)', letterSpacing: '-0.01em' }}
                   >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                      <polyline points="7 10 12 15 17 10" />
-                      <line x1="12" y1="15" x2="12" y2="3" />
-                    </svg>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     Install Better Boss DocFill
                   </a>
                 </div>
               </div>
             </div>
 
-            <p className="text-neutral-500 text-sm text-center">
-              That&apos;s it. Open any job or document in{' '}
-              <a href="https://app.jobtread.com" target="_blank" rel="noopener noreferrer" className="text-orange-500 hover:text-orange-400">JobTread</a>
-              {' '}and look for the orange <strong className="text-white">BB</strong> button in the bottom-right.
+            <p className="text-center text-[#6b7280] text-[14px] mt-6">
+              That&apos;s it! Open any job or document in{' '}
+              <a href="https://app.jobtread.com" target="_blank" rel="noopener noreferrer" className="text-[#818cf8] font-semibold hover:text-[#a78bfa]">JobTread</a>
+              {' '}and look for the <strong className="text-white">BB</strong> button in the bottom-right corner.
             </p>
           </section>
         )}
 
-        {/* BOOKMARKLET METHOD */}
+        {/* Bookmarklet Setup */}
         {method === 'bookmark' && (
-          <section className="space-y-6">
-            <div className="flex items-center gap-3">
-              <h2 className="text-xl font-bold text-orange-500">Bookmarklet Setup</h2>
-              <button onClick={() => setMethod(null)} className="text-neutral-500 text-sm hover:text-orange-500 transition-colors">&larr; Back</button>
+          <section className="mb-16">
+            <div className="flex items-center gap-3.5 mb-7">
+              <h2 className="text-[26px] font-extrabold text-white tracking-[-0.01em]">
+                <span className="bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(90deg, #818cf8, #a78bfa)' }}>Bookmarklet</span> Setup
+              </h2>
+              <button onClick={() => setMethod(null)} className="text-[#8891a5] text-[13px] font-semibold px-4 py-1.5 rounded-lg transition-all hover:text-[#a78bfa]" style={{ border: '1px solid rgba(99,102,241,0.2)' }}>&larr; Back</button>
             </div>
 
-            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-5">
-              <div className="flex gap-4">
-                <span className="w-10 h-10 rounded-full bg-orange-500/10 text-orange-500 font-bold text-lg flex items-center justify-center shrink-0">1</span>
-                <div className="space-y-3">
-                  <p className="text-white font-semibold text-base">Drag this button to your bookmarks bar</p>
-                  <p className="text-neutral-400 text-sm">
-                    Click and drag the orange button below up to your browser&apos;s bookmarks bar. If you don&apos;t see a bookmarks bar, press <code className="bg-neutral-800 text-orange-400 px-1.5 py-0.5 rounded text-xs">Ctrl+Shift+B</code> (or <code className="bg-neutral-800 text-orange-400 px-1.5 py-0.5 rounded text-xs">Cmd+Shift+B</code> on Mac).
+            <div className="rounded-[22px] p-9" style={{ background: 'linear-gradient(180deg, rgba(17,17,35,0.7), rgba(10,10,20,0.85))', border: '1px solid rgba(99,102,241,0.12)', animation: 'glow-box 5s ease-in-out infinite' }}>
+              <div className="flex gap-5">
+                <div className="w-[50px] h-[50px] rounded-[14px] flex items-center justify-center text-[#818cf8] font-extrabold text-[20px] shrink-0" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.05))', border: '1px solid rgba(99,102,241,0.1)' }}>1</div>
+                <div>
+                  <p className="text-white font-bold text-[17px] mb-2">Drag this button to your bookmarks bar</p>
+                  <p className="text-[#8891a5] text-[14px] leading-relaxed mb-4">
+                    Click and drag the button below up to your browser&apos;s bookmarks bar.
+                    If you don&apos;t see one, press <code className="px-2 py-0.5 rounded-md text-[12px] text-[#a78bfa] font-mono" style={{ background: 'rgba(17,17,35,0.8)', border: '1px solid rgba(99,102,241,0.15)' }}>Ctrl+Shift+B</code>{' '}
+                    (or <code className="px-2 py-0.5 rounded-md text-[12px] text-[#a78bfa] font-mono" style={{ background: 'rgba(17,17,35,0.8)', border: '1px solid rgba(99,102,241,0.15)' }}>Cmd+Shift+B</code> on Mac).
                   </p>
                   <div
-                    className="relative"
                     onMouseDown={() => setDragHint(true)}
                     onMouseUp={() => setDragHint(false)}
                   >
                     {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
                     <a
                       href={BOOKMARKLET_CODE}
-                      onClick={(e) => { e.preventDefault(); setDragHint(true); setTimeout(() => setDragHint(false), 3000); }}
-                      className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold px-6 py-3 rounded-xl text-base hover:from-orange-400 hover:to-orange-500 transition-all shadow-lg shadow-orange-500/20 cursor-grab active:cursor-grabbing select-none"
+                      onClick={(e) => { e.preventDefault(); setDragHint(true); setTimeout(() => setDragHint(false), 4000); }}
+                      className="inline-flex items-center gap-2.5 text-white font-extrabold px-[30px] py-[14px] rounded-[14px] text-[17px] cursor-grab active:cursor-grabbing select-none"
+                      style={{ background: 'linear-gradient(135deg, #6366f1, #7c3aed)', boxShadow: '0 6px 28px rgba(99,102,241,0.3)' }}
                       draggable="true"
                     >
-                      <span className="font-extrabold">BB</span>
-                      DocFill
+                      <span className="font-black">BB</span> DocFill
                     </a>
                     {dragHint && (
-                      <p className="text-orange-400 text-sm mt-2 animate-pulse">
-                        Drag it up to your bookmarks bar!
+                      <p className="text-[#a78bfa] text-[14px] font-semibold mt-2.5" style={{ animation: 'float-up 1.5s ease-in-out infinite' }}>
+                        &#8593; Drag it up to your bookmarks bar!
                       </p>
                     )}
                   </div>
                 </div>
               </div>
 
-              <div className="border-t border-neutral-800" />
+              <div className="my-7" style={{ borderTop: '1px solid rgba(99,102,241,0.08)' }} />
 
-              <div className="flex gap-4">
-                <span className="w-10 h-10 rounded-full bg-orange-500/10 text-orange-500 font-bold text-lg flex items-center justify-center shrink-0">2</span>
-                <div className="space-y-2">
-                  <p className="text-white font-semibold text-base">Go to JobTread and click the bookmark</p>
-                  <p className="text-neutral-400 text-sm">
+              <div className="flex gap-5">
+                <div className="w-[50px] h-[50px] rounded-[14px] flex items-center justify-center text-[#818cf8] font-extrabold text-[20px] shrink-0" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.05))', border: '1px solid rgba(99,102,241,0.1)' }}>2</div>
+                <div>
+                  <p className="text-white font-bold text-[17px] mb-2">Go to JobTread and click the bookmark</p>
+                  <p className="text-[#8891a5] text-[14px] leading-relaxed">
                     Navigate to any job or document in{' '}
-                    <a href="https://app.jobtread.com" target="_blank" rel="noopener noreferrer" className="text-orange-500 hover:text-orange-400">JobTread</a>,
-                    then click the <strong className="text-white">BB DocFill</strong> bookmark. The orange <strong className="text-white">BB</strong> button appears and you&apos;re ready.
+                    <a href="https://app.jobtread.com" target="_blank" rel="noopener noreferrer" className="text-[#818cf8] font-semibold hover:text-[#a78bfa]">JobTread</a>,
+                    then click the <strong className="text-white">BB DocFill</strong> bookmark.
+                    The <strong className="text-white">BB</strong> button appears and you&apos;re ready to go.
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-neutral-900/50 border border-neutral-800 rounded-lg p-4 text-sm text-neutral-400">
-              <strong className="text-neutral-300">Good to know:</strong> The bookmarklet always loads the latest version from our server,
-              so you automatically get new features. Your settings are saved in your browser&apos;s local storage.
+            <div className="rounded-[14px] p-[22px] mt-6 text-[14px] text-[#8891a5] leading-relaxed" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.04), rgba(17,17,35,0.5))', border: '1px solid rgba(99,102,241,0.1)' }}>
+              <strong className="text-[#a78bfa]">&#9889; Good to know:</strong> The bookmarklet always loads the latest version from our server,
+              so you automatically get new features. Your settings are saved in your browser.
               Click the bookmark once per JobTread session.
             </div>
           </section>
         )}
 
-        {/* How it works */}
-        <section className="space-y-4">
-          <h2 className="text-xl font-bold text-orange-500">How It Works</h2>
-          <ol className="space-y-4 text-neutral-300">
-            <li className="flex gap-4">
-              <span className="w-8 h-8 rounded-full bg-orange-500/10 text-orange-500 font-bold flex items-center justify-center shrink-0">1</span>
-              <div>
-                Navigate to any <strong className="text-white">job, proposal, contract, or document</strong> in JobTread.
-              </div>
-            </li>
-            <li className="flex gap-4">
-              <span className="w-8 h-8 rounded-full bg-orange-500/10 text-orange-500 font-bold flex items-center justify-center shrink-0">2</span>
-              <div>
-                Click the orange <strong className="text-white">BB</strong> button in the bottom-right corner.
-              </div>
-            </li>
-            <li className="flex gap-4">
-              <span className="w-8 h-8 rounded-full bg-orange-500/10 text-orange-500 font-bold flex items-center justify-center shrink-0">3</span>
-              <div>
-                Fill in client details (or let DocFill auto-detect them). Click <strong className="text-white">Settings</strong> to set up your business profile.
-              </div>
-            </li>
-            <li className="flex gap-4">
-              <span className="w-8 h-8 rounded-full bg-orange-500/10 text-orange-500 font-bold flex items-center justify-center shrink-0">4</span>
-              <div>
-                Click <strong className="text-white">&ldquo;Copy Description&rdquo;</strong> or <strong className="text-white">&ldquo;Copy Footer&rdquo;</strong> and paste into JobTread. Done.
-              </div>
-            </li>
-          </ol>
-        </section>
-
-        {/* Features */}
-        <section className="space-y-4">
-          <h2 className="text-xl font-bold text-orange-500">What You Get</h2>
-          <div className="grid sm:grid-cols-2 gap-4">
+        {/* How It Works */}
+        <section className="mb-16">
+          <div className="text-center mb-9">
+            <h2 className="text-[30px] font-extrabold text-white tracking-[-0.02em]">
+              How It <span className="bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(90deg, #818cf8, #a78bfa)' }}>Works</span>
+            </h2>
+            <p className="text-[15px] text-[#6b7280] mt-2">From job page to finished document in 4 steps</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              ['Business Profile', 'Set up once — your company name, phone, email, license, and address auto-fill into every document.'],
-              ['Copy & Paste', 'Click "Copy Description" or "Copy Footer" and paste directly into JobTread fields. No wrong field injection.'],
-              ['Custom Templates', 'Full template editor with variables like {{bizName}}, {{company}}, {{jobNumber}}. Conditional blocks supported.'],
-              ['Export / Import', 'Back up your profile and templates. Share across machines or team members with a JSON file.'],
-              ['Auto-Updates', 'Updates deploy instantly to everyone — no reinstalls, no Chrome Web Store review delays.'],
-              ['Built for Contractors', 'Default SOW template covers the full 20-section implementation agreement with financing terms.'],
-            ].map(([title, desc]) => (
-              <div key={title} className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
-                <h3 className="font-bold text-white mb-1">{title}</h3>
-                <p className="text-neutral-400 text-sm leading-relaxed">{desc}</p>
+              { n: '1', title: 'Open a Job', desc: 'Navigate to any job, proposal, or contract in JobTread.' },
+              { n: '2', title: 'Click BB', desc: 'Hit the BB button in the bottom-right corner of the screen.' },
+              { n: '3', title: 'Auto-Fill', desc: 'DocFill detects client info and generates your document text.' },
+              { n: '4', title: 'Copy & Paste', desc: 'Click "Copy" and paste directly into JobTread. Done.' },
+            ].map(step => (
+              <div
+                key={step.n}
+                className="rounded-[18px] p-7 text-center transition-all duration-300 hover:-translate-y-1 relative overflow-hidden"
+                style={{ background: 'linear-gradient(180deg, rgba(17,17,35,0.6), rgba(10,10,20,0.8))', border: '1px solid rgba(99,102,241,0.08)' }}
+              >
+                <div className="w-[44px] h-[44px] rounded-xl flex items-center justify-center text-white font-extrabold text-[17px] mx-auto mb-4" style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', boxShadow: '0 6px 20px rgba(99,102,241,0.3)' }}>
+                  {step.n}
+                </div>
+                <h4 className="text-[15px] font-bold text-white mb-2">{step.title}</h4>
+                <p className="text-[13px] text-[#8891a5] leading-relaxed">{step.desc}</p>
               </div>
             ))}
           </div>
         </section>
 
+        {/* Features */}
+        <section className="mb-16">
+          <div className="text-center mb-9">
+            <h2 className="text-[30px] font-extrabold text-white tracking-[-0.02em]">
+              What You <span className="bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(90deg, #818cf8, #a78bfa)' }}>Get</span>
+            </h2>
+            <p className="text-[15px] text-[#6b7280] mt-2">Everything you need to automate your JobTread documents</p>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {features.map(f => (
+              <div
+                key={f.title}
+                className="rounded-[18px] p-[30px] transition-all duration-300 hover:-translate-y-1 relative overflow-hidden"
+                style={{ background: 'linear-gradient(180deg, rgba(17,17,35,0.5), rgba(10,10,20,0.7))', border: '1px solid rgba(99,102,241,0.08)' }}
+              >
+                <div
+                  className="w-[46px] h-[46px] rounded-xl flex items-center justify-center mb-[18px]"
+                  style={{
+                    background: f.accent === 'indigo'
+                      ? 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(99,102,241,0.04))'
+                      : 'linear-gradient(135deg, rgba(167,139,250,0.12), rgba(167,139,250,0.04))',
+                    color: f.accent === 'indigo' ? '#818cf8' : '#a78bfa',
+                    border: f.accent === 'indigo' ? '1px solid rgba(99,102,241,0.08)' : '1px solid rgba(167,139,250,0.08)',
+                  }}
+                >
+                  <FeatureIcon type={f.icon} />
+                </div>
+                <h3 className="text-[16px] font-bold text-white mb-2">{f.title}</h3>
+                <p className="text-[13px] text-[#8891a5] leading-relaxed">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Testimonial */}
+        <section className="mb-16">
+          <div className="rounded-[24px] py-11 px-10 text-center relative overflow-hidden" style={{ background: 'linear-gradient(135deg, rgba(17,17,35,0.5), rgba(10,10,20,0.7))', border: '1px solid rgba(99,102,241,0.1)' }}>
+            <div className="absolute inset-0 rounded-[24px] pointer-events-none" style={{ background: 'radial-gradient(ellipse at 50% -20%, rgba(99,102,241,0.04) 0%, transparent 60%)' }} />
+            <div className="text-[20px] font-medium text-[#e0e2ea] leading-relaxed italic max-w-[560px] mx-auto mb-6 relative">
+              <span className="block not-italic font-black text-[56px] leading-[0.4] mb-4 bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(135deg, #6366f1, #a78bfa)' }}>&ldquo;</span>
+              DocFill literally cut my proposal time from 30 minutes down to 4. I just open the job, click the button, and paste. Game changer.
+            </div>
+            <div className="text-[15px] font-bold text-white relative">Better Boss Client</div>
+            <div className="text-[13px] text-[#6b7280] mt-1 relative">Roofing Contractor &middot; Denver, CO</div>
+          </div>
+        </section>
+
         {/* CTA */}
-        <section className="text-center py-8 border-t border-neutral-800">
-          <p className="text-neutral-500 mb-4">Questions? Need a custom template built for your business?</p>
-          <a
-            href="https://mybetterboss.ai"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-orange-500 font-bold hover:text-orange-400 transition-colors"
-          >
-            Visit mybetterboss.ai &rarr;
-          </a>
+        <section className="mb-16">
+          <div className="rounded-[28px] py-16 px-10 text-center relative overflow-hidden" style={{ background: 'linear-gradient(180deg, rgba(17,17,35,0.7), rgba(10,10,20,0.9))', border: '1px solid rgba(99,102,241,0.1)' }}>
+            <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 50% 130%, rgba(99,102,241,0.06) 0%, transparent 50%)' }} />
+            <div className="absolute top-0 left-[10%] right-[10%] h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(99,102,241,0.3), transparent)' }} />
+            <h2 className="text-[32px] font-extrabold text-white mb-3 relative tracking-[-0.02em]">Ready to Work Smarter?</h2>
+            <p className="text-[17px] text-[#8891a5] mb-8 relative">Need a custom template or want the full Better Boss experience?</p>
+            <a
+              href="https://better-boss.ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2.5 text-white font-extrabold text-[18px] px-10 py-[18px] rounded-[16px] transition-all hover:-translate-y-0.5 relative"
+              style={{ background: 'linear-gradient(135deg, #6366f1, #7c3aed)', boxShadow: '0 8px 32px rgba(99,102,241,0.35)', letterSpacing: '-0.01em' }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              Visit Better-Boss.ai
+            </a>
+            <p className="text-[14px] text-[#6b7280] mt-6 relative">
+              Questions? Call <a href="tel:7206369500" className="text-[#818cf8] font-semibold hover:text-[#a78bfa]">(720) 636-9500</a> or{' '}
+              <a href="https://better-boss.ai" target="_blank" rel="noopener noreferrer" className="text-[#818cf8] font-semibold hover:text-[#a78bfa]">Book a Free Growth Audit</a>
+            </p>
+          </div>
         </section>
       </main>
 
-      <footer className="border-t border-neutral-800 text-center text-neutral-600 text-xs py-6">
-        Better Boss DocFill v1.0 &middot; Built by Better Boss &middot; mybetterboss.ai
+      {/* Footer */}
+      <footer className="relative z-10 text-center py-9" style={{ borderTop: '1px solid rgba(99,102,241,0.06)' }}>
+        <p className="text-[12px] text-[#374151]">
+          Better Boss DocFill v1.0 &middot; Built by{' '}
+          <a href="https://better-boss.ai" target="_blank" rel="noopener noreferrer" className="text-[#4b5563] hover:text-[#818cf8] transition-colors">Better Boss</a>
+          {' '}&middot;{' '}
+          <a href="https://better-boss.ai" target="_blank" rel="noopener noreferrer" className="text-[#4b5563] hover:text-[#818cf8] transition-colors">better-boss.ai</a>
+        </p>
+        <p className="text-[11px] text-[#4b5563] font-semibold uppercase tracking-[0.1em] mt-2">
+          America&apos;s #1 AI Automation for Contractors &#9889;
+        </p>
       </footer>
     </div>
   );
