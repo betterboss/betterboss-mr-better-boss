@@ -1,4 +1,4 @@
-// Better Boss DocFill v3.0 — Popup
+// Better Boss DocFill v4.0 — Popup
 document.addEventListener('DOMContentLoaded', () => {
   const $ = id => document.getElementById(id);
 
@@ -31,16 +31,17 @@ document.addEventListener('DOMContentLoaded', () => {
       chrome.tabs.sendMessage(tab.id, { action: 'getPageInfo' }, (resp) => {
         if (chrome.runtime.lastError || !resp) {
           $('dot').className = 'dot dot--warn';
-          $('status').textContent = 'Loading… refresh if stuck';
+          $('status').textContent = 'Loading... refresh if stuck';
           return;
         }
         if (resp.isDocPage) {
           $('dot').className = 'dot dot--on';
-          $('status').textContent = 'Ready';
+          const fc = resp.pageData?.fieldCount || 0;
+          $('status').textContent = fc > 0 ? `Ready · ${fc} fields detected` : 'Ready';
           $('open').style.display = 'flex';
         } else {
           $('dot').className = 'dot dot--warn';
-          $('status').textContent = 'Navigate to a document';
+          $('status').textContent = 'Navigate to a job or document';
         }
       });
     });

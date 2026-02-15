@@ -1,15 +1,15 @@
 // =============================================================================
-// Better Boss — DocFill v3.1
+// Better Boss — DocFill v4.0
 // https://better-boss.ai
 //
-// Auto-populate document description + footer for JobTread.
-// Pulls all fields from the JT page automatically — zero typing.
+// Auto-populate document descriptions + footers for JobTread.
+// Uses fetch interception to capture real API data — not guesswork.
 // =============================================================================
 
 (function () {
   'use strict';
 
-  const VERSION = '3.1.0';
+  const VERSION = '4.0.0';
   const PANEL_ID = 'bb-panel';
   const TRIGGER_ID = 'bb-trigger';
 
@@ -42,16 +42,309 @@
     el = document.createElement('div');
     el.id = 'bb-toast';
     el.className = 'bb-toast bb-toast--' + type;
-    el.innerHTML = (type === 'success'
-      ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>'
-      : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
-    ) + ' ' + esc(msg);
+    const icon = type === 'success'
+      ? '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>'
+      : '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+    el.innerHTML = icon + '<span>' + esc(msg) + '</span>';
     document.body.appendChild(el);
     requestAnimationFrame(() => el.classList.add('bb-toast--show'));
-    setTimeout(() => {
-      el.classList.remove('bb-toast--show');
-      setTimeout(() => el.remove(), 300);
-    }, 2200);
+    setTimeout(() => { el.classList.remove('bb-toast--show'); setTimeout(() => el.remove(), 300); }, 2200);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 1. FETCH INTERCEPTOR — capture JT's actual API responses
+  // ---------------------------------------------------------------------------
+
+  const _captured = { contacts: [], jobs: [], entities: {}, ts: 0 };
+
+  function injectInterceptor() {
+    const script = document.createElement('script');
+    script.textContent = [
+      '(function(){',
+      'var F=window.fetch;',
+      'window.fetch=function(){',
+      '  var a=arguments,u=typeof a[0]==="string"?a[0]:(a[0]||{}).url||"";',
+      '  var r=F.apply(this,a);',
+      '  try{',
+      '    if(/graphql|\\/api|\\.jobtread\\.com/i.test(u)){',
+      '      r.then(function(resp){return resp.clone().json();})',
+      '       .then(function(j){window.postMessage({t:"__BB__",d:j,u:u},"*");})',
+      '       .catch(function(){});',
+      '    }',
+      '  }catch(e){}',
+      '  return r;',
+      '};',
+      'var XO=XMLHttpRequest.prototype.open,XS=XMLHttpRequest.prototype.send;',
+      'XMLHttpRequest.prototype.open=function(m,u){this._bbu=u;return XO.apply(this,arguments);};',
+      'XMLHttpRequest.prototype.send=function(){',
+      '  var x=this;',
+      '  x.addEventListener("load",function(){',
+      '    try{',
+      '      if(/graphql|\\/api|\\.jobtread\\.com/i.test(x._bbu||"")){',
+      '        window.postMessage({t:"__BB__",d:JSON.parse(x.responseText),u:x._bbu},"*");',
+      '      }',
+      '    }catch(e){}',
+      '  });',
+      '  return XS.apply(this,arguments);',
+      '};',
+      '})();',
+    ].join('\n');
+    (document.head || document.documentElement).prepend(script);
+    script.remove();
+  }
+
+  // Listen for intercepted API responses
+  window.addEventListener('message', (e) => {
+    if (e.source !== window || !e.data || e.data.t !== '__BB__') return;
+    try { processIntercepted(e.data.d); } catch (_) {}
+  });
+
+  function processIntercepted(payload) {
+    if (!payload || typeof payload !== 'object') return;
+    walkObj(payload);
+    _captured.ts = Date.now();
+  }
+
+  function walkObj(obj) {
+    if (!obj || typeof obj !== 'object') return;
+    if (Array.isArray(obj)) { obj.forEach(walkObj); return; }
+    tryIdentify(obj);
+    for (const k of Object.keys(obj)) {
+      if (k === '__typename' || k === 'extensions') continue;
+      walkObj(obj[k]);
+    }
+  }
+
+  function tryIdentify(obj) {
+    if (!obj || typeof obj !== 'object' || !obj.id) return;
+
+    // Contact / Customer shape
+    if (hasAny(obj, ['firstName', 'lastName']) && !hasAny(obj, ['budget', 'lineItems'])) {
+      upsert(_captured.contacts, {
+        id: obj.id,
+        firstName: obj.firstName || '',
+        lastName: obj.lastName || '',
+        company: obj.company || obj.companyName || obj.organizationName || '',
+        email: obj.email || '',
+        phone: obj.phone || obj.mobilePhone || obj.cellPhone || '',
+        type: obj.type || obj.contactType || obj.__typename || '',
+        address: fmtAddr(obj.address),
+      });
+    }
+
+    // Job shape
+    if (obj.name !== undefined && hasAny(obj, ['status', 'number', 'budget', 'stage', 'jobNumber', 'customer'])) {
+      const cust = obj.customer || obj.contact || obj.client || obj.owner || {};
+      upsert(_captured.jobs, {
+        id: obj.id,
+        name: obj.name || '',
+        number: obj.number || obj.jobNumber || '',
+        status: obj.status || '',
+        stage: obj.stage || '',
+        description: obj.description || '',
+        address: fmtAddr(obj.address || obj.jobAddress || obj.siteAddress),
+        custName: joinName(cust.firstName, cust.lastName) || cust.name || '',
+        custCompany: cust.company || cust.companyName || '',
+        custEmail: cust.email || '',
+        custPhone: cust.phone || '',
+      });
+    }
+  }
+
+  function hasAny(o, keys) { return keys.some(k => o[k] !== undefined); }
+
+  function upsert(arr, item) {
+    const idx = arr.findIndex(x => x.id === item.id);
+    if (idx >= 0) {
+      // Merge — keep non-empty values
+      for (const k of Object.keys(item)) { if (item[k]) arr[idx][k] = item[k]; }
+    } else {
+      arr.push(item);
+    }
+  }
+
+  function fmtAddr(a) {
+    if (!a || typeof a !== 'object') return typeof a === 'string' ? a : '';
+    return [a.street1, a.street2, a.city, a.state, a.zip, a.country].filter(Boolean).join(', ');
+  }
+
+  function joinName(f, l) { return [f, l].filter(Boolean).join(' '); }
+
+  // ---------------------------------------------------------------------------
+  // 2. URL PARSER
+  // ---------------------------------------------------------------------------
+
+  function parseURL() {
+    const p = location.pathname + location.hash;
+    const patterns = [
+      [/\/jobs?\/([^/?#]+)/i, 'job'],
+      [/\/customers?\/([^/?#]+)/i, 'customer'],
+      [/\/contacts?\/([^/?#]+)/i, 'contact'],
+      [/\/estimates?\/([^/?#]+)/i, 'estimate'],
+      [/\/proposals?\/([^/?#]+)/i, 'proposal'],
+      [/\/invoices?\/([^/?#]+)/i, 'invoice'],
+      [/\/contracts?\/([^/?#]+)/i, 'contract'],
+      [/\/purchase-orders?\/([^/?#]+)/i, 'purchase_order'],
+      [/\/change-orders?\/([^/?#]+)/i, 'change_order'],
+      [/\/work-orders?\/([^/?#]+)/i, 'work_order'],
+      [/\/bills?\/([^/?#]+)/i, 'bill'],
+      [/\/quotes?\/([^/?#]+)/i, 'quote'],
+      [/\/documents?\/([^/?#]+)/i, 'document'],
+      [/\/budget/i, 'budget'],
+    ];
+    for (const [re, type] of patterns) {
+      const m = p.match(re);
+      if (m) return { type, id: m[1] || null };
+    }
+    return { type: 'unknown', id: null };
+  }
+
+  const DOC_TYPES = {
+    job: 'Job', customer: 'Customer', contact: 'Contact',
+    estimate: 'Estimate', proposal: 'Proposal', invoice: 'Invoice',
+    contract: 'Contract', purchase_order: 'Purchase Order',
+    change_order: 'Change Order', work_order: 'Work Order',
+    bill: 'Bill', quote: 'Quote', document: 'Document', budget: 'Budget',
+  };
+
+  // ---------------------------------------------------------------------------
+  // 3. DOM SCRAPER — smart fallback for when interceptor hasn't captured yet
+  // ---------------------------------------------------------------------------
+
+  function scrapeDOMFallback() {
+    const d = { customerName: '', company: '', customerEmail: '', customerPhone: '', jobName: '', jobNumber: '', jobAddress: '' };
+    try {
+      // Title
+      const titleClean = (document.title || '').replace(/\s*[-|–—]\s*JobTread.*$/i, '').trim();
+      if (titleClean && titleClean.length > 1 && titleClean.length < 120) d.jobName = titleClean;
+
+      // Headings
+      const skip = new Set(['jobs', 'documents', 'settings', 'dashboard', 'home', 'contacts', 'customers', 'loading', 'jobtread', 'sign in', 'log in']);
+      for (const h of document.querySelectorAll('h1, h2, [role="heading"]')) {
+        const t = h.textContent.trim();
+        if (t.length > 1 && t.length < 100 && !skip.has(t.toLowerCase())) {
+          d.jobName = t;
+          break;
+        }
+      }
+
+      // Visible text patterns
+      const body = document.body?.innerText || '';
+
+      // Email
+      const em = body.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+      if (em) d.customerEmail = em[1];
+
+      // Phone
+      const ph = body.match(/(\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4})/);
+      if (ph) d.customerPhone = ph[1];
+
+      // Job number
+      const jn = body.match(/(?:Job|Project)\s*#?\s*:?\s*(\d{3,})/i);
+      if (jn) d.jobNumber = jn[1];
+
+      // Label-value pairs — broad selectors for React SPAs
+      const labelEls = document.querySelectorAll(
+        '[class*="label" i], [class*="field" i], [class*="detail" i], [class*="info" i], ' +
+        '[class*="header" i], [class*="title" i], dt, th, label, ' +
+        '[data-testid], [data-field], [aria-label]'
+      );
+      for (const el of labelEls) {
+        const lt = (el.textContent || '').trim().toLowerCase().replace(/:$/, '');
+        if (lt.length > 30 || lt.length < 2) continue;
+
+        let val = '';
+        const next = el.nextElementSibling;
+        if (next) val = next.textContent.trim();
+        if (!val || val.length > 200) {
+          const p = el.parentElement;
+          if (p) {
+            const dd = p.querySelector('dd, [class*="value" i], [class*="data" i], [class*="content" i]');
+            if (dd) val = dd.textContent.trim();
+          }
+        }
+        if (!val || val.length > 200) continue;
+
+        if (!d.customerName && /^(customer|client|contact|owner|bill\s*to|sold\s*to)$/.test(lt)) d.customerName = val;
+        if (!d.company && /^(company|organization|business|firm)$/.test(lt)) d.company = val;
+        if (!d.jobNumber && /^(job\s*#|job\s*no|job\s*number|project\s*number)$/.test(lt)) d.jobNumber = val;
+        if (!d.jobAddress && /^(address|job\s*address|site\s*address|project\s*address|location)$/.test(lt)) d.jobAddress = val;
+      }
+
+      // Breadcrumbs
+      for (const a of document.querySelectorAll('nav a, [class*="breadcrumb" i] a, [aria-label*="breadcrumb" i] a')) {
+        const t = a.textContent.trim();
+        if (t.length > 2 && t.length < 80 && !skip.has(t.toLowerCase())) {
+          if (!d.jobName) d.jobName = t;
+        }
+      }
+
+      // Detect company-like customer names
+      if (d.customerName && !d.company) {
+        const biz = ['llc', 'inc', 'corp', 'co', 'ltd', 'group', 'services', 'construction', 'builders', 'contracting', 'enterprises', 'homes', 'roofing', 'plumbing', 'electric', 'remodeling', 'renovations', 'design', 'solutions'];
+        if (d.customerName.split(/\s+/).some(w => biz.includes(w.toLowerCase().replace(/[.,]/g, '')))) {
+          d.company = d.customerName;
+        }
+      }
+    } catch (_) {}
+    return d;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 4. COMBINED DATA GATHERER
+  // ---------------------------------------------------------------------------
+
+  function gatherData() {
+    const url = parseURL();
+    const dom = scrapeDOMFallback();
+
+    const r = {
+      customerName: '', company: '', customerEmail: '', customerPhone: '',
+      customerAddress: '', jobName: '', jobNumber: '', jobAddress: '',
+      docType: DOC_TYPES[url.type] || '', pageType: url.type, source: 'none',
+      fieldCount: 0,
+    };
+
+    // Intercepted data (priority)
+    if (_captured.ts > 0) {
+      let job = url.id ? _captured.jobs.find(j => j.id === url.id) : null;
+      if (!job && _captured.jobs.length) job = _captured.jobs[_captured.jobs.length - 1];
+
+      if (job) {
+        r.jobName = job.name; r.jobNumber = job.number; r.jobAddress = job.address;
+        r.customerName = job.custName; r.company = job.custCompany;
+        r.customerEmail = job.custEmail; r.customerPhone = job.custPhone;
+        r.source = 'api';
+      }
+
+      if (['customer', 'contact'].includes(url.type)) {
+        let c = url.id ? _captured.contacts.find(x => x.id === url.id) : null;
+        if (!c && _captured.contacts.length) c = _captured.contacts[_captured.contacts.length - 1];
+        if (c) {
+          r.customerName = joinName(c.firstName, c.lastName) || r.customerName;
+          r.company = c.company || r.company;
+          r.customerEmail = c.email || r.customerEmail;
+          r.customerPhone = c.phone || r.customerPhone;
+          r.customerAddress = c.address || r.customerAddress;
+          r.source = 'api';
+        }
+      }
+    }
+
+    // Fill gaps from DOM
+    if (!r.jobName) r.jobName = dom.jobName;
+    if (!r.jobNumber) r.jobNumber = dom.jobNumber;
+    if (!r.customerName) r.customerName = dom.customerName;
+    if (!r.company) r.company = dom.company;
+    if (!r.customerEmail) r.customerEmail = dom.customerEmail;
+    if (!r.customerPhone) r.customerPhone = dom.customerPhone;
+    if (!r.jobAddress) r.jobAddress = dom.jobAddress;
+    if (r.source === 'none' && (r.jobName || r.customerName)) r.source = 'dom';
+
+    // Count filled fields
+    r.fieldCount = [r.customerName, r.company, r.customerEmail, r.customerPhone, r.jobName, r.jobNumber, r.jobAddress, r.customerAddress].filter(Boolean).length;
+
+    return r;
   }
 
   // ---------------------------------------------------------------------------
@@ -240,11 +533,7 @@ This change order becomes part of the original contract upon signature.
 Client Signature: _________________________ Date: _________
 {{bizName}} Signature: _________________________ Date: _________`,
       },
-      {
-        id: 'blank',
-        name: 'Blank',
-        body: '',
-      },
+      { id: 'blank', name: 'Blank', body: '' },
     ];
   }
 
@@ -260,11 +549,7 @@ Client Signature: _________________________ Date: _________
         name: 'Minimal',
         body: '{{#bizName}}*{{bizName}}*{{/bizName}}{{#bizPhone}} | {{bizPhone}}{{/bizPhone}}',
       },
-      {
-        id: 'blank',
-        name: 'None',
-        body: '',
-      },
+      { id: 'blank', name: 'None', body: '' },
     ];
   }
 
@@ -293,11 +578,11 @@ Client Signature: _________________________ Date: _________
         } else {
           _data = r;
           const d = defaults();
-          let needSave = false;
+          let save = false;
           for (const k of Object.keys(d)) {
-            if (_data[k] === undefined) { _data[k] = d[k]; needSave = true; }
+            if (_data[k] === undefined) { _data[k] = d[k]; save = true; }
           }
-          if (needSave) chrome.storage.local.set(_data);
+          if (save) chrome.storage.local.set(_data);
         }
         resolve(_data);
       });
@@ -310,220 +595,14 @@ Client Signature: _________________________ Date: _________
   }
 
   // ---------------------------------------------------------------------------
-  // Smart JT page scraper — auto-pull everything
-  // ---------------------------------------------------------------------------
-
-  const DOC_PATHS = ['/jobs/', '/documents/', '/invoices/', '/estimates/', '/proposals/', '/contracts/', '/purchase-orders/', '/change-orders/', '/work-orders/', '/bills/', '/budget', '/quotes/'];
-
-  function isDocPage() {
-    const p = window.location.pathname;
-    if (['/settings', '/plans', '/catalog'].some(x => p.includes(x))) return false;
-    return DOC_PATHS.some(x => p.includes(x));
-  }
-
-  // Helper: find text content near a label
-  function findValueByLabel(labelText) {
-    const all = document.querySelectorAll('span, div, td, dt, dd, label, p');
-    const labels = Array.from(all).filter(el => {
-      const t = el.textContent.trim().toLowerCase();
-      return t === labelText.toLowerCase() || t === labelText.toLowerCase() + ':';
-    });
-    for (const lbl of labels) {
-      // Check next sibling
-      let next = lbl.nextElementSibling;
-      if (next) {
-        const v = next.textContent.trim();
-        if (v && v.length < 200 && v.toLowerCase() !== labelText.toLowerCase()) return v;
-      }
-      // Check parent's next sibling (label/value pattern)
-      const par = lbl.parentElement;
-      if (par) {
-        next = par.nextElementSibling;
-        if (next) {
-          const v = next.textContent.trim();
-          if (v && v.length < 200) return v;
-        }
-        // Check sibling within same row
-        const siblings = par.querySelectorAll('span, div, a');
-        for (const s of siblings) {
-          if (s === lbl) continue;
-          const v = s.textContent.trim();
-          if (v && v !== lbl.textContent.trim() && v.length < 200) return v;
-        }
-      }
-    }
-    return '';
-  }
-
-  // Helper: search page text for patterns
-  function findByPattern(pattern) {
-    const text = document.body.innerText || '';
-    const m = text.match(pattern);
-    return m ? m[1].trim() : '';
-  }
-
-  function scrapePageData() {
-    const data = {
-      customerName: '',
-      company: '',
-      customerEmail: '',
-      customerPhone: '',
-      customerAddress: '',
-      jobName: '',
-      jobNumber: '',
-      jobAddress: '',
-      docType: '',
-    };
-
-    try {
-      // --- Customer / Contact ---
-      // Try common JT label patterns
-      const customerLabels = ['Customer', 'Client', 'Contact', 'Bill To', 'Sold To', 'Owner'];
-      for (const lbl of customerLabels) {
-        const v = findValueByLabel(lbl);
-        if (v && !data.customerName) {
-          // Could be "Company Name" or "First Last" — use it
-          data.customerName = v;
-        }
-      }
-
-      // Company name (separate from contact name)
-      const companyLabels = ['Company', 'Organization', 'Business'];
-      for (const lbl of companyLabels) {
-        const v = findValueByLabel(lbl);
-        if (v) { data.company = v; break; }
-      }
-
-      // If customer name looks like a company and we have no company, swap
-      if (data.customerName && !data.company) {
-        const words = data.customerName.split(/\s+/);
-        const bizWords = ['llc', 'inc', 'corp', 'co', 'ltd', 'group', 'services', 'construction', 'builders', 'contracting', 'enterprises', 'homes', 'roofing', 'plumbing', 'electric', 'remodeling', 'renovations', 'design', 'solutions'];
-        if (words.some(w => bizWords.includes(w.toLowerCase().replace(/[.,]/g, '')))) {
-          data.company = data.customerName;
-        }
-      }
-
-      // --- Email ---
-      const emailMatch = findByPattern(/[\w.+-]+@[\w-]+\.[\w.]+/);
-      if (emailMatch) data.customerEmail = emailMatch;
-
-      // Also try label-based
-      const emailLabels = ['Email', 'E-mail'];
-      for (const lbl of emailLabels) {
-        const v = findValueByLabel(lbl);
-        if (v && v.includes('@')) { data.customerEmail = v; break; }
-      }
-
-      // --- Phone ---
-      const phoneLabels = ['Phone', 'Mobile', 'Cell', 'Tel', 'Telephone'];
-      for (const lbl of phoneLabels) {
-        const v = findValueByLabel(lbl);
-        if (v && v.match(/[\d()\-\s.+]{7,}/)) { data.customerPhone = v; break; }
-      }
-      if (!data.customerPhone) {
-        const ph = findByPattern(/(\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/);
-        if (ph) data.customerPhone = ph;
-      }
-
-      // --- Address ---
-      const addrLabels = ['Address', 'Job Address', 'Project Address', 'Site Address', 'Location'];
-      for (const lbl of addrLabels) {
-        const v = findValueByLabel(lbl);
-        if (v && v.length > 5) {
-          if (lbl.toLowerCase().includes('job') || lbl.toLowerCase().includes('site') || lbl.toLowerCase().includes('project')) {
-            data.jobAddress = v;
-          } else {
-            data.customerAddress = v;
-          }
-          break;
-        }
-      }
-
-      // --- Job Name ---
-      // Try h1/h2 headings first
-      for (const h of document.querySelectorAll('h1, h2')) {
-        const t = h.textContent.trim();
-        // Skip generic headings
-        if (t.length > 2 && t.length < 200 && !['jobs', 'documents', 'settings', 'dashboard'].includes(t.toLowerCase())) {
-          data.jobName = t;
-          break;
-        }
-      }
-      if (!data.jobName) {
-        const m = document.title.match(/^(.+?)(?:\s*[-|]\s*JobTread)?$/i);
-        if (m) data.jobName = m[1].trim();
-      }
-
-      // Try label-based
-      if (!data.jobName) {
-        const jobLabels = ['Job Name', 'Project Name', 'Job', 'Project'];
-        for (const lbl of jobLabels) {
-          const v = findValueByLabel(lbl);
-          if (v) { data.jobName = v; break; }
-        }
-      }
-
-      // --- Job Number ---
-      const jnLabels = ['Job Number', 'Job #', 'Job No', 'Project Number', 'Number'];
-      for (const lbl of jnLabels) {
-        const v = findValueByLabel(lbl);
-        if (v && v.match(/\d/)) { data.jobNumber = v; break; }
-      }
-      if (!data.jobNumber) {
-        const nm = findByPattern(/(?:Job\s*#?\s*|#)(\d{3,})/i);
-        if (nm) data.jobNumber = nm;
-      }
-
-      // --- Doc Type ---
-      const path = window.location.pathname.toLowerCase();
-      if (path.includes('/proposals/')) data.docType = 'Proposal';
-      else if (path.includes('/contracts/')) data.docType = 'Contract';
-      else if (path.includes('/invoices/')) data.docType = 'Invoice';
-      else if (path.includes('/estimates/')) data.docType = 'Estimate';
-      else if (path.includes('/change-orders/')) data.docType = 'Change Order';
-      else if (path.includes('/purchase-orders/')) data.docType = 'Purchase Order';
-      else if (path.includes('/work-orders/')) data.docType = 'Work Order';
-      else if (path.includes('/bills/')) data.docType = 'Bill';
-      else if (path.includes('/quotes/')) data.docType = 'Quote';
-
-      // --- Scrape from breadcrumbs if available ---
-      const breadcrumbs = document.querySelectorAll('nav a, [class*="breadcrumb"] a, [aria-label*="breadcrumb"] a');
-      for (const bc of breadcrumbs) {
-        const t = bc.textContent.trim();
-        if (t.length > 2 && t.length < 100 && !['Home', 'Jobs', 'Documents', 'Dashboard'].includes(t)) {
-          if (!data.jobName) data.jobName = t;
-        }
-      }
-
-      // --- Try to get customer from sidebar/details section ---
-      const detailSections = document.querySelectorAll('[class*="detail"], [class*="sidebar"], [class*="info"], [class*="summary"]');
-      for (const sec of detailSections) {
-        const text = sec.innerText || '';
-        // Look for name-like patterns near customer labels
-        const custMatch = text.match(/(?:Customer|Client|Contact)[:\s]+([A-Z][a-z]+ [A-Z][a-z]+(?:\s[A-Z][a-z]+)?)/);
-        if (custMatch && !data.customerName) data.customerName = custMatch[1].trim();
-
-        // Look for company pattern
-        const compMatch = text.match(/(?:Company|Organization|Business)[:\s]+(.+?)(?:\n|$)/i);
-        if (compMatch && !data.company) data.company = compMatch[1].trim();
-      }
-
-    } catch (_) {}
-
-    return data;
-  }
-
-  // ---------------------------------------------------------------------------
   // Template engine
   // ---------------------------------------------------------------------------
 
   function render(tpl, data) {
     let r = tpl || '';
-    // Conditionals: {{#var}}...{{/var}}
     r = r.replace(/\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (_, k, c) =>
       (data[k] && data[k].toString().trim()) ? c.replace(/\{\{(\w+)\}\}/g, (__, kk) => data[kk] || '') : ''
     );
-    // Variables: {{var}}
     r = r.replace(/\{\{(\w+)\}\}/g, (_, k) => data[k] || '');
     return r.replace(/\n{3,}/g, '\n\n').trim();
   }
@@ -544,25 +623,36 @@ Client Signature: _________________________ Date: _________
         document.body.appendChild(ta);
         ta.select();
         const ok = document.execCommand('copy');
-        document.body.removeChild(ta);
+        ta.remove();
         return ok;
       } catch (__) { return false; }
     }
   }
 
   // ---------------------------------------------------------------------------
-  // Trigger button
+  // Page detection
+  // ---------------------------------------------------------------------------
+
+  function isRelevantPage() {
+    const p = location.pathname.toLowerCase();
+    if (['/settings', '/plans', '/catalog', '/login', '/signup', '/register'].some(x => p.includes(x))) return false;
+    const relevant = ['/jobs', '/documents', '/invoices', '/estimates', '/proposals', '/contracts', '/purchase-orders', '/change-orders', '/work-orders', '/bills', '/budget', '/quotes', '/customers', '/contacts'];
+    return relevant.some(x => p.includes(x));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Trigger FAB
   // ---------------------------------------------------------------------------
 
   function createTrigger() {
     if (document.getElementById(TRIGGER_ID)) return;
-    const el = document.createElement('button');
-    el.id = TRIGGER_ID;
-    el.className = 'bb-trigger';
-    el.title = 'Better Boss DocFill';
-    el.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg><span>DocFill</span>';
-    el.addEventListener('click', toggle);
-    document.body.appendChild(el);
+    const btn = document.createElement('button');
+    btn.id = TRIGGER_ID;
+    btn.className = 'bb-fab';
+    btn.title = 'Better Boss DocFill (Ctrl+Shift+B)';
+    btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg><span>DocFill</span>';
+    btn.addEventListener('click', toggle);
+    document.body.appendChild(btn);
   }
 
   function removeTrigger() {
@@ -577,189 +667,208 @@ Client Signature: _________________________ Date: _________
   let panelOpen = false;
   let currentView = 'main';
   let editTarget = null;
-  let _pageData = null; // cached page scrape
+  let _pageData = null;
 
-  function toggle() { panelOpen ? close() : open(); }
+  function toggle() { panelOpen ? closePanel() : openPanel(); }
 
-  function close() {
+  function closePanel() {
     const p = document.getElementById(PANEL_ID);
-    if (p) {
-      p.classList.add('bb-out');
-      setTimeout(() => p.remove(), 200);
-    }
+    if (p) { p.classList.add('bb-panel--out'); setTimeout(() => p.remove(), 200); }
     panelOpen = false;
   }
 
-  async function open() {
+  async function openPanel() {
     if (!_data) await load();
-    close();
-
-    // Scrape the JT page for all available data
-    _pageData = scrapePageData();
-    const p = _data.profile || {};
-    const hasProfile = !!(p.ownerName);
+    closePanel();
+    _pageData = gatherData();
+    const prof = _data.profile || {};
 
     const panel = document.createElement('div');
     panel.id = PANEL_ID;
-    panel.innerHTML = buildPanelHTML(p, hasProfile);
+    panel.innerHTML = buildHTML(prof);
     document.body.appendChild(panel);
     panelOpen = true;
     currentView = 'main';
-
-    bindPanelEvents(panel);
+    bindEvents(panel);
     generate();
   }
 
-  function buildPanelHTML(p, hasProfile) {
+  // ---------------------------------------------------------------------------
+  // Panel HTML
+  // ---------------------------------------------------------------------------
+
+  function buildHTML(prof) {
+    const hasProfile = !!prof.ownerName;
+    const pg = _pageData || {};
     const descTpls = _data.descTemplates || [];
     const footerTpls = _data.footerTemplates || [];
     const descOpts = descTpls.map(t => `<option value="${esc(t.id)}"${t.id === _data.activeDesc ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
     const footerOpts = footerTpls.map(t => `<option value="${esc(t.id)}"${t.id === _data.activeFooter ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
 
-    const pg = _pageData || {};
-    const detected = [];
-    if (pg.customerName) detected.push(['Contact', pg.customerName]);
-    if (pg.company) detected.push(['Company', pg.company]);
-    if (pg.customerEmail) detected.push(['Email', pg.customerEmail]);
-    if (pg.customerPhone) detected.push(['Phone', pg.customerPhone]);
-    if (pg.jobName) detected.push(['Job', pg.jobName]);
-    if (pg.jobNumber) detected.push(['Job #', pg.jobNumber]);
-    if (pg.jobAddress) detected.push(['Site', pg.jobAddress]);
-    if (pg.docType) detected.push(['Type', pg.docType]);
+    // Detected data rows
+    const fields = [];
+    if (pg.customerName) fields.push(['Customer', pg.customerName]);
+    if (pg.company) fields.push(['Company', pg.company]);
+    if (pg.customerEmail) fields.push(['Email', pg.customerEmail]);
+    if (pg.customerPhone) fields.push(['Phone', pg.customerPhone]);
+    if (pg.jobName) fields.push(['Job', pg.jobName]);
+    if (pg.jobNumber) fields.push(['Job #', pg.jobNumber]);
+    if (pg.jobAddress) fields.push(['Address', pg.jobAddress]);
+    if (pg.docType) fields.push(['Type', pg.docType]);
 
-    const detectedHTML = detected.length > 0
-      ? `<div class="bb-detected">
-          <div class="bb-detected-hd">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            Auto-detected from page
-          </div>
-          ${detected.map(([l, v]) => `<div class="bb-detected-row"><span class="bb-detected-label">${l}</span><span class="bb-detected-value">${esc(v)}</span></div>`).join('')}
+    const sourceBadge = pg.source === 'api'
+      ? '<span class="bb-badge bb-badge--green">LIVE DATA</span>'
+      : pg.source === 'dom'
+        ? '<span class="bb-badge bb-badge--yellow">SCRAPED</span>'
+        : '';
+
+    const statusDot = pg.fieldCount > 0 ? 'bb-dot--on' : 'bb-dot--off';
+    const statusText = pg.fieldCount > 0
+      ? `${pg.docType || 'Page'} · ${pg.fieldCount} field${pg.fieldCount !== 1 ? 's' : ''} detected`
+      : 'No data detected — navigate to a job or document';
+
+    const dataHTML = fields.length > 0
+      ? `<div class="bb-card">
+          <div class="bb-card-hd"><span class="bb-card-label">Detected Data</span>${sourceBadge}</div>
+          <div class="bb-data">${fields.map(([k, v]) =>
+            `<div class="bb-data-row"><span class="bb-data-k">${esc(k)}</span><span class="bb-data-v">${esc(v)}</span></div>`
+          ).join('')}</div>
         </div>`
-      : `<div class="bb-detected bb-detected--empty">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          Navigate to a job or document to auto-detect fields
+      : `<div class="bb-card bb-card--empty">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <div class="bb-empty-text">No data detected yet</div>
+          <div class="bb-empty-hint">Navigate to a job or document in JobTread, then click the refresh button above.</div>
         </div>`;
 
     return `<div class="bb">
       <div class="bb-hd">
-        <div class="bb-hd-left">
+        <div class="bb-hd-brand">
           <div class="bb-logo">B</div>
           <div class="bb-hd-text">
             <span class="bb-hd-title">Better Boss</span>
-            <span class="bb-hd-sub">DocFill v${VERSION}</span>
           </div>
         </div>
-        <div class="bb-hd-right">
-          <button class="bb-icon-btn" id="bb-refresh" title="Re-scan page">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        <div class="bb-hd-actions">
+          <button class="bb-btn-icon" id="bb-refresh" title="Re-scan page">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           </button>
-          <button class="bb-icon-btn" id="bb-gear" title="Manage templates">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <button class="bb-btn-icon" id="bb-gear" title="Templates">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           </button>
-          <button class="bb-icon-btn" id="bb-x" title="Close">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <button class="bb-btn-icon" id="bb-close" title="Close">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
       </div>
 
-      <div class="bb-main" id="bb-main">
+      <!-- Status bar -->
+      <div class="bb-status">
+        <div class="bb-dot ${statusDot}"></div>
+        <span>${statusText}</span>
+      </div>
+
+      <!-- Main view -->
+      <div class="bb-body" id="bb-view-main">
         ${!hasProfile ? `
-        <div class="bb-notice">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          <span>Set up your profile in <a href="#" id="bb-open-opts">extension settings</a> to auto-fill your biz info.</span>
+        <div class="bb-card bb-card--notice">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <div>Set up your business profile in <a href="#" id="bb-open-opts">extension settings</a> to auto-fill your info into templates.</div>
         </div>` : `
         <div class="bb-profile">
-          <div class="bb-avatar">${initials(p.ownerName)}</div>
-          <div class="bb-profile-info"><strong>${esc(p.ownerName)}</strong><span>${esc(p.bizName || '')}</span></div>
+          <div class="bb-avatar">${initials(prof.ownerName)}</div>
+          <div class="bb-profile-text">
+            <span class="bb-profile-name">${esc(prof.ownerName)}</span>
+            <span class="bb-profile-co">${esc(prof.bizName || '')}</span>
+          </div>
         </div>`}
 
-        ${detectedHTML}
+        ${dataHTML}
 
-        <!-- Override fields (collapsed by default, expandable) -->
-        <details class="bb-overrides">
-          <summary class="bb-overrides-toggle">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-            Edit fields manually
+        <details class="bb-card bb-card--toggle">
+          <summary class="bb-toggle-hd">
+            <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+            <span>Override fields</span>
+            <svg class="bb-chevron" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
           </summary>
-          <div class="bb-fields">
+          <div class="bb-toggle-body">
             <div class="bb-row">
-              <div class="bb-field"><label>Company</label><input id="bb-company" value="${esc(pg.company || '')}" placeholder="Auto-detected" /></div>
-              <div class="bb-field"><label>Contact</label><input id="bb-name" value="${esc(pg.customerName || '')}" placeholder="Auto-detected" /></div>
+              <div class="bb-input-group"><label>Customer</label><input id="bb-f-name" value="${esc(pg.customerName)}" placeholder="Auto" /></div>
+              <div class="bb-input-group"><label>Company</label><input id="bb-f-company" value="${esc(pg.company)}" placeholder="Auto" /></div>
             </div>
             <div class="bb-row">
-              <div class="bb-field bb-field--grow"><label>Job</label><input id="bb-job" value="${esc(pg.jobName || '')}" placeholder="Auto-detected" /></div>
-              <div class="bb-field bb-field--sm"><label>Job #</label><input id="bb-jobnum" value="${esc(pg.jobNumber || '')}" placeholder="#" /></div>
+              <div class="bb-input-group bb-input-group--grow"><label>Job Name</label><input id="bb-f-job" value="${esc(pg.jobName)}" placeholder="Auto" /></div>
+              <div class="bb-input-group bb-input-group--sm"><label>Job #</label><input id="bb-f-jobnum" value="${esc(pg.jobNumber)}" placeholder="#" /></div>
             </div>
           </div>
         </details>
 
-        <div class="bb-divider"></div>
+        <div class="bb-sep"></div>
 
         <div class="bb-section">
           <div class="bb-section-hd">
-            <div class="bb-section-label">Description</div>
-            <select id="bb-desc-tpl" class="bb-select">${descOpts}</select>
+            <span class="bb-section-label">Description</span>
+            <select id="bb-sel-desc" class="bb-select">${descOpts}</select>
           </div>
-          <div class="bb-preview" id="bb-desc-preview" tabindex="0"></div>
-          <button class="bb-copy-btn" id="bb-copy-desc">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <div class="bb-preview" id="bb-preview-desc" tabindex="0"></div>
+          <button class="bb-btn bb-btn--outline" id="bb-copy-desc">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
             Copy Description
           </button>
         </div>
 
-        <div class="bb-divider"></div>
+        <div class="bb-sep"></div>
 
         <div class="bb-section">
           <div class="bb-section-hd">
-            <div class="bb-section-label">Footer</div>
-            <select id="bb-footer-tpl" class="bb-select">${footerOpts}</select>
+            <span class="bb-section-label">Footer</span>
+            <select id="bb-sel-footer" class="bb-select">${footerOpts}</select>
           </div>
-          <div class="bb-preview bb-preview--sm" id="bb-footer-preview" tabindex="0"></div>
-          <button class="bb-copy-btn" id="bb-copy-footer">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <div class="bb-preview bb-preview--sm" id="bb-preview-footer" tabindex="0"></div>
+          <button class="bb-btn bb-btn--outline" id="bb-copy-footer">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
             Copy Footer
           </button>
         </div>
 
-        <div class="bb-divider"></div>
+        <div class="bb-sep"></div>
 
-        <button class="bb-primary-btn" id="bb-copy-all">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <button class="bb-btn bb-btn--primary" id="bb-copy-all">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           Copy All
         </button>
       </div>
 
       <!-- Templates view -->
-      <div class="bb-templates" id="bb-templates" style="display:none">
+      <div class="bb-body" id="bb-view-tpls" style="display:none">
         <button class="bb-back" id="bb-back-main">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
           Back
         </button>
         <div class="bb-section">
-          <div class="bb-section-hd"><div class="bb-section-label">Description Templates</div><button class="bb-sm-btn" id="bb-add-desc">+ Add</button></div>
+          <div class="bb-section-hd"><span class="bb-section-label">Description Templates</span><button class="bb-btn--sm" id="bb-add-desc">+ New</button></div>
           <div class="bb-tpl-list" id="bb-desc-list"></div>
         </div>
-        <div class="bb-divider"></div>
+        <div class="bb-sep"></div>
         <div class="bb-section">
-          <div class="bb-section-hd"><div class="bb-section-label">Footer Templates</div><button class="bb-sm-btn" id="bb-add-footer">+ Add</button></div>
+          <div class="bb-section-hd"><span class="bb-section-label">Footer Templates</span><button class="bb-btn--sm" id="bb-add-footer">+ New</button></div>
           <div class="bb-tpl-list" id="bb-footer-list"></div>
         </div>
       </div>
 
       <!-- Edit template view -->
-      <div class="bb-edit" id="bb-edit" style="display:none">
+      <div class="bb-body" id="bb-view-edit" style="display:none">
         <button class="bb-back" id="bb-back-tpls">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
           Back
         </button>
         <div class="bb-section">
           <div class="bb-section-label" id="bb-edit-title">Edit Template</div>
-          <div class="bb-field" style="margin-top:10px"><label>Name</label><input id="bb-edit-name" maxlength="80" /></div>
-          <div class="bb-field" style="margin-top:8px">
+          <div class="bb-input-group" style="margin-top:12px"><label>Name</label><input id="bb-edit-name" maxlength="80" /></div>
+          <div class="bb-input-group" style="margin-top:8px">
             <label>Content <span class="bb-hint">Use {{variable}} for auto-fill</span></label>
             <textarea id="bb-edit-body" rows="14"></textarea>
           </div>
-          <div class="bb-edit-vars">
+          <div class="bb-vars">
             <span class="bb-var" data-v="company">company</span>
             <span class="bb-var" data-v="customerName">customerName</span>
             <span class="bb-var" data-v="customerEmail">customerEmail</span>
@@ -776,76 +885,80 @@ Client Signature: _________________________ Date: _________
             <span class="bb-var bb-var--biz" data-v="bizLicense">bizLicense</span>
           </div>
           <div class="bb-edit-actions">
-            <button class="bb-primary-btn" id="bb-save-tpl">Save</button>
-            <button class="bb-ghost-btn" id="bb-cancel-edit">Cancel</button>
+            <button class="bb-btn bb-btn--primary" id="bb-save-tpl">Save</button>
+            <button class="bb-btn bb-btn--ghost" id="bb-cancel-edit">Cancel</button>
           </div>
         </div>
       </div>
 
       <div class="bb-ft">
-        <span>Better Boss</span>
-        <span class="bb-ft-dot">&middot;</span>
-        <a href="https://better-boss.ai" target="_blank" rel="noopener">better-boss.ai</a>
+        Better Boss <span class="bb-ft-sep">&middot;</span> <a href="https://better-boss.ai" target="_blank" rel="noopener">better-boss.ai</a>
       </div>
     </div>`;
   }
 
   // ---------------------------------------------------------------------------
-  // Bind events
+  // Event binding
   // ---------------------------------------------------------------------------
 
-  function bindPanelEvents(panel) {
-    const debouncedGen = debounce(generate, 200);
+  function bindEvents(panel) {
+    const dg = debounce(generate, 200);
 
-    panel.querySelector('#bb-x').addEventListener('click', close);
+    panel.querySelector('#bb-close').addEventListener('click', closePanel);
 
-    // Re-scan page
+    // Refresh
     panel.querySelector('#bb-refresh').addEventListener('click', () => {
-      _pageData = scrapePageData();
-      // Update fields
-      const fields = { 'bb-company': _pageData.company, 'bb-name': _pageData.customerName, 'bb-job': _pageData.jobName, 'bb-jobnum': _pageData.jobNumber };
-      for (const [id, val] of Object.entries(fields)) {
+      _pageData = gatherData();
+      for (const [id, key] of [['bb-f-name', 'customerName'], ['bb-f-company', 'company'], ['bb-f-job', 'jobName'], ['bb-f-jobnum', 'jobNumber']]) {
         const el = panel.querySelector('#' + id);
-        if (el && val) el.value = val;
+        if (el && _pageData[key]) el.value = _pageData[key];
       }
+      // Re-render status
+      const statusEl = panel.querySelector('.bb-status span');
+      if (statusEl) {
+        statusEl.textContent = _pageData.fieldCount > 0
+          ? `${_pageData.docType || 'Page'} · ${_pageData.fieldCount} field${_pageData.fieldCount !== 1 ? 's' : ''} detected`
+          : 'No data detected — navigate to a job or document';
+      }
+      const dot = panel.querySelector('.bb-dot');
+      if (dot) { dot.className = 'bb-dot ' + (_pageData.fieldCount > 0 ? 'bb-dot--on' : 'bb-dot--off'); }
       generate();
       toast('Page re-scanned');
     });
 
-    // Manual override inputs → regenerate
-    ['bb-company', 'bb-name', 'bb-job', 'bb-jobnum'].forEach(id => {
+    // Manual inputs
+    for (const id of ['bb-f-name', 'bb-f-company', 'bb-f-job', 'bb-f-jobnum']) {
       const el = panel.querySelector('#' + id);
-      if (el) el.addEventListener('input', debouncedGen);
-    });
+      if (el) el.addEventListener('input', dg);
+    }
 
-    // Template selectors
-    panel.querySelector('#bb-desc-tpl').addEventListener('change', (e) => { save('activeDesc', e.target.value); generate(); });
-    panel.querySelector('#bb-footer-tpl').addEventListener('change', (e) => { save('activeFooter', e.target.value); generate(); });
+    // Template selects
+    panel.querySelector('#bb-sel-desc').addEventListener('change', (e) => { save('activeDesc', e.target.value); generate(); });
+    panel.querySelector('#bb-sel-footer').addEventListener('change', (e) => { save('activeFooter', e.target.value); generate(); });
 
-    // Copy buttons
+    // Copy
     panel.querySelector('#bb-copy-desc').addEventListener('click', async function () {
-      const raw = panel.querySelector('#bb-desc-preview')?.dataset.raw || '';
-      if (await copyText(raw)) flashCopy(this, 'Description copied');
+      const raw = panel.querySelector('#bb-preview-desc')?.dataset.raw || '';
+      if (await copyText(raw)) flashBtn(this, 'Copied!');
     });
     panel.querySelector('#bb-copy-footer').addEventListener('click', async function () {
-      const raw = panel.querySelector('#bb-footer-preview')?.dataset.raw || '';
-      if (await copyText(raw)) flashCopy(this, 'Footer copied');
+      const raw = panel.querySelector('#bb-preview-footer')?.dataset.raw || '';
+      if (await copyText(raw)) flashBtn(this, 'Copied!');
     });
     panel.querySelector('#bb-copy-all').addEventListener('click', async function () {
-      const desc = panel.querySelector('#bb-desc-preview')?.dataset.raw || '';
-      const footer = panel.querySelector('#bb-footer-preview')?.dataset.raw || '';
-      const combined = desc + (footer ? '\n\n---\n\n' + footer : '');
-      if (await copyText(combined)) flashCopy(this, 'Copied!');
+      const d = panel.querySelector('#bb-preview-desc')?.dataset.raw || '';
+      const f = panel.querySelector('#bb-preview-footer')?.dataset.raw || '';
+      if (await copyText(d + (f ? '\n\n---\n\n' + f : ''))) flashBtn(this, 'Copied!');
     });
 
-    // Open options
-    const openOpts = panel.querySelector('#bb-open-opts');
-    if (openOpts) openOpts.addEventListener('click', (e) => { e.preventDefault(); chrome.runtime.sendMessage({ action: 'openOptions' }); });
+    // Options link
+    const optLink = panel.querySelector('#bb-open-opts');
+    if (optLink) optLink.addEventListener('click', (e) => { e.preventDefault(); chrome.runtime.sendMessage({ action: 'openOptions' }); });
 
     // Views
-    panel.querySelector('#bb-gear').addEventListener('click', () => showView('templates'));
+    panel.querySelector('#bb-gear').addEventListener('click', () => showView('tpls'));
     panel.querySelector('#bb-back-main').addEventListener('click', () => showView('main'));
-    panel.querySelector('#bb-back-tpls').addEventListener('click', () => showView('templates'));
+    panel.querySelector('#bb-back-tpls').addEventListener('click', () => showView('tpls'));
 
     // Add templates
     panel.querySelector('#bb-add-desc').addEventListener('click', () => {
@@ -853,14 +966,14 @@ Client Signature: _________________________ Date: _________
       _data.descTemplates.push({ id, name: 'New Template', body: '' });
       save('descTemplates', _data.descTemplates);
       editTarget = { type: 'desc', id };
-      showView('editTemplate');
+      showView('edit');
     });
     panel.querySelector('#bb-add-footer').addEventListener('click', () => {
       const id = 'footer_' + Date.now().toString(36);
       _data.footerTemplates.push({ id, name: 'New Footer', body: '' });
       save('footerTemplates', _data.footerTemplates);
       editTarget = { type: 'footer', id };
-      showView('editTemplate');
+      showView('edit');
     });
 
     // Save template
@@ -869,25 +982,24 @@ Client Signature: _________________________ Date: _________
       const key = editTarget.type === 'desc' ? 'descTemplates' : 'footerTemplates';
       const tpl = _data[key].find(t => t.id === editTarget.id);
       if (!tpl) return;
-      const nameVal = panel.querySelector('#bb-edit-name').value.trim();
-      if (!nameVal) { toast('Name required', 'error'); return; }
-      tpl.name = nameVal;
+      const n = panel.querySelector('#bb-edit-name').value.trim();
+      if (!n) { toast('Name required', 'error'); return; }
+      tpl.name = n;
       tpl.body = panel.querySelector('#bb-edit-body').value;
       save(key, _data[key]);
       toast('Template saved');
       refreshSelectors();
-      showView('templates');
+      showView('tpls');
     });
-    panel.querySelector('#bb-cancel-edit').addEventListener('click', () => showView('templates'));
+    panel.querySelector('#bb-cancel-edit').addEventListener('click', () => showView('tpls'));
 
-    // Variable tag insertion
+    // Variable tags
     panel.querySelectorAll('.bb-var[data-v]').forEach(tag => {
       tag.addEventListener('click', () => {
         const ta = panel.querySelector('#bb-edit-body');
         if (!ta) return;
         const v = '{{' + tag.dataset.v + '}}';
-        const s = ta.selectionStart;
-        const e = ta.selectionEnd;
+        const s = ta.selectionStart, e = ta.selectionEnd;
         ta.value = ta.value.substring(0, s) + v + ta.value.substring(e);
         ta.focus();
         ta.selectionStart = ta.selectionEnd = s + v.length;
@@ -903,45 +1015,48 @@ Client Signature: _________________________ Date: _________
     currentView = view;
     const panel = document.getElementById(PANEL_ID);
     if (!panel) return;
-    panel.querySelector('#bb-main').style.display = view === 'main' ? '' : 'none';
-    panel.querySelector('#bb-templates').style.display = view === 'templates' ? '' : 'none';
-    panel.querySelector('#bb-edit').style.display = view === 'editTemplate' ? '' : 'none';
-    if (view === 'templates') renderTemplatesList();
-    if (view === 'editTemplate') renderEditTemplate();
+    panel.querySelector('#bb-view-main').style.display = view === 'main' ? '' : 'none';
+    panel.querySelector('#bb-view-tpls').style.display = view === 'tpls' ? '' : 'none';
+    panel.querySelector('#bb-view-edit').style.display = view === 'edit' ? '' : 'none';
+    if (view === 'tpls') renderTplList();
+    if (view === 'edit') renderEditTpl();
     if (view === 'main') generate();
   }
 
-  function renderTemplatesList() {
+  function renderTplList() {
     const panel = document.getElementById(PANEL_ID);
     if (!panel) return;
     panel.querySelector('#bb-desc-list').innerHTML = (_data.descTemplates || []).map(t => tplCard(t, 'desc', t.id === _data.activeDesc)).join('');
     panel.querySelector('#bb-footer-list').innerHTML = (_data.footerTemplates || []).map(t => tplCard(t, 'footer', t.id === _data.activeFooter)).join('');
-    panel.querySelectorAll('[data-tpl-action]').forEach(btn => {
+    panel.querySelectorAll('[data-act]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const { tplAction: action, tplType: type, tplId: id } = btn.dataset;
-        const key = type === 'desc' ? 'descTemplates' : 'footerTemplates';
-        const activeKey = type === 'desc' ? 'activeDesc' : 'activeFooter';
-        if (action === 'use') { save(activeKey, id); refreshSelectors(); toast('Activated'); renderTemplatesList(); }
-        else if (action === 'edit') { editTarget = { type, id }; showView('editTemplate'); }
-        else if (action === 'delete') { _data[key] = _data[key].filter(t => t.id !== id); save(key, _data[key]); refreshSelectors(); toast('Deleted'); renderTemplatesList(); }
+        const { act, ttype, tid } = btn.dataset;
+        const key = ttype === 'desc' ? 'descTemplates' : 'footerTemplates';
+        const akey = ttype === 'desc' ? 'activeDesc' : 'activeFooter';
+        if (act === 'use') { save(akey, tid); refreshSelectors(); toast('Activated'); renderTplList(); }
+        else if (act === 'edit') { editTarget = { type: ttype, id: tid }; showView('edit'); }
+        else if (act === 'del') { _data[key] = _data[key].filter(t => t.id !== tid); save(key, _data[key]); refreshSelectors(); toast('Deleted'); renderTplList(); }
       });
     });
   }
 
   function tplCard(t, type, active) {
-    const preview = (t.body || '').substring(0, 60).replace(/\n/g, ' ');
-    return `<div class="bb-tpl-card${active ? ' bb-tpl-card--active' : ''}">
-      <div class="bb-tpl-card-info"><div class="bb-tpl-card-name">${esc(t.name)}${active ? '<span class="bb-tpl-badge">Active</span>' : ''}</div><div class="bb-tpl-card-preview">${esc(preview)}${preview.length >= 60 ? '…' : ''}</div></div>
-      <div class="bb-tpl-card-actions">
-        ${!active ? `<button class="bb-sm-btn" data-tpl-action="use" data-tpl-type="${type}" data-tpl-id="${esc(t.id)}">Use</button>` : ''}
-        <button class="bb-sm-btn" data-tpl-action="edit" data-tpl-type="${type}" data-tpl-id="${esc(t.id)}">Edit</button>
-        <button class="bb-sm-btn bb-sm-btn--red" data-tpl-action="delete" data-tpl-type="${type}" data-tpl-id="${esc(t.id)}">Del</button>
+    const preview = (t.body || '').substring(0, 55).replace(/\n/g, ' ');
+    return `<div class="bb-tpl${active ? ' bb-tpl--active' : ''}">
+      <div class="bb-tpl-info">
+        <div class="bb-tpl-name">${esc(t.name)}${active ? '<span class="bb-badge bb-badge--accent">Active</span>' : ''}</div>
+        <div class="bb-tpl-preview">${esc(preview)}${preview.length >= 55 ? '…' : ''}</div>
+      </div>
+      <div class="bb-tpl-acts">
+        ${!active ? `<button class="bb-btn--sm" data-act="use" data-ttype="${type}" data-tid="${esc(t.id)}">Use</button>` : ''}
+        <button class="bb-btn--sm" data-act="edit" data-ttype="${type}" data-tid="${esc(t.id)}">Edit</button>
+        <button class="bb-btn--sm bb-btn--danger" data-act="del" data-ttype="${type}" data-tid="${esc(t.id)}">Del</button>
       </div>
     </div>`;
   }
 
-  function renderEditTemplate() {
+  function renderEditTpl() {
     if (!editTarget) return;
     const panel = document.getElementById(PANEL_ID);
     if (!panel) return;
@@ -956,14 +1071,14 @@ Client Signature: _________________________ Date: _________
   function refreshSelectors() {
     const panel = document.getElementById(PANEL_ID);
     if (!panel) return;
-    const ds = panel.querySelector('#bb-desc-tpl');
-    const fs = panel.querySelector('#bb-footer-tpl');
+    const ds = panel.querySelector('#bb-sel-desc');
+    const fs = panel.querySelector('#bb-sel-footer');
     if (ds) ds.innerHTML = (_data.descTemplates || []).map(t => `<option value="${esc(t.id)}"${t.id === _data.activeDesc ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
     if (fs) fs.innerHTML = (_data.footerTemplates || []).map(t => `<option value="${esc(t.id)}"${t.id === _data.activeFooter ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
   }
 
   // ---------------------------------------------------------------------------
-  // Generate — merges auto-detected + manual overrides + profile
+  // Generate output
   // ---------------------------------------------------------------------------
 
   function generate() {
@@ -973,15 +1088,14 @@ Client Signature: _________________________ Date: _________
     const prof = _data.profile || {};
     const pg = _pageData || {};
 
-    // Manual overrides take precedence over auto-detected
     const data = {
-      company: panel.querySelector('#bb-company')?.value || pg.company || '',
-      customerName: panel.querySelector('#bb-name')?.value || pg.customerName || '',
+      company: panel.querySelector('#bb-f-company')?.value || pg.company || '',
+      customerName: panel.querySelector('#bb-f-name')?.value || pg.customerName || '',
       customerEmail: pg.customerEmail || '',
       customerPhone: pg.customerPhone || '',
       customerAddress: pg.customerAddress || '',
-      jobName: panel.querySelector('#bb-job')?.value || pg.jobName || '',
-      jobNumber: panel.querySelector('#bb-jobnum')?.value || pg.jobNumber || '',
+      jobName: panel.querySelector('#bb-f-job')?.value || pg.jobName || '',
+      jobNumber: panel.querySelector('#bb-f-jobnum')?.value || pg.jobNumber || '',
       jobAddress: pg.jobAddress || '',
       docType: pg.docType || '',
       date: new Date().toLocaleDateString(),
@@ -996,24 +1110,23 @@ Client Signature: _________________________ Date: _________
 
     const descTpl = (_data.descTemplates || []).find(t => t.id === _data.activeDesc) || _data.descTemplates[0];
     const footerTpl = (_data.footerTemplates || []).find(t => t.id === _data.activeFooter) || _data.footerTemplates[0];
-
     const descText = render(descTpl?.body || '', data);
     const footerText = render(footerTpl?.body || '', data);
 
-    const descEl = panel.querySelector('#bb-desc-preview');
-    const footerEl = panel.querySelector('#bb-footer-preview');
-    if (descEl) { descEl.dataset.raw = descText; descEl.textContent = descText || '(empty template)'; }
-    if (footerEl) { footerEl.dataset.raw = footerText; footerEl.textContent = footerText || '(empty)'; }
+    const de = panel.querySelector('#bb-preview-desc');
+    const fe = panel.querySelector('#bb-preview-footer');
+    if (de) { de.dataset.raw = descText; de.textContent = descText || '(empty template)'; }
+    if (fe) { fe.dataset.raw = footerText; fe.textContent = footerText || '(empty)'; }
   }
 
-  function flashCopy(btn, msg) {
+  function flashBtn(btn, msg) {
     toast(msg);
-    btn.classList.add('bb-copied');
-    setTimeout(() => btn.classList.remove('bb-copied'), 1500);
+    btn.classList.add('bb-btn--copied');
+    setTimeout(() => btn.classList.remove('bb-btn--copied'), 1500);
   }
 
   // ---------------------------------------------------------------------------
-  // Keyboard shortcut
+  // Keyboard
   // ---------------------------------------------------------------------------
 
   document.addEventListener('keydown', (e) => {
@@ -1028,7 +1141,7 @@ Client Signature: _________________________ Date: _________
     chrome.runtime.onMessage.addListener((msg, _, reply) => {
       if (msg.action === 'togglePanel') { toggle(); reply({ ok: true }); }
       if (msg.action === 'getPageInfo') {
-        reply({ isDocPage: isDocPage(), pageData: scrapePageData(), url: location.href });
+        reply({ isDocPage: isRelevantPage(), pageData: gatherData(), url: location.href });
       }
       return false;
     });
@@ -1043,9 +1156,9 @@ Client Signature: _________________________ Date: _________
     const check = () => {
       if (location.href !== last) {
         last = location.href;
-        close();
+        closePanel();
         removeTrigger();
-        if (isDocPage()) createTrigger();
+        if (isRelevantPage()) createTrigger();
       }
     };
     const origPush = history.pushState;
@@ -1060,18 +1173,27 @@ Client Signature: _________________________ Date: _________
   // ---------------------------------------------------------------------------
 
   async function init() {
+    // Inject API interceptor immediately
+    injectInterceptor();
+
+    // Wait for body
+    if (!document.body) {
+      await new Promise(r => {
+        if (document.readyState !== 'loading') return r();
+        document.addEventListener('DOMContentLoaded', r);
+      });
+    }
+
     await load();
-    if (isDocPage()) createTrigger();
+    if (isRelevantPage()) createTrigger();
     watchURL();
+
+    // Watch for SPA content changes
     const obs = new MutationObserver(debounce(() => {
-      if (!document.getElementById(TRIGGER_ID) && isDocPage()) createTrigger();
+      if (!document.getElementById(TRIGGER_ID) && isRelevantPage()) createTrigger();
     }, 500));
     obs.observe(document.body, { childList: true, subtree: true });
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  init();
 })();

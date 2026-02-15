@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Better Boss DocFill",
   "short_name": "DocFill",
-  "version": "3.1.0",
-  "description": "Auto-fill document descriptions and footers in JobTread. Built for construction pros by Better Boss.",
+  "version": "4.0.0",
+  "description": "Auto-fill document descriptions and footers in JobTread. Captures live API data for zero-effort auto-population. Built for construction pros by Better Boss.",
   "homepage_url": "https://better-boss.ai",
   "permissions": [
     "storage",
@@ -31,7 +31,7 @@
       "matches": ["https://app.jobtread.com/*"],
       "js": ["content.js"],
       "css": ["content.css"],
-      "run_at": "document_idle"
+      "run_at": "document_start"
     }
   ],
   "background": {
