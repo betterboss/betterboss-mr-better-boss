@@ -77,6 +77,7 @@ export type JobStatus =
   | 'IN_PROGRESS'
   | 'ON_HOLD'
   | 'COMPLETED'
+  | 'CLOSED'
   | 'CANCELLED';
 
 export interface JobBudget {

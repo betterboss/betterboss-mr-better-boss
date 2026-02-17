@@ -26,9 +26,12 @@ export default function DashboardPage() {
   const jobCost = (j: typeof allJobs[0]) => j.budget?.actualCost || j.budget?.estimatedCost || 0;
 
   // Deal categories (matches Bolt HQ)
-  const wonJobs = allJobs.filter((j) => ['CONTRACT', 'IN_PROGRESS', 'COMPLETED'].includes(j.status));
-  const lostJobs = allJobs.filter((j) => j.status === 'CANCELLED');
-  const openJobs = allJobs.filter((j) => ['LEAD', 'ESTIMATE', 'PROPOSAL', 'ON_HOLD'].includes(j.status));
+  // Lost and Open are explicit; Won = everything else so closed/completed jobs always count
+  const lostStatuses = ['CANCELLED'];
+  const openStatuses = ['LEAD', 'ESTIMATE', 'PROPOSAL', 'ON_HOLD'];
+  const lostJobs = allJobs.filter((j) => lostStatuses.includes(j.status));
+  const openJobs = allJobs.filter((j) => openStatuses.includes(j.status));
+  const wonJobs = allJobs.filter((j) => !lostStatuses.includes(j.status) && !openStatuses.includes(j.status));
 
   const wonRevenue = wonJobs.reduce((s, j) => s + jobRev(j), 0);
   const openPipeline = openJobs.reduce((s, j) => s + jobRev(j), 0);
