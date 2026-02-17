@@ -16,5 +16,7 @@ export const config = {
     '/finances/:path*',
     '/assistant/:path*',
     '/settings/:path*',
+    '/api/jobtread/:path*',
+    '/api/ai/:path*',
   ],
 };

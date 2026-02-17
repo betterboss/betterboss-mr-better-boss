@@ -113,6 +113,7 @@ export function SidebarNav() {
             <button
               key={item.id}
               onClick={() => router.push(item.path)}
+              aria-current={isActive ? 'page' : undefined}
               className={cn(
                 'w-full flex items-center gap-3 px-2.5 py-2 rounded-lg transition-all duration-200 group relative',
                 isActive
@@ -142,6 +143,7 @@ export function SidebarNav() {
       <div className="p-2 border-t border-dark-700/50">
         <button
           onClick={toggleCollapsed}
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           className="w-full flex items-center justify-center p-2 rounded-lg text-dark-500 hover:text-dark-300 hover:bg-dark-700/50 transition-colors"
         >
           {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}

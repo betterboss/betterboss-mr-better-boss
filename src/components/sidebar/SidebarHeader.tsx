@@ -29,6 +29,7 @@ export function SidebarHeader() {
           value={globalSearch}
           onChange={(e) => setGlobalSearch(e.target.value)}
           placeholder="Search jobs, contacts, estimates..."
+          aria-label="Search jobs, contacts, estimates"
           className="w-full bg-dark-800/60 border border-dark-700/50 rounded-lg pl-8 pr-8 py-1.5 text-xs text-dark-200
                      placeholder:text-dark-500 focus:outline-none focus:ring-1 focus:ring-boss-500/40 focus:border-boss-500/40"
         />
@@ -42,7 +43,7 @@ export function SidebarHeader() {
       </div>
 
       {/* Notifications */}
-      <button className="relative p-1.5 rounded-lg hover:bg-dark-700/50 text-dark-400 hover:text-dark-200 transition-colors">
+      <button aria-label="Notifications" className="relative p-1.5 rounded-lg hover:bg-dark-700/50 text-dark-400 hover:text-dark-200 transition-colors">
         <Bell className="w-4 h-4" />
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-accent-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center">
@@ -55,6 +56,8 @@ export function SidebarHeader() {
       <div className="relative">
         <button
           onClick={() => setShowUserMenu(!showUserMenu)}
+          aria-label="User menu"
+          aria-expanded={showUserMenu}
           className="flex items-center gap-2 p-1 rounded-lg hover:bg-dark-700/50 transition-colors"
         >
           <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-boss-500 to-boss-600 flex items-center justify-center">

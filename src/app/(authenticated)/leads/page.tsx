@@ -111,7 +111,7 @@ export default function LeadsPage() {
         <div className="flex-1 relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-dark-500" />
           <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search contacts..." className="input-field pl-8 text-xs py-1.5" />
+            placeholder="Search contacts..." aria-label="Search contacts" className="input-field pl-8 text-xs py-1.5" />
         </div>
         <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
           className="input-field text-xs py-1.5 w-28">
@@ -204,6 +204,8 @@ export default function LeadsPage() {
             return (
               <div key={lead.id}
                 onClick={() => setSelectedLeadId(lead.id === selectedLeadId ? null : lead.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedLeadId(lead.id === selectedLeadId ? null : lead.id); } }}
+                role="button" tabIndex={0}
                 className={cn('glass-card p-3 cursor-pointer transition-all group', selectedLeadId === lead.id && 'border-boss-500/30')}>
                 <div className="flex items-center justify-between">
                   <div className="min-w-0 flex-1">

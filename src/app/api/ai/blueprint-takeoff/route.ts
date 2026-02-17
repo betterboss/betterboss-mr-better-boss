@@ -17,10 +17,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { imageData, projectType, defaultMarkup, notes } = await request.json();
+    const body = await request.json();
+    const { imageData, projectType, defaultMarkup, notes } = body;
 
-    if (!imageData) {
-      return NextResponse.json({ error: 'No blueprint image provided' }, { status: 400 });
+    if (!imageData || typeof imageData !== 'string') {
+      return NextResponse.json({ error: 'Image is required. Please upload a blueprint.' }, { status: 400 });
+    }
+
+    // Validate base64 image size (max 10MB encoded ≈ 13.3MB base64)
+    const MAX_BASE64_LENGTH = 14_000_000;
+    if (imageData.length > MAX_BASE64_LENGTH) {
+      return NextResponse.json({ error: 'Image too large. Maximum size is 10MB.' }, { status: 400 });
+    }
+
+    // Validate MIME type from base64 prefix
+    const ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    const mimeMatch = imageData.match(/^data:(image\/[a-z]+);base64,/);
+    if (mimeMatch && !ALLOWED_MIMES.includes(mimeMatch[1])) {
+      return NextResponse.json({ error: 'Unsupported image format. Use JPEG, PNG, or WebP.' }, { status: 400 });
+    }
+
+    // Validate projectType if provided
+    const VALID_PROJECT_TYPES = ['residential', 'commercial', 'industrial', 'roofing', 'remodel', 'addition', 'custom'];
+    if (projectType && typeof projectType === 'string' && !VALID_PROJECT_TYPES.includes(projectType)) {
+      return NextResponse.json({ error: `Invalid project type. Must be one of: ${VALID_PROJECT_TYPES.join(', ')}` }, { status: 400 });
+    }
+
+    // Validate defaultMarkup if provided
+    if (defaultMarkup !== undefined && (typeof defaultMarkup !== 'number' || defaultMarkup < 0 || defaultMarkup > 500 || !isFinite(defaultMarkup))) {
+      return NextResponse.json({ error: 'Markup must be a number between 0 and 500.' }, { status: 400 });
     }
 
     // Attempt AI vision analysis first — falls back to heuristic engine if no API key
@@ -189,7 +214,12 @@ function parseAIResponse(content: string) {
   const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, content];
   const jsonStr = (jsonMatch[1] || content).trim();
 
-  const parsed: AIRawResponse = JSON.parse(jsonStr);
+  let parsed: AIRawResponse;
+  try {
+    parsed = JSON.parse(jsonStr);
+  } catch {
+    throw new Error('AI returned invalid JSON. Please try analyzing the blueprint again.');
+  }
 
   const measurements: BlueprintMeasurement[] = (parsed.measurements || []).map((m) => ({
     label: m.label || '',

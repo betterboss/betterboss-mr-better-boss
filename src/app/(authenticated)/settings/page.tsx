@@ -16,22 +16,65 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
+const SETTINGS_KEY = 'betterboss-settings';
+
+interface AppSettings {
+  notifications: Record<string, boolean>;
+  defaultMarkup: number;
+  taxRate: number;
+  confidenceThreshold: string;
+}
+
+function loadSettings(): AppSettings {
+  if (typeof window === 'undefined') return getDefaultSettings();
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) return { ...getDefaultSettings(), ...JSON.parse(raw) };
+  } catch { /* ignore */ }
+  return getDefaultSettings();
+}
+
+function getDefaultSettings(): AppSettings {
+  return {
+    notifications: {
+      overdueInvoices: true,
+      newLeads: true,
+      taskReminders: true,
+      cashFlowAlerts: true,
+      aiInsights: true,
+      weeklyReport: false,
+    },
+    defaultMarkup: 25,
+    taxRate: 8.25,
+    confidenceThreshold: '90',
+  };
+}
+
+function saveSettings(settings: AppSettings) {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  } catch { /* ignore */ }
+}
+
 export default function SettingsPage() {
   const { data: session } = useSession();
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
+  const [settings, setSettings] = useState<AppSettings>(getDefaultSettings);
 
   useEffect(() => {
     setLastSynced(new Date());
+    setSettings(loadSettings());
   }, []);
 
-  const [notifications, setNotifications] = useState({
-    overdueInvoices: true,
-    newLeads: true,
-    taskReminders: true,
-    cashFlowAlerts: true,
-    aiInsights: true,
-    weeklyReport: false,
-  });
+  const updateSettings = (patch: Partial<AppSettings>) => {
+    setSettings((prev) => {
+      const next = { ...prev, ...patch };
+      saveSettings(next);
+      return next;
+    });
+  };
+
+  const notifications = settings.notifications;
 
   return (
     <div className="space-y-4">
@@ -122,7 +165,7 @@ export default function SettingsPage() {
             <div key={key} className="flex items-center justify-between">
               <p className="text-xs text-dark-300 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
               <button
-                onClick={() => setNotifications((prev) => ({ ...prev, [key]: !value }))}
+                onClick={() => updateSettings({ notifications: { ...notifications, [key]: !value } })}
                 className={cn(
                   'w-9 h-5 rounded-full transition-colors relative',
                   value ? 'bg-boss-500' : 'bg-dark-600'
@@ -147,15 +190,21 @@ export default function SettingsPage() {
         <div className="space-y-3">
           <div>
             <label className="text-xs text-dark-400 mb-1 block">Default Markup %</label>
-            <input type="number" defaultValue={25} className="input-field text-xs" />
+            <input type="number" value={settings.defaultMarkup} min={0} max={500}
+              onChange={(e) => updateSettings({ defaultMarkup: Number(e.target.value) || 0 })}
+              className="input-field text-xs" />
           </div>
           <div>
             <label className="text-xs text-dark-400 mb-1 block">Tax Rate %</label>
-            <input type="number" defaultValue={8.25} step={0.01} className="input-field text-xs" />
+            <input type="number" value={settings.taxRate} step={0.01} min={0} max={100}
+              onChange={(e) => updateSettings({ taxRate: Number(e.target.value) || 0 })}
+              className="input-field text-xs" />
           </div>
           <div>
             <label className="text-xs text-dark-400 mb-1 block">AI Estimate Confidence Threshold</label>
-            <select className="input-field text-xs">
+            <select value={settings.confidenceThreshold}
+              onChange={(e) => updateSettings({ confidenceThreshold: e.target.value })}
+              className="input-field text-xs">
               <option value="80">80% (More suggestions)</option>
               <option value="90">90% (Balanced)</option>
               <option value="95">95% (High precision)</option>

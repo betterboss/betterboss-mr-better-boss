@@ -155,7 +155,7 @@ export default function AssistantPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4" role="log" aria-live="polite">
         {messages.map((msg) => (
           <div key={msg.id} className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
             <div className={cn(msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant')}>
@@ -221,10 +221,12 @@ export default function AssistantPage() {
           <div className="flex-1 relative">
             <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown} placeholder="Ask anything about your business..."
+              aria-label="Message input"
               rows={1} className="input-field text-xs py-2 resize-none min-h-[36px] max-h-[120px]"
               style={{ height: 'auto' }} />
           </div>
           <button onClick={handleSend} disabled={!input.trim() || isTyping}
+            aria-label="Send message"
             className={cn(
               'p-2 rounded-lg transition-all',
               input.trim() && !isTyping
