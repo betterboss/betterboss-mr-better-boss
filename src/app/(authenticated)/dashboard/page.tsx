@@ -22,10 +22,13 @@ export default function DashboardPage() {
   if (firstError) return <ErrorState message={firstError} onRetry={retryAll} />;
 
   // Compute real metrics from active pipeline only (IN_PROGRESS + CONTRACT)
+  // Prefer actuals over estimates — actuals reflect real costs/revenue on in-progress jobs
   const allJobs = jobs || [];
   const activeJobs = allJobs.filter((j) => j.status === 'IN_PROGRESS' || j.status === 'CONTRACT');
-  const pipelineRevenue = activeJobs.reduce((s, j) => s + (j.budget?.estimatedRevenue || 0), 0);
-  const pipelineCost = activeJobs.reduce((s, j) => s + (j.budget?.estimatedCost || 0), 0);
+  const jobRev = (j: typeof allJobs[0]) => j.budget?.actualRevenue || j.budget?.estimatedRevenue || 0;
+  const jobCost = (j: typeof allJobs[0]) => j.budget?.actualCost || j.budget?.estimatedCost || 0;
+  const pipelineRevenue = activeJobs.reduce((s, j) => s + jobRev(j), 0);
+  const pipelineCost = activeJobs.reduce((s, j) => s + jobCost(j), 0);
   const pipelineProfit = pipelineRevenue - pipelineCost;
   const pipelineMargin = pipelineRevenue > 0 ? (pipelineProfit / pipelineRevenue) * 100 : 0;
 
@@ -48,9 +51,9 @@ export default function DashboardPage() {
   }) || [];
   const pendingTasks = tasks?.filter((t) => t.status !== 'COMPLETED') || [];
 
-  // Top jobs by revenue
+  // Top jobs by revenue (prefer actuals)
   const topJobs = [...activeJobs]
-    .sort((a, b) => (b.budget?.estimatedRevenue || 0) - (a.budget?.estimatedRevenue || 0))
+    .sort((a, b) => jobRev(b) - jobRev(a))
     .slice(0, 5);
 
   return (
@@ -151,8 +154,8 @@ export default function DashboardPage() {
         ) : (
           <div className="space-y-3">
             {topJobs.map((job) => {
-              const rev = job.budget?.estimatedRevenue || 0;
-              const cost = job.budget?.estimatedCost || 0;
+              const rev = jobRev(job);
+              const cost = jobCost(job);
               const margin = rev > 0 ? ((rev - cost) / rev) * 100 : 0;
               return (
                 <div key={job.id} className="group">
