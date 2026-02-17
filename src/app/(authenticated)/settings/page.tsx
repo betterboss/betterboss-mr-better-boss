@@ -19,6 +19,8 @@ import {
   EyeOff,
   Webhook,
   Copy,
+  AlertTriangle,
+  Play,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
@@ -75,16 +77,23 @@ export default function SettingsPage() {
   const [showGhlKey, setShowGhlKey] = useState(false);
   const [ghlTestStatus, setGhlTestStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [ghlTesting, setGhlTesting] = useState(false);
-  const [webhookUrls, setWebhookUrls] = useState<{ jt: string; ghl: string } | null>(null);
+  const [webhookInfo, setWebhookInfo] = useState<{
+    jt: string | null; ghl: string | null;
+    config: Record<string, boolean | string | null>;
+    missing: string[];
+    ready: boolean;
+  } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [webhookTestStatus, setWebhookTestStatus] = useState<{ ok: boolean; message: string } | null>(null);
+  const [webhookTesting, setWebhookTesting] = useState(false);
 
   useEffect(() => {
     setLastSynced(new Date());
     setSettings(loadSettings());
-    // Fetch webhook URLs from server (includes secret)
+    // Fetch webhook config + URLs from server
     fetch('/api/webhooks/info')
       .then((r) => r.ok ? r.json() : null)
-      .then((data) => { if (data) setWebhookUrls(data); })
+      .then((data) => { if (data) setWebhookInfo(data); })
       .catch(() => {});
   }, []);
 
@@ -119,6 +128,28 @@ export default function SettingsPage() {
       setCopied(label);
       setTimeout(() => setCopied(null), 2000);
     });
+  };
+
+  const testWebhook = async (direction: 'jt-to-ghl' | 'ghl-to-jt') => {
+    setWebhookTesting(true);
+    setWebhookTestStatus(null);
+    try {
+      const res = await fetch('/api/webhooks/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ direction }),
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        setWebhookTestStatus({ ok: true, message: data.message });
+      } else {
+        setWebhookTestStatus({ ok: false, message: data.error || data.fix || 'Test failed' });
+      }
+    } catch (err) {
+      setWebhookTestStatus({ ok: false, message: err instanceof Error ? err.message : 'Test failed' });
+    } finally {
+      setWebhookTesting(false);
+    }
   };
 
   const updateSettings = (patch: Partial<AppSettings>) => {
@@ -294,60 +325,99 @@ export default function SettingsPage() {
           Workflow Webhooks
         </h2>
         <p className="text-[10px] text-dark-500 mb-3">
-          Paste these URLs into your JobTread &amp; GHL workflow actions for real-time contact sync.
+          Real-time contact sync between JobTread &amp; GoHighLevel via webhooks.
         </p>
 
-        {webhookUrls ? (
+        {/* Config status */}
+        {webhookInfo && webhookInfo.missing.length > 0 && (
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 mb-3">
+            <p className="text-[10px] text-amber-400 font-medium flex items-center gap-1 mb-1.5">
+              <AlertTriangle className="w-3 h-3" /> Missing Environment Variables
+            </p>
+            <ul className="text-[10px] text-amber-300/80 space-y-0.5">
+              {webhookInfo.missing.map((v) => (
+                <li key={v} className="font-mono">{v}</li>
+              ))}
+            </ul>
+            <p className="text-[10px] text-dark-500 mt-1.5">
+              Add these in your Vercel dashboard → Settings → Environment Variables, then redeploy.
+            </p>
+          </div>
+        )}
+
+        {webhookInfo?.ready && webhookInfo.jt && webhookInfo.ghl ? (
           <div className="space-y-3">
+            {/* Status badge */}
+            <div className="flex items-center gap-1.5 text-[10px] text-emerald-400">
+              <CheckCircle2 className="w-3 h-3" />
+              All configured — ready to sync
+            </div>
+
             {/* JT → GHL */}
             <div>
-              <label className="text-xs text-dark-400 mb-1 block">JobTread Workflow Webhook (JT → GHL)</label>
+              <label className="text-xs text-dark-400 mb-1 block">JT → GHL Webhook URL</label>
               <div className="flex gap-1.5">
-                <input
-                  type="text"
-                  readOnly
-                  value={webhookUrls.jt}
-                  className="input-field text-[10px] font-mono flex-1"
-                />
-                <button
-                  onClick={() => copyUrl(webhookUrls.jt, 'jt')}
-                  className="btn-secondary px-2 flex items-center gap-1 text-[10px] flex-shrink-0"
-                >
+                <input type="text" readOnly value={webhookInfo.jt}
+                  className="input-field text-[10px] font-mono flex-1" />
+                <button onClick={() => copyUrl(webhookInfo.jt!, 'jt')}
+                  className="btn-secondary px-2 flex items-center gap-1 text-[10px] flex-shrink-0">
                   {copied === 'jt' ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                   {copied === 'jt' ? 'Copied' : 'Copy'}
                 </button>
               </div>
               <p className="text-[10px] text-dark-600 mt-1">
-                In JobTread: Workflows → New → Trigger: &quot;Contact Created&quot; → Action: &quot;Send Webhook&quot; → paste URL above
+                JobTread → Workflows → New → Trigger: &quot;Contact Created&quot; → Action: &quot;Send Webhook&quot; → paste above
               </p>
             </div>
 
             {/* GHL → JT */}
             <div>
-              <label className="text-xs text-dark-400 mb-1 block">GHL Workflow Webhook (GHL → JT)</label>
+              <label className="text-xs text-dark-400 mb-1 block">GHL → JT Webhook URL</label>
               <div className="flex gap-1.5">
-                <input
-                  type="text"
-                  readOnly
-                  value={webhookUrls.ghl}
-                  className="input-field text-[10px] font-mono flex-1"
-                />
-                <button
-                  onClick={() => copyUrl(webhookUrls.ghl, 'ghl')}
-                  className="btn-secondary px-2 flex items-center gap-1 text-[10px] flex-shrink-0"
-                >
+                <input type="text" readOnly value={webhookInfo.ghl}
+                  className="input-field text-[10px] font-mono flex-1" />
+                <button onClick={() => copyUrl(webhookInfo.ghl!, 'ghl')}
+                  className="btn-secondary px-2 flex items-center gap-1 text-[10px] flex-shrink-0">
                   {copied === 'ghl' ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                   {copied === 'ghl' ? 'Copied' : 'Copy'}
                 </button>
               </div>
               <p className="text-[10px] text-dark-600 mt-1">
-                In GHL: Automations → New → Trigger: &quot;Contact Created&quot; → Action: &quot;Webhook&quot; → paste URL above
+                GHL → Automations → New → Trigger: &quot;Contact Created&quot; → Action: &quot;Webhook&quot; → paste above
               </p>
             </div>
+
+            {/* Test buttons */}
+            <div className="flex gap-2">
+              <button onClick={() => testWebhook('jt-to-ghl')} disabled={webhookTesting}
+                className="btn-secondary flex-1 text-[10px] py-1.5 flex items-center justify-center gap-1 disabled:opacity-50">
+                <Play className={cn('w-3 h-3', webhookTesting && 'animate-spin')} />
+                Test JT → GHL
+              </button>
+              <button onClick={() => testWebhook('ghl-to-jt')} disabled={webhookTesting}
+                className="btn-secondary flex-1 text-[10px] py-1.5 flex items-center justify-center gap-1 disabled:opacity-50">
+                <Play className={cn('w-3 h-3', webhookTesting && 'animate-spin')} />
+                Test GHL → JT
+              </button>
+            </div>
+
+            {webhookTestStatus && (
+              <div className={cn(
+                'text-[10px] px-3 py-2 rounded-lg flex items-center gap-1.5',
+                webhookTestStatus.ok
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  : 'bg-red-500/10 text-red-400 border border-red-500/20'
+              )}>
+                {webhookTestStatus.ok ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                {webhookTestStatus.message}
+              </div>
+            )}
           </div>
+        ) : !webhookInfo ? (
+          <div className="text-[10px] text-dark-500">Loading webhook config...</div>
         ) : (
           <div className="text-[10px] text-dark-500 bg-dark-800/50 rounded-lg p-3">
-            Set the <span className="font-mono text-dark-400">WEBHOOK_SECRET</span> environment variable in Vercel to enable webhook URLs.
+            Fix the missing environment variables above to enable webhooks.
           </div>
         )}
       </div>
