@@ -21,12 +21,18 @@ export default function DashboardPage() {
   if (isLoading) return <LoadingState label="Loading your dashboard from JobTread..." />;
   if (firstError) return <ErrorState message={firstError} onRetry={retryAll} />;
 
-  // Compute real metrics from live data
-  const activeJobs = jobs?.filter((j) => j.status === 'IN_PROGRESS' || j.status === 'CONTRACT') || [];
-  const totalRevenue = jobs?.reduce((s, j) => s + (j.budget?.estimatedRevenue || 0), 0) || 0;
-  const totalCost = jobs?.reduce((s, j) => s + (j.budget?.estimatedCost || 0), 0) || 0;
-  const totalProfit = totalRevenue - totalCost;
-  const avgMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+  // Compute real metrics from active pipeline only (IN_PROGRESS + CONTRACT)
+  const allJobs = jobs || [];
+  const activeJobs = allJobs.filter((j) => j.status === 'IN_PROGRESS' || j.status === 'CONTRACT');
+  const pipelineRevenue = activeJobs.reduce((s, j) => s + (j.budget?.estimatedRevenue || 0), 0);
+  const pipelineCost = activeJobs.reduce((s, j) => s + (j.budget?.estimatedCost || 0), 0);
+  const pipelineProfit = pipelineRevenue - pipelineCost;
+  const pipelineMargin = pipelineRevenue > 0 ? (pipelineProfit / pipelineRevenue) * 100 : 0;
+
+  // Win rate: jobs that reached CONTRACT/IN_PROGRESS/COMPLETED out of all non-lead jobs
+  const wonJobs = allJobs.filter((j) => ['CONTRACT', 'IN_PROGRESS', 'COMPLETED'].includes(j.status));
+  const decidedJobs = allJobs.filter((j) => j.status !== 'LEAD');
+  const winRate = decidedJobs.length > 0 ? (wonJobs.length / decidedJobs.length) * 100 : 0;
 
   const overdueInvs = invoices?.filter((i) => {
     if (i.status === 'PAID' || i.status === 'VOID' || !i.dueDate) return false;
@@ -66,16 +72,23 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Key Metrics */}
+      {/* Key Metrics — all from active pipeline */}
       <div className="grid grid-cols-2 gap-3">
         <MetricCard label="Active Jobs" value={activeJobs.length.toString()} icon={Briefcase} color="text-boss-400" bgColor="bg-boss-500/10" />
-        <MetricCard label="Total Revenue" value={formatCurrency(totalRevenue)} icon={DollarSign} color="text-emerald-400" bgColor="bg-emerald-500/10" />
-        <MetricCard label="Total Profit" value={formatCurrency(totalProfit)} icon={TrendingUp} color="text-green-400" bgColor="bg-green-500/10" />
-        <MetricCard label="Avg Margin" value={formatPercent(avgMargin)} icon={BarChart3} color="text-accent-400" bgColor="bg-accent-500/10" />
+        <MetricCard label="Pipeline Revenue" value={formatCurrency(pipelineRevenue)} icon={DollarSign} color="text-emerald-400" bgColor="bg-emerald-500/10" />
+        <MetricCard label="Pipeline Profit" value={formatCurrency(pipelineProfit)} icon={TrendingUp} color="text-green-400" bgColor="bg-green-500/10" />
+        <MetricCard label="Pipeline Margin" value={formatPercent(pipelineMargin)} icon={BarChart3} color="text-accent-400" bgColor="bg-accent-500/10" />
       </div>
 
       {/* Status Row */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-4 gap-2">
+        <div className="glass-card p-3 text-center">
+          <div className="flex items-center justify-center gap-1.5 mb-1">
+            <Target className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-lg font-bold text-white">{formatPercent(winRate)}</span>
+          </div>
+          <p className="text-[10px] text-dark-500 uppercase tracking-wider">Win Rate</p>
+        </div>
         <div className="glass-card p-3 text-center">
           <div className="flex items-center justify-center gap-1.5 mb-1">
             <Users className="w-3.5 h-3.5 text-boss-400" />
@@ -85,10 +98,10 @@ export default function DashboardPage() {
         </div>
         <div className="glass-card p-3 text-center">
           <div className="flex items-center justify-center gap-1.5 mb-1">
-            <Target className="w-3.5 h-3.5 text-emerald-400" />
+            <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
             <span className="text-lg font-bold text-white">{outstandingInvs.length}</span>
           </div>
-          <p className="text-[10px] text-dark-500 uppercase tracking-wider">Open Invoices</p>
+          <p className="text-[10px] text-dark-500 uppercase tracking-wider">Open Inv.</p>
         </div>
         <div className="glass-card p-3 text-center">
           <div className="flex items-center justify-center gap-1.5 mb-1">
