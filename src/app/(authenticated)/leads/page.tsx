@@ -1,12 +1,44 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Users, Search, Target, Phone, Mail, Calendar, Star, Zap, RefreshCw, Upload,
+  Users, Search, Target, Phone, Mail, Calendar, Star, Zap, RefreshCw, Upload, CheckCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useContacts, type JTContact } from '@/lib/hooks/useJobTread';
 import { LoadingState, ErrorState, EmptyState } from '@/components/ui/DataState';
+
+const SETTINGS_KEY = 'betterboss-settings';
+const GHL_SYNCED_KEY = 'betterboss-ghl-synced';
+
+function getGHLSettings(): { ghlApiKey: string; ghlLocationId: string; ghlAutoSync: boolean } {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        ghlApiKey: parsed.ghlApiKey || '',
+        ghlLocationId: parsed.ghlLocationId || '',
+        ghlAutoSync: parsed.ghlAutoSync || false,
+      };
+    }
+  } catch { /* ignore */ }
+  return { ghlApiKey: '', ghlLocationId: '', ghlAutoSync: false };
+}
+
+function getSyncedIds(): string[] {
+  try {
+    const raw = localStorage.getItem(GHL_SYNCED_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return [];
+}
+
+function saveSyncedIds(ids: string[]) {
+  try {
+    localStorage.setItem(GHL_SYNCED_KEY, JSON.stringify(ids));
+  } catch { /* ignore */ }
+}
 
 function getScoreColor(score: number) {
   if (score >= 80) return { text: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' };
@@ -14,7 +46,6 @@ function getScoreColor(score: number) {
   return { text: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20' };
 }
 
-// Simple heuristic lead score based on available data
 function computeLeadScore(contact: JTContact): number {
   let score = 50;
   if (contact.email) score += 10;
@@ -22,7 +53,6 @@ function computeLeadScore(contact: JTContact): number {
   if (contact.company) score += 10;
   if (contact.source) score += 5;
   if (contact.notes) score += 5;
-  // Recent leads score higher
   if (contact.createdAt) {
     const days = (Date.now() - new Date(contact.createdAt).getTime()) / (1000 * 60 * 60 * 24);
     if (days < 1) score += 15;
@@ -38,37 +68,84 @@ export default function LeadsPage() {
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [ghlSyncing, setGhlSyncing] = useState(false);
   const [ghlStatus, setGhlStatus] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const autoSyncRan = useRef(false);
 
   const { data: contacts, isLoading, error, refetch } = useContacts();
 
-  const syncToGHL = async (contactId?: string) => {
+  const ghlConfigured = useCallback(() => {
+    const { ghlApiKey, ghlLocationId } = getGHLSettings();
+    return Boolean(ghlApiKey && ghlLocationId);
+  }, []);
+
+  const syncToGHL = useCallback(async (contactId?: string, isAuto = false) => {
+    const { ghlApiKey, ghlLocationId } = getGHLSettings();
+    if (!ghlApiKey || !ghlLocationId) {
+      if (!isAuto) {
+        setGhlStatus({ message: 'Add your GHL API Key and Location ID in Settings first.', type: 'error' });
+      }
+      return;
+    }
+
     setGhlSyncing(true);
-    setGhlStatus(null);
+    if (!isAuto) setGhlStatus(null);
+
     try {
+      const syncedIds = getSyncedIds();
       const res = await fetch('/api/ghl/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(contactId ? { contactId } : {}),
+        body: JSON.stringify({
+          ...(contactId ? { contactId } : {}),
+          ghlApiKey,
+          ghlLocationId,
+          mode: isAuto ? 'auto' : 'full',
+          syncedIds: isAuto ? syncedIds : undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setGhlStatus({ message: data.error || 'Sync failed', type: 'error' });
+        if (!isAuto) setGhlStatus({ message: data.error || 'Sync failed', type: 'error' });
       } else {
-        setGhlStatus({ message: data.message, type: 'success' });
+        // Merge newly synced IDs into our local record
+        if (data.syncedIds?.length) {
+          const merged = Array.from(new Set([...syncedIds, ...data.syncedIds]));
+          saveSyncedIds(merged);
+        }
+        if (isAuto && data.synced > 0) {
+          setGhlStatus({ message: `Auto-synced ${data.synced} new contact${data.synced > 1 ? 's' : ''} to GHL`, type: 'success' });
+        } else if (!isAuto) {
+          setGhlStatus({ message: data.message, type: 'success' });
+        }
       }
     } catch (err) {
-      setGhlStatus({ message: err instanceof Error ? err.message : 'Sync failed', type: 'error' });
+      if (!isAuto) {
+        setGhlStatus({ message: err instanceof Error ? err.message : 'Sync failed', type: 'error' });
+      }
     } finally {
       setGhlSyncing(false);
     }
-  };
+  }, []);
+
+  // Auto-sync: when contacts load and auto-sync is enabled, push new ones to GHL
+  useEffect(() => {
+    if (!contacts || contacts.length === 0 || autoSyncRan.current) return;
+    const { ghlAutoSync } = getGHLSettings();
+    if (!ghlAutoSync || !ghlConfigured()) return;
+
+    // Check if there are un-synced contacts
+    const syncedIds = new Set(getSyncedIds());
+    const unsynced = contacts.filter((c) => !syncedIds.has(c.id));
+    if (unsynced.length === 0) return;
+
+    autoSyncRan.current = true;
+    syncToGHL(undefined, true);
+  }, [contacts, ghlConfigured, syncToGHL]);
 
   if (isLoading) return <LoadingState label="Loading leads from JobTread..." />;
   if (error) return <ErrorState message={error} onRetry={refetch} />;
 
   const allContacts = contacts || [];
 
-  // Filter to leads and add scores
   const leadsWithScores = allContacts.map((c) => ({
     ...c,
     score: computeLeadScore(c),
@@ -83,12 +160,12 @@ export default function LeadsPage() {
     )
     .sort((a, b) => {
       if (sortBy === 'score') return b.score - a.score;
-      // recent
       return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
     });
 
   const hotLeads = leadsWithScores.filter((l) => l.score >= 80).length;
   const activeLead = leadsWithScores.find((l) => l.id === selectedLeadId);
+  const isGhlConfigured = ghlConfigured();
 
   return (
     <div className="space-y-4">
@@ -109,20 +186,33 @@ export default function LeadsPage() {
             <RefreshCw className="w-3 h-3" />
           </button>
           <button onClick={() => syncToGHL()} disabled={ghlSyncing} aria-label="Sync all contacts to GoHighLevel"
-            className="btn-secondary text-[10px] px-2.5 py-1 flex items-center gap-1 disabled:opacity-50">
+            className={cn(
+              'btn-secondary text-[10px] px-2.5 py-1 flex items-center gap-1 disabled:opacity-50',
+              isGhlConfigured ? 'text-accent-400 border-accent-500/30' : ''
+            )}>
             <Upload className={cn('w-3 h-3', ghlSyncing && 'animate-spin')} />
             {ghlSyncing ? 'Syncing...' : 'Sync GHL'}
           </button>
         </div>
       </div>
 
-      {/* GHL Sync Status */}
+      {/* GHL Status */}
+      {!isGhlConfigured && (
+        <div className="glass-card p-3 text-xs text-dark-400 border-dark-700/50 flex items-center gap-2">
+          <Upload className="w-3.5 h-3.5 text-dark-500 flex-shrink-0" />
+          <span>GHL sync not configured. <a href="/settings" className="text-boss-400 hover:text-boss-300 underline">Add your API key in Settings</a></span>
+        </div>
+      )}
+
       {ghlStatus && (
         <div className={cn(
           'glass-card p-3 text-xs flex items-center justify-between',
           ghlStatus.type === 'success' ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400' : 'border-red-500/20 bg-red-500/5 text-red-400'
         )}>
-          <span>{ghlStatus.message}</span>
+          <span className="flex items-center gap-1.5">
+            {ghlStatus.type === 'success' && <CheckCircle2 className="w-3 h-3" />}
+            {ghlStatus.message}
+          </span>
           <button onClick={() => setGhlStatus(null)} className="text-dark-500 hover:text-dark-300 ml-2">&times;</button>
         </div>
       )}

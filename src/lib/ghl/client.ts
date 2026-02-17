@@ -1,6 +1,6 @@
 // =============================================================================
 // GoHighLevel (GHL) API Client
-// Syncs contacts/leads from JobTread to GoHighLevel CRM
+// Syncs contacts/leads between JobTread and GoHighLevel CRM
 // =============================================================================
 
 const GHL_API_URL = 'https://rest.gohighlevel.com/v1';
@@ -54,8 +54,17 @@ export class GHLClient {
     return response.json() as Promise<T>;
   }
 
+  async testConnection(): Promise<{ ok: boolean; contactCount: number }> {
+    const result = await this.request<GHLResponse>(
+      `/contacts/?locationId=${this.locationId}&limit=1`
+    );
+    return {
+      ok: true,
+      contactCount: result.meta?.total || 0,
+    };
+  }
+
   async createOrUpdateContact(contact: GHLContact): Promise<GHLContact> {
-    // Try to find existing contact by email first
     if (contact.email) {
       const existing = await this.findContactByEmail(contact.email);
       if (existing?.id) {
@@ -114,10 +123,14 @@ export class GHLClient {
   }
 }
 
-// Factory function
-export function getGHLClient(): GHLClient | null {
-  const apiKey = process.env.GHL_API_KEY;
-  const locationId = process.env.GHL_LOCATION_ID;
+// Build a client from user-provided credentials (from Settings / request body)
+// Falls back to env vars if not provided
+export function buildGHLClient(
+  userApiKey?: string,
+  userLocationId?: string
+): GHLClient | null {
+  const apiKey = userApiKey || process.env.GHL_API_KEY;
+  const locationId = userLocationId || process.env.GHL_LOCATION_ID;
 
   if (!apiKey || !locationId) {
     return null;

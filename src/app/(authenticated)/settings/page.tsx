@@ -13,6 +13,10 @@ import {
   Globe,
   HelpCircle,
   LogOut,
+  RefreshCw,
+  Link,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
@@ -23,6 +27,9 @@ interface AppSettings {
   defaultMarkup: number;
   taxRate: number;
   confidenceThreshold: string;
+  ghlApiKey: string;
+  ghlLocationId: string;
+  ghlAutoSync: boolean;
 }
 
 function loadSettings(): AppSettings {
@@ -47,6 +54,9 @@ function getDefaultSettings(): AppSettings {
     defaultMarkup: 25,
     taxRate: 8.25,
     confidenceThreshold: '90',
+    ghlApiKey: '',
+    ghlLocationId: '',
+    ghlAutoSync: false,
   };
 }
 
@@ -60,11 +70,40 @@ export default function SettingsPage() {
   const { data: session } = useSession();
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [settings, setSettings] = useState<AppSettings>(getDefaultSettings);
+  const [showGhlKey, setShowGhlKey] = useState(false);
+  const [ghlTestStatus, setGhlTestStatus] = useState<{ ok: boolean; message: string } | null>(null);
+  const [ghlTesting, setGhlTesting] = useState(false);
 
   useEffect(() => {
     setLastSynced(new Date());
     setSettings(loadSettings());
   }, []);
+
+  const testGhlConnection = async () => {
+    if (!settings.ghlApiKey || !settings.ghlLocationId) {
+      setGhlTestStatus({ ok: false, message: 'Enter both API Key and Location ID first.' });
+      return;
+    }
+    setGhlTesting(true);
+    setGhlTestStatus(null);
+    try {
+      const res = await fetch('/api/ghl/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ghlApiKey: settings.ghlApiKey, ghlLocationId: settings.ghlLocationId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setGhlTestStatus({ ok: false, message: data.error || 'Connection failed' });
+      } else {
+        setGhlTestStatus({ ok: true, message: data.message || 'Connected!' });
+      }
+    } catch (err) {
+      setGhlTestStatus({ ok: false, message: err instanceof Error ? err.message : 'Connection failed' });
+    } finally {
+      setGhlTesting(false);
+    }
+  };
 
   const updateSettings = (patch: Partial<AppSettings>) => {
     setSettings((prev) => {
@@ -151,6 +190,84 @@ export default function SettingsPage() {
             <ExternalLink className="w-3.5 h-3.5" />
             Open JobTread
           </a>
+        </div>
+      </div>
+
+      {/* GoHighLevel Integration */}
+      <div className="glass-card p-4">
+        <h2 className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
+          <Link className="w-4 h-4 text-accent-400" />
+          GoHighLevel (GHL)
+        </h2>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-dark-400 mb-1 block">GHL API Key</label>
+            <div className="relative">
+              <input
+                type={showGhlKey ? 'text' : 'password'}
+                value={settings.ghlApiKey}
+                onChange={(e) => updateSettings({ ghlApiKey: e.target.value.trim() })}
+                placeholder="eyJhbGciOiJSUzI1NiIs..."
+                className="input-field text-xs pr-8"
+              />
+              <button
+                type="button"
+                onClick={() => setShowGhlKey(!showGhlKey)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-dark-500 hover:text-dark-300"
+                aria-label={showGhlKey ? 'Hide API key' : 'Show API key'}
+              >
+                {showGhlKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-dark-400 mb-1 block">GHL Location ID</label>
+            <input
+              type="text"
+              value={settings.ghlLocationId}
+              onChange={(e) => updateSettings({ ghlLocationId: e.target.value.trim() })}
+              placeholder="loc_abc123..."
+              className="input-field text-xs"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-dark-300">Auto-Sync Leads</p>
+              <p className="text-[10px] text-dark-500">Mirror new JT contacts to GHL automatically</p>
+            </div>
+            <button
+              onClick={() => updateSettings({ ghlAutoSync: !settings.ghlAutoSync })}
+              className={cn(
+                'w-9 h-5 rounded-full transition-colors relative',
+                settings.ghlAutoSync ? 'bg-boss-500' : 'bg-dark-600'
+              )}
+              aria-label="Toggle auto-sync"
+            >
+              <div className={cn(
+                'w-4 h-4 rounded-full bg-white absolute top-0.5 transition-all',
+                settings.ghlAutoSync ? 'left-[18px]' : 'left-0.5'
+              )} />
+            </button>
+          </div>
+          <button
+            onClick={testGhlConnection}
+            disabled={ghlTesting || !settings.ghlApiKey || !settings.ghlLocationId}
+            className="btn-secondary w-full text-xs flex items-center justify-center gap-1.5 disabled:opacity-50"
+          >
+            <RefreshCw className={cn('w-3.5 h-3.5', ghlTesting && 'animate-spin')} />
+            {ghlTesting ? 'Testing...' : 'Test Connection'}
+          </button>
+          {ghlTestStatus && (
+            <div className={cn(
+              'text-[10px] px-3 py-2 rounded-lg flex items-center gap-1.5',
+              ghlTestStatus.ok
+                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                : 'bg-red-500/10 text-red-400 border border-red-500/20'
+            )}>
+              {ghlTestStatus.ok ? <CheckCircle2 className="w-3 h-3" /> : null}
+              {ghlTestStatus.message}
+            </div>
+          )}
         </div>
       </div>
 

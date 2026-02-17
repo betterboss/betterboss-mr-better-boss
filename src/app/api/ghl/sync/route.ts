@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth-options';
 import { getJobTreadClient } from '@/lib/jobtread/client';
-import { getGHLClient } from '@/lib/ghl/client';
+import { buildGHLClient } from '@/lib/ghl/client';
 
-// POST /api/ghl/sync — Sync contacts from JobTread to GoHighLevel
-// Can sync all contacts or a specific contact by ID
+// POST /api/ghl/sync — Sync contacts between JobTread and GoHighLevel
+// Accepts user-provided GHL credentials from Settings (localStorage)
+// Supports: single contact sync, bulk sync, and auto-sync (new contacts only)
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,21 +16,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const ghlClient = getGHLClient();
+    const body = await request.json().catch(() => ({}));
+    const { contactId, ghlApiKey, ghlLocationId, mode, syncedIds } = body as {
+      contactId?: string;
+      ghlApiKey?: string;
+      ghlLocationId?: string;
+      mode?: 'full' | 'auto';
+      syncedIds?: string[];
+    };
+
+    const ghlClient = buildGHLClient(ghlApiKey, ghlLocationId);
     if (!ghlClient) {
       return NextResponse.json(
-        { error: 'GoHighLevel not configured. Set GHL_API_KEY and GHL_LOCATION_ID environment variables.' },
+        { error: 'GoHighLevel not configured. Add your GHL API Key and Location ID in Settings.' },
         { status: 503 }
       );
     }
 
-    const body = await request.json().catch(() => ({}));
-    const { contactId } = body as { contactId?: string };
-
     const jtClient = getJobTreadClient(session.accessToken);
 
+    // Single contact sync
     if (contactId) {
-      // Sync a single contact
       const contacts = await jtClient.getContacts({ search: contactId });
       const contact = contacts.data.find((c) => c.id === contactId);
       if (!contact) {
@@ -53,17 +60,35 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         synced: 1,
+        syncedIds: [contact.id],
         contact: ghlContact,
-        message: `Synced ${contact.firstName} ${contact.lastName} to GoHighLevel`,
+        message: `Synced ${contact.firstName} ${contact.lastName} to GHL`,
       });
     }
 
-    // Sync all contacts
+    // Bulk or auto sync
     const allContacts = await jtClient.getContacts(undefined, { first: 500 });
+    const alreadySynced = new Set(syncedIds || []);
+
+    // In auto mode, only sync contacts not already synced
+    const contactsToSync = mode === 'auto'
+      ? allContacts.data.filter((c) => !alreadySynced.has(c.id))
+      : allContacts.data;
+
+    if (contactsToSync.length === 0) {
+      return NextResponse.json({
+        synced: 0,
+        syncedIds: [],
+        total: allContacts.data.length,
+        message: 'All contacts already synced.',
+      });
+    }
+
     let synced = 0;
+    const newSyncedIds: string[] = [];
     const errors: string[] = [];
 
-    for (const contact of allContacts.data) {
+    for (const contact of contactsToSync) {
       try {
         await ghlClient.createOrUpdateContact({
           firstName: contact.firstName,
@@ -80,16 +105,20 @@ export async function POST(request: NextRequest) {
           },
         });
         synced++;
+        newSyncedIds.push(contact.id);
       } catch (err) {
-        errors.push(`Failed to sync ${contact.firstName} ${contact.lastName}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        errors.push(
+          `${contact.firstName} ${contact.lastName}: ${err instanceof Error ? err.message : 'Unknown error'}`
+        );
       }
     }
 
     return NextResponse.json({
       synced,
+      syncedIds: newSyncedIds,
       total: allContacts.data.length,
       errors: errors.length > 0 ? errors : undefined,
-      message: `Synced ${synced}/${allContacts.data.length} contacts to GoHighLevel`,
+      message: `Synced ${synced}/${contactsToSync.length} contacts to GHL`,
     });
   } catch (error) {
     console.error('GHL sync error:', error);
