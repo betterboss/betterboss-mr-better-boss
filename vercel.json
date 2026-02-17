@@ -9,10 +9,5 @@
     "JOBTREAD_API_URL": "https://api.jobtread.com/graphql",
     "NEXT_PUBLIC_APP_NAME": "BetterBoss Sidebar"
   },
-  "crons": [
-    {
-      "path": "/api/cron/sync-leads",
-      "schedule": "*/15 * * * *"
-    }
-  ]
+  "crons": []
 }

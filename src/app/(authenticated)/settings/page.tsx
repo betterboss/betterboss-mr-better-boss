@@ -17,6 +17,8 @@ import {
   Link,
   Eye,
   EyeOff,
+  Webhook,
+  Copy,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
@@ -73,10 +75,17 @@ export default function SettingsPage() {
   const [showGhlKey, setShowGhlKey] = useState(false);
   const [ghlTestStatus, setGhlTestStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [ghlTesting, setGhlTesting] = useState(false);
+  const [webhookUrls, setWebhookUrls] = useState<{ jt: string; ghl: string } | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
 
   useEffect(() => {
     setLastSynced(new Date());
     setSettings(loadSettings());
+    // Fetch webhook URLs from server (includes secret)
+    fetch('/api/webhooks/info')
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setWebhookUrls(data); })
+      .catch(() => {});
   }, []);
 
   const testGhlConnection = async () => {
@@ -103,6 +112,13 @@ export default function SettingsPage() {
     } finally {
       setGhlTesting(false);
     }
+  };
+
+  const copyUrl = (url: string, label: string) => {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(label);
+      setTimeout(() => setCopied(null), 2000);
+    });
   };
 
   const updateSettings = (patch: Partial<AppSettings>) => {
@@ -269,6 +285,71 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Webhook URLs for JT / GHL workflows */}
+      <div className="glass-card p-4">
+        <h2 className="text-sm font-semibold text-white flex items-center gap-2 mb-1">
+          <Webhook className="w-4 h-4 text-boss-400" />
+          Workflow Webhooks
+        </h2>
+        <p className="text-[10px] text-dark-500 mb-3">
+          Paste these URLs into your JobTread &amp; GHL workflow actions for real-time contact sync.
+        </p>
+
+        {webhookUrls ? (
+          <div className="space-y-3">
+            {/* JT → GHL */}
+            <div>
+              <label className="text-xs text-dark-400 mb-1 block">JobTread Workflow Webhook (JT → GHL)</label>
+              <div className="flex gap-1.5">
+                <input
+                  type="text"
+                  readOnly
+                  value={webhookUrls.jt}
+                  className="input-field text-[10px] font-mono flex-1"
+                />
+                <button
+                  onClick={() => copyUrl(webhookUrls.jt, 'jt')}
+                  className="btn-secondary px-2 flex items-center gap-1 text-[10px] flex-shrink-0"
+                >
+                  {copied === 'jt' ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  {copied === 'jt' ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+              <p className="text-[10px] text-dark-600 mt-1">
+                In JobTread: Workflows → New → Trigger: &quot;Contact Created&quot; → Action: &quot;Send Webhook&quot; → paste URL above
+              </p>
+            </div>
+
+            {/* GHL → JT */}
+            <div>
+              <label className="text-xs text-dark-400 mb-1 block">GHL Workflow Webhook (GHL → JT)</label>
+              <div className="flex gap-1.5">
+                <input
+                  type="text"
+                  readOnly
+                  value={webhookUrls.ghl}
+                  className="input-field text-[10px] font-mono flex-1"
+                />
+                <button
+                  onClick={() => copyUrl(webhookUrls.ghl, 'ghl')}
+                  className="btn-secondary px-2 flex items-center gap-1 text-[10px] flex-shrink-0"
+                >
+                  {copied === 'ghl' ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  {copied === 'ghl' ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+              <p className="text-[10px] text-dark-600 mt-1">
+                In GHL: Automations → New → Trigger: &quot;Contact Created&quot; → Action: &quot;Webhook&quot; → paste URL above
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="text-[10px] text-dark-500 bg-dark-800/50 rounded-lg p-3">
+            Set the <span className="font-mono text-dark-400">WEBHOOK_SECRET</span> environment variable in Vercel to enable webhook URLs.
+          </div>
+        )}
       </div>
 
       {/* Notifications */}
