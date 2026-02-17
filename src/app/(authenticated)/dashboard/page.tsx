@@ -29,10 +29,11 @@ export default function DashboardPage() {
   const pipelineProfit = pipelineRevenue - pipelineCost;
   const pipelineMargin = pipelineRevenue > 0 ? (pipelineProfit / pipelineRevenue) * 100 : 0;
 
-  // Win rate: jobs that reached CONTRACT/IN_PROGRESS/COMPLETED out of all non-lead jobs
+  // Win rate: won deals / (won + lost). Undecided jobs (ESTIMATE, PROPOSAL, etc.) excluded.
   const wonJobs = allJobs.filter((j) => ['CONTRACT', 'IN_PROGRESS', 'COMPLETED'].includes(j.status));
-  const decidedJobs = allJobs.filter((j) => j.status !== 'LEAD');
-  const winRate = decidedJobs.length > 0 ? (wonJobs.length / decidedJobs.length) * 100 : 0;
+  const lostJobs = allJobs.filter((j) => j.status === 'CANCELLED');
+  const decidedCount = wonJobs.length + lostJobs.length;
+  const winRate = decidedCount > 0 ? (wonJobs.length / decidedCount) * 100 : 0;
 
   const overdueInvs = invoices?.filter((i) => {
     if (i.status === 'PAID' || i.status === 'VOID' || !i.dueDate) return false;
