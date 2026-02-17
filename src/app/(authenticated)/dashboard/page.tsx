@@ -29,7 +29,7 @@ export default function DashboardPage() {
   const avgMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
   const overdueInvs = invoices?.filter((i) => {
-    if (i.status === 'PAID' || !i.dueDate) return false;
+    if (i.status === 'PAID' || i.status === 'VOID' || !i.dueDate) return false;
     return new Date(i.dueDate) < new Date();
   }) || [];
   const outstandingInvs = invoices?.filter((i) => i.status !== 'PAID' && i.status !== 'VOID') || [];
@@ -42,8 +42,7 @@ export default function DashboardPage() {
   const pendingTasks = tasks?.filter((t) => t.status !== 'COMPLETED') || [];
 
   // Top jobs by revenue
-  const topJobs = [...(jobs || [])]
-    .filter((j) => j.status === 'IN_PROGRESS' || j.status === 'CONTRACT')
+  const topJobs = [...activeJobs]
     .sort((a, b) => (b.budget?.estimatedRevenue || 0) - (a.budget?.estimatedRevenue || 0))
     .slice(0, 5);
 
@@ -142,7 +141,7 @@ export default function DashboardPage() {
               const cost = job.budget?.estimatedCost || 0;
               const margin = rev > 0 ? ((rev - cost) / rev) * 100 : 0;
               return (
-                <div key={job.id} className="group cursor-pointer">
+                <div key={job.id} className="group">
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-xs font-medium text-dark-200 group-hover:text-boss-400 transition-colors truncate">
                       {job.name}
