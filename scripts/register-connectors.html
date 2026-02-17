@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BetterBoss — Register Connectors</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .card { background: #1a1d2e; border: 1px solid #2d3348; border-radius: 16px; padding: 32px; max-width: 560px; width: 100%; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: #64748b; font-size: 13px; margin-bottom: 24px; }
+  label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 4px; margin-top: 16px; }
+  input { width: 100%; background: #0f1117; border: 1px solid #2d3348; border-radius: 8px; padding: 10px 12px; color: #e2e8f0; font-size: 13px; font-family: monospace; }
+  input:focus { outline: none; border-color: #3b82f6; }
+  .btn { display: block; width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 24px; transition: all 0.15s; }
+  .btn-primary { background: #3b82f6; color: white; }
+  .btn-primary:hover { background: #2563eb; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .log { margin-top: 20px; background: #0f1117; border: 1px solid #2d3348; border-radius: 8px; padding: 16px; font-size: 12px; font-family: monospace; max-height: 400px; overflow-y: auto; white-space: pre-wrap; line-height: 1.8; }
+  .ok { color: #22c55e; } .fail { color: #ef4444; } .warn { color: #f59e0b; } .info { color: #64748b; }
+  .urls { margin-top: 16px; background: #0f1117; border: 1px solid #2d3348; border-radius: 8px; padding: 12px; }
+  .urls label { margin-top: 8px; }
+  .urls input { margin-bottom: 4px; }
+  .copy-hint { font-size: 10px; color: #475569; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>BetterBoss Connector Setup</h1>
+  <p class="sub">Registers webhook connectors with JobTread and GoHighLevel. Runs in your browser.</p>
+
+  <label>GHL API Key</label>
+  <input id="ghlKey" value="pit-81e3da8c-6a45-428b-b823-86c3c538b249" />
+
+  <label>GHL Location ID</label>
+  <input id="ghlLoc" value="REqmdNmaFqcfIhR4Txzq" />
+
+  <label>JobTread API Key</label>
+  <input id="jtToken" value="22THKpHbPbsz7ez4mirNrfYURFth5b4Hh8" />
+
+  <label>Webhook Secret</label>
+  <input id="secret" value="2d37c7502ece3eb90e58ee8e313fbdd17fbc92bee7368c9ed5acdc250c1037b8" />
+
+  <label>App URL (your deployed Vercel/production URL)</label>
+  <input id="appUrl" placeholder="https://your-app.vercel.app" />
+
+  <button class="btn btn-primary" id="goBtn" onclick="runSetup()">Register Connectors</button>
+
+  <div id="logBox" class="log" style="display:none"></div>
+  <div id="urlBox" class="urls" style="display:none"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const log = $('logBox');
+const urlBox = $('urlBox');
+
+function out(cls, msg) {
+  log.style.display = 'block';
+  log.innerHTML += `<span class="${cls}">${msg}</span>\n`;
+  log.scrollTop = log.scrollHeight;
+}
+
+async function api(url, opts = {}) {
+  const res = await fetch(url, { ...opts, headers: { 'Content-Type': 'application/json', ...opts.headers } });
+  const text = await res.text();
+  let json; try { json = JSON.parse(text); } catch { json = null; }
+  return { ok: res.ok, status: res.status, json, text };
+}
+
+async function runSetup() {
+  const ghlKey = $('ghlKey').value.trim();
+  const ghlLoc = $('ghlLoc').value.trim();
+  const jtToken = $('jtToken').value.trim();
+  const secret = $('secret').value.trim();
+  const appUrl = $('appUrl').value.trim().replace(/\/$/, '');
+
+  log.innerHTML = '';
+  urlBox.style.display = 'none';
+  $('goBtn').disabled = true;
+
+  if (!ghlKey || !ghlLoc || !jtToken || !secret) {
+    out('fail', 'Fill in all credential fields.');
+    $('goBtn').disabled = false;
+    return;
+  }
+  if (!appUrl || appUrl.includes('localhost')) {
+    out('fail', 'App URL must be a public URL (not localhost). Enter your Vercel URL.');
+    $('goBtn').disabled = false;
+    return;
+  }
+
+  const jtWebhookUrl = `${appUrl}/api/webhooks/jobtread?secret=${secret}`;
+  const ghlWebhookUrl = `${appUrl}/api/webhooks/ghl?secret=${secret}`;
+
+  // Show webhook URLs
+  urlBox.style.display = 'block';
+  urlBox.innerHTML = `
+    <label>JT → GHL Webhook URL</label>
+    <input readonly value="${jtWebhookUrl}" onclick="this.select()" />
+    <p class="copy-hint">Click to select, then Ctrl+C to copy. Paste in JT Workflows if auto-register fails.</p>
+    <label>GHL → JT Webhook URL</label>
+    <input readonly value="${ghlWebhookUrl}" onclick="this.select()" />
+    <p class="copy-hint">Click to select, then Ctrl+C to copy. Paste in GHL Automations if auto-register fails.</p>
+  `;
+
+  // ---- Step 1: Validate JT ----
+  out('info', '── Step 1: JobTread Connection ──');
+  try {
+    const { ok: jtOk, json: jtJson } = await api('https://api.jobtread.com/graphql', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${jtToken}` },
+      body: JSON.stringify({ query: '{ me { id firstName lastName email organization { name } } }' }),
+    });
+    if (jtOk && jtJson?.data?.me) {
+      const me = jtJson.data.me;
+      out('ok', `Connected as ${me.firstName} ${me.lastName} (${me.email})`);
+      if (me.organization?.name) out('info', `   Organization: ${me.organization.name}`);
+    } else {
+      out('fail', `JT API error: ${jtJson?.errors?.[0]?.message || 'Unknown'}`);
+      $('goBtn').disabled = false;
+      return;
+    }
+  } catch (e) {
+    out('fail', `JT connection failed: ${e.message}`);
+    $('goBtn').disabled = false;
+    return;
+  }
+
+  // ---- Step 2: Validate GHL ----
+  out('info', '── Step 2: GoHighLevel Connection ──');
+  try {
+    const { ok: ghlOk, json: ghlJson, status } = await api(
+      `https://rest.gohighlevel.com/v1/contacts/?locationId=${ghlLoc}&limit=1`,
+      { headers: { Authorization: `Bearer ${ghlKey}` } }
+    );
+    if (ghlOk) {
+      const total = ghlJson?.meta?.total || ghlJson?.contacts?.length || 0;
+      out('ok', `Connected — ${total} contacts in location`);
+    } else {
+      out('fail', `GHL API returned ${status}${ghlJson?.message ? ': ' + ghlJson.message : ''}`);
+      if (status === 401) out('info', '   Check your API key — may be expired.');
+      $('goBtn').disabled = false;
+      return;
+    }
+  } catch (e) {
+    out('fail', `GHL connection failed: ${e.message}`);
+    $('goBtn').disabled = false;
+    return;
+  }
+
+  // ---- Step 3: Register GHL Webhook ----
+  out('info', '── Step 3: Register GHL → JT Webhook ──');
+  let ghlHookOk = false;
+  try {
+    // Check existing
+    const { json: existing } = await api(
+      `https://rest.gohighlevel.com/v1/hooks/?locationId=${ghlLoc}`,
+      { headers: { Authorization: `Bearer ${ghlKey}` } }
+    );
+    const hooks = existing?.hooks || [];
+    const already = hooks.find(h => h.url === ghlWebhookUrl || h.targetUrl === ghlWebhookUrl);
+    if (already) {
+      out('ok', `Already registered (ID: ${already.id || already._id})`);
+      ghlHookOk = true;
+    } else {
+      const { ok: regOk, json: regJson, status: regStatus } = await api(
+        'https://rest.gohighlevel.com/v1/hooks/',
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${ghlKey}` },
+          body: JSON.stringify({ url: ghlWebhookUrl, locationId: ghlLoc, events: ['ContactCreate', 'ContactUpdate'] }),
+        }
+      );
+      if (regOk && regJson) {
+        out('ok', `Registered! (ID: ${regJson.id || regJson._id || 'ok'})`);
+        ghlHookOk = true;
+      } else {
+        out('warn', `GHL webhook returned ${regStatus}${regJson?.message ? ': ' + regJson.message : ''}`);
+        out('info', '   Manual: GHL → Automations → New Workflow → Trigger: "Contact Created" → Action: "Webhook" → paste URL above');
+      }
+    }
+  } catch (e) {
+    out('warn', `GHL webhook registration error: ${e.message}`);
+    out('info', '   Manual: paste the GHL → JT URL into GHL Automations');
+  }
+
+  // ---- Step 4: Register JT Webhook ----
+  out('info', '── Step 4: Register JT → GHL Webhook ──');
+  let jtHookOk = false;
+
+  const mutations = [
+    { name: 'createWebhookSubscription', q: `mutation($input: CreateWebhookSubscriptionInput!) { createWebhookSubscription(input: $input) { id url } }` },
+    { name: 'createConnector', q: `mutation($input: CreateConnectorInput!) { createConnector(input: $input) { id url } }` },
+    { name: 'createWebhook', q: `mutation($input: CreateWebhookInput!) { createWebhook(input: $input) { id url } }` },
+  ];
+
+  const jtInput = { url: jtWebhookUrl, events: ['contact.created', 'contact.updated', 'CONTACT_CREATED', 'CONTACT_UPDATED'], name: 'BetterBoss GHL Sync' };
+
+  for (const m of mutations) {
+    try {
+      const { json } = await api('https://api.jobtread.com/graphql', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${jtToken}` },
+        body: JSON.stringify({ query: m.q, variables: { input: jtInput } }),
+      });
+      if (json?.data?.[m.name]?.id) {
+        out('ok', `Registered via ${m.name} (ID: ${json.data[m.name].id})`);
+        jtHookOk = true;
+        break;
+      }
+      const err = json?.errors?.[0]?.message || '';
+      if (err.includes('Cannot query') || err.includes('Unknown type') || err.includes('not found')) continue;
+      out('info', `   ${m.name}: ${err}`);
+    } catch { continue; }
+  }
+
+  if (!jtHookOk) {
+    // Check if already exists
+    for (const qn of ['webhookSubscriptions', 'connectors', 'webhooks']) {
+      try {
+        const { json } = await api('https://api.jobtread.com/graphql', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${jtToken}` },
+          body: JSON.stringify({ query: `{ ${qn} { data { id name url } } }` }),
+        });
+        const items = json?.data?.[qn]?.data;
+        if (Array.isArray(items)) {
+          const match = items.find(i => i.url === jtWebhookUrl || i.name === 'BetterBoss GHL Sync');
+          if (match) { out('ok', `Already registered via ${qn} (ID: ${match.id})`); jtHookOk = true; break; }
+        }
+      } catch { continue; }
+    }
+  }
+
+  if (!jtHookOk) {
+    out('warn', 'JT does not support programmatic webhook registration via API');
+    out('warn', 'Manual setup needed:');
+    out('info', '   1. Go to JobTread → Workflows → New Workflow');
+    out('info', '   2. Trigger: "When a Contact is Created"');
+    out('info', '   3. Action: "Send Webhook" → POST → paste the JT → GHL URL above');
+  }
+
+  // ---- Step 5: Verify app endpoint ----
+  out('info', '── Step 5: Verify App Endpoint ──');
+  try {
+    const { ok: appOk, json: appJson } = await api(`${appUrl}/api/webhooks/health?secret=${secret}`);
+    if (appOk && appJson?.status === 'ready') {
+      out('ok', 'Health endpoint reports: ready');
+    } else if (appOk) {
+      out('warn', `Health endpoint: ${appJson?.status || 'unknown'}`);
+      if (appJson?.missing?.length) out('info', `   Missing: ${appJson.missing.join(', ')}`);
+    } else {
+      out('warn', `Could not reach ${appUrl} — is the app deployed?`);
+    }
+  } catch (e) {
+    out('warn', `App not reachable: ${e.message}`);
+    out('info', '   Deploy to Vercel first, then verify.');
+  }
+
+  // ---- Summary ----
+  out('info', '');
+  out('info', '━━━ Summary ━━━');
+  out('ok', 'JobTread API: Connected');
+  out('ok', 'GoHighLevel API: Connected');
+  out(ghlHookOk ? 'ok' : 'warn', `GHL → JT webhook: ${ghlHookOk ? 'Registered' : 'Manual setup needed'}`);
+  out(jtHookOk ? 'ok' : 'warn', `JT → GHL webhook: ${jtHookOk ? 'Registered' : 'Manual setup needed'}`);
+
+  if (ghlHookOk && jtHookOk) {
+    out('ok', '');
+    out('ok', 'All connectors registered! Lead sync is live.');
+  }
+
+  $('goBtn').disabled = false;
+  $('goBtn').textContent = 'Run Again';
+}
+</script>
+</body>
+</html>
