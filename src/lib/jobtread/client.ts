@@ -146,7 +146,7 @@ export class JobTreadClient {
   ): Promise<PaginatedResponse<JobTreadContact>> {
     const data = await this.query<{ contacts: PaginatedResponse<JobTreadContact> }>(
       `query GetContacts($first: Int, $after: String, $type: String, $search: String) {
-        contacts(first: $first, after: $after, filter: { type: $type, search: $search }) {
+        contacts(first: $first, after: $after, filter: { type: $type, search: $search }, sort: { field: "createdAt", order: DESC }) {
           data {
             id type firstName lastName company email phone
             address { street1 city state zip }
@@ -156,7 +156,7 @@ export class JobTreadClient {
           pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
         }
       }`,
-      { ...filters, ...pagination }
+      { first: 500, ...filters, ...pagination }
     );
     return data.contacts;
   }

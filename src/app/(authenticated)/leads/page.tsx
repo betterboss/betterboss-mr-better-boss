@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import {
-  Users, Search, Target, Phone, Mail, Calendar, Star, Zap,
+  Users, Search, Target, Phone, Mail, Calendar, Star, Zap, RefreshCw, Upload,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useContacts, type JTContact } from '@/lib/hooks/useJobTread';
@@ -36,8 +36,32 @@ export default function LeadsPage() {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'score' | 'recent'>('score');
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  const [ghlSyncing, setGhlSyncing] = useState(false);
+  const [ghlStatus, setGhlStatus] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const { data: contacts, isLoading, error, refetch } = useContacts();
+
+  const syncToGHL = async (contactId?: string) => {
+    setGhlSyncing(true);
+    setGhlStatus(null);
+    try {
+      const res = await fetch('/api/ghl/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(contactId ? { contactId } : {}),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setGhlStatus({ message: data.error || 'Sync failed', type: 'error' });
+      } else {
+        setGhlStatus({ message: data.message, type: 'success' });
+      }
+    } catch (err) {
+      setGhlStatus({ message: err instanceof Error ? err.message : 'Sync failed', type: 'error' });
+    } finally {
+      setGhlSyncing(false);
+    }
+  };
 
   if (isLoading) return <LoadingState label="Loading leads from JobTread..." />;
   if (error) return <ErrorState message={error} onRetry={refetch} />;
@@ -79,7 +103,29 @@ export default function LeadsPage() {
             {filteredLeads.length} of {allContacts.length} contacts
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          <button onClick={refetch} aria-label="Refresh contacts"
+            className="btn-secondary text-[10px] px-2 py-1 flex items-center gap-1">
+            <RefreshCw className="w-3 h-3" />
+          </button>
+          <button onClick={() => syncToGHL()} disabled={ghlSyncing} aria-label="Sync all contacts to GoHighLevel"
+            className="btn-secondary text-[10px] px-2.5 py-1 flex items-center gap-1 disabled:opacity-50">
+            <Upload className={cn('w-3 h-3', ghlSyncing && 'animate-spin')} />
+            {ghlSyncing ? 'Syncing...' : 'Sync GHL'}
+          </button>
+        </div>
       </div>
+
+      {/* GHL Sync Status */}
+      {ghlStatus && (
+        <div className={cn(
+          'glass-card p-3 text-xs flex items-center justify-between',
+          ghlStatus.type === 'success' ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400' : 'border-red-500/20 bg-red-500/5 text-red-400'
+        )}>
+          <span>{ghlStatus.message}</span>
+          <button onClick={() => setGhlStatus(null)} className="text-dark-500 hover:text-dark-300 ml-2">&times;</button>
+        </div>
+      )}
 
       {/* Pipeline Stats */}
       <div className="grid grid-cols-3 gap-2">
@@ -173,7 +219,7 @@ export default function LeadsPage() {
           )}
 
           {/* Quick Actions */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {activeLead.phone && (
               <a href={`tel:${activeLead.phone}`} className="quick-action">
                 <Phone className="w-4 h-4 text-boss-400" />
@@ -186,6 +232,10 @@ export default function LeadsPage() {
                 <span className="text-[10px] text-dark-300">Email</span>
               </a>
             )}
+            <button className="quick-action" onClick={() => syncToGHL(activeLead.id)} disabled={ghlSyncing}>
+              <Upload className={cn('w-4 h-4 text-boss-400', ghlSyncing && 'animate-spin')} />
+              <span className="text-[10px] text-dark-300">Sync GHL</span>
+            </button>
             <button className="quick-action">
               <Calendar className="w-4 h-4 text-boss-400" />
               <span className="text-[10px] text-dark-300">Schedule</span>

@@ -18,5 +18,6 @@ export const config = {
     '/settings/:path*',
     '/api/jobtread/:path*',
     '/api/ai/:path*',
+    '/api/ghl/:path*',
   ],
 };

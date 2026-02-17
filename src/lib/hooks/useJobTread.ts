@@ -159,7 +159,7 @@ export interface JTTask {
 export function useJobs(filters?: { status?: string; search?: string }) {
   return useJobTreadQuery<JTJob[]>(
     `query GetJobs($first: Int, $status: String, $search: String) {
-      jobs(first: $first, filter: { status: $status, search: $search }) {
+      jobs(first: $first, filter: { status: $status, search: $search }, sort: { field: "createdAt", order: DESC }) {
         data {
           id name number status description startDate endDate createdAt updatedAt
           customer { id firstName lastName company email phone }
@@ -169,7 +169,7 @@ export function useJobs(filters?: { status?: string; search?: string }) {
         totalCount
       }
     }`,
-    { first: 100, ...filters },
+    { first: 500, ...filters },
     { transform: (raw) => ((raw?.jobs as { data?: JTJob[] })?.data) || [] }
   );
 }
@@ -193,12 +193,12 @@ export function useJob(id: string | null) {
 export function useContacts(filters?: { type?: string; search?: string }) {
   return useJobTreadQuery<JTContact[]>(
     `query GetContacts($first: Int, $type: String, $search: String) {
-      contacts(first: $first, filter: { type: $type, search: $search }) {
+      contacts(first: $first, filter: { type: $type, search: $search }, sort: { field: "createdAt", order: DESC }) {
         data { id type firstName lastName company email phone source notes createdAt }
         totalCount
       }
     }`,
-    { first: 100, ...filters },
+    { first: 500, ...filters },
     { transform: (raw) => ((raw?.contacts as { data?: JTContact[] })?.data) || [] }
   );
 }
