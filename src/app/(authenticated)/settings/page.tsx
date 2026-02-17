@@ -295,6 +295,9 @@ export default function SettingsPage() {
           <Link className="w-4 h-4 text-accent-400" />
           GoHighLevel (GHL)
         </h2>
+        <p className="text-[10px] text-dark-500 mb-3">
+          Connect your GHL account to sync leads. Each user gets their own secure webhook URLs.
+        </p>
         <div className="space-y-3">
           {/* Show env-configured badge if credentials are from env vars */}
           {envConfigured?.ghlApiKey && !settings.ghlApiKey && (
@@ -380,10 +383,10 @@ export default function SettingsPage() {
       <div className="glass-card p-4">
         <h2 className="text-sm font-semibold text-white flex items-center gap-2 mb-1">
           <Webhook className="w-4 h-4 text-boss-400" />
-          Workflow Webhooks
+          Your Webhook URLs
         </h2>
         <p className="text-[10px] text-dark-500 mb-3">
-          Real-time contact sync between JobTread &amp; GoHighLevel via webhooks.
+          These URLs are unique to your account. Paste them into JT &amp; GHL workflows for real-time contact sync.
         </p>
 
         {/* Config status */}
@@ -408,7 +411,7 @@ export default function SettingsPage() {
             {/* Status badge */}
             <div className="flex items-center gap-1.5 text-[10px] text-emerald-400">
               <CheckCircle2 className="w-3 h-3" />
-              All configured — ready to sync
+              Connected — your personalized webhook URLs are ready
             </div>
 
             {/* JT → GHL */}

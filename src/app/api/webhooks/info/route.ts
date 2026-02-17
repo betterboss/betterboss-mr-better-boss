@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth-options';
 import { getServerConfig } from '@/lib/server-config';
+import { encryptUserToken, buildUserWebhookUrls } from '@/lib/user-token';
 
 // GET /api/webhooks/info — returns webhook URLs + config status
 // Reads from env vars AND the local config file (saved via /api/setup).
@@ -38,11 +39,32 @@ export async function GET() {
 
   const secret = cfg.webhookSecret;
 
+  // Generate per-user webhook URLs if GHL is configured
+  if (secret && baseUrl && cfg.ghlApiKey && cfg.ghlLocationId) {
+    const userToken = encryptUserToken({
+      uid: session.user?.id || '',
+      gk: cfg.ghlApiKey,
+      gl: cfg.ghlLocationId,
+      jt: session.accessToken!,
+      ts: Date.now(),
+    });
+    const urls = buildUserWebhookUrls(baseUrl, secret, userToken);
+    return NextResponse.json({
+      jt: urls.jt,
+      ghl: urls.ghl,
+      config,
+      missing,
+      ready: missing.length === 0,
+      perUser: true,
+    });
+  }
+
   return NextResponse.json({
     jt: secret && baseUrl ? `${baseUrl}/api/webhooks/jobtread?secret=${secret}` : null,
     ghl: secret && baseUrl ? `${baseUrl}/api/webhooks/ghl?secret=${secret}` : null,
     config,
     missing,
     ready: missing.length === 0,
+    perUser: false,
   });
 }

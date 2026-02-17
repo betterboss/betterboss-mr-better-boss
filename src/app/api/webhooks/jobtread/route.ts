@@ -4,6 +4,7 @@ import { checkRateLimit, getClientIp, LIMITS } from '@/lib/rate-limit';
 import { buildDedupKey, checkDedup, markProcessed } from '@/lib/webhook-dedup';
 import { trackUsage } from '@/lib/usage';
 import { getServerConfig } from '@/lib/server-config';
+import { decryptUserToken } from '@/lib/user-token';
 
 // POST /api/webhooks/jobtread — receives webhook from JobTread workflow
 // when a contact is created/updated, and pushes it to GoHighLevel.
@@ -38,9 +39,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid secret' }, { status: 401 });
   }
 
-  const ghlClient = buildGHLClient(config.ghlApiKey, config.ghlLocationId);
+  // Try per-user token first, then fall back to global server config
+  const ut = request.nextUrl.searchParams.get('ut');
+  const userPayload = ut ? decryptUserToken(ut) : null;
+
+  const ghlClient = userPayload
+    ? buildGHLClient(userPayload.gk, userPayload.gl)
+    : buildGHLClient(config.ghlApiKey, config.ghlLocationId);
+
   if (!ghlClient) {
-    return NextResponse.json({ error: 'GHL_API_KEY / GHL_LOCATION_ID not configured' }, { status: 503 });
+    return NextResponse.json({ error: 'GHL credentials not configured. Connect GHL in Settings.' }, { status: 503 });
   }
 
   try {

@@ -4,6 +4,7 @@ import { checkRateLimit, getClientIp, LIMITS } from '@/lib/rate-limit';
 import { buildDedupKey, checkDedup, markProcessed } from '@/lib/webhook-dedup';
 import { trackUsage } from '@/lib/usage';
 import { getServerConfig } from '@/lib/server-config';
+import { decryptUserToken } from '@/lib/user-token';
 
 // POST /api/webhooks/ghl — receives webhook from GoHighLevel workflow
 // when a contact is created, and pushes it to JobTread.
@@ -38,9 +39,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid secret' }, { status: 401 });
   }
 
-  const jtToken = config.jtServiceToken;
+  // Try per-user token first, then fall back to global server config
+  const ut = request.nextUrl.searchParams.get('ut');
+  const userPayload = ut ? decryptUserToken(ut) : null;
+
+  const jtToken = userPayload?.jt || config.jtServiceToken;
   if (!jtToken) {
-    return NextResponse.json({ error: 'JOBTREAD_SERVICE_TOKEN not configured' }, { status: 503 });
+    return NextResponse.json({ error: 'JT credentials not configured. Connect in Settings.' }, { status: 503 });
   }
 
   try {

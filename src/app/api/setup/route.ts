@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth/auth-options';
 import { saveServerConfig, getServerConfig } from '@/lib/server-config';
 import { GHLClient } from '@/lib/ghl/client';
 import { getJobTreadClient } from '@/lib/jobtread/client';
+import { encryptUserToken, buildUserWebhookUrls } from '@/lib/user-token';
 
 // POST /api/setup — One-click connector setup.
 // 1. Saves credentials server-side
@@ -74,77 +75,73 @@ export async function POST(request: NextRequest) {
     results.jtUser = session.user?.name;
   }
 
-  // --- 4. Build webhook URLs ---
-  // Re-read config in case credentials were just saved above
+  // --- 4. Generate per-user encrypted token + personalized webhook URLs ---
   const latestConfig = getServerConfig();
   const secret = latestConfig.webhookSecret;
   const baseUrl =
     process.env.NEXT_PUBLIC_APP_URL ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 
-  const jtWebhookUrl = `${baseUrl}/api/webhooks/jobtread?secret=${secret}`;
-  const ghlWebhookUrl = `${baseUrl}/api/webhooks/ghl?secret=${secret}`;
+  if (secret && ghlApiKey && ghlLocationId) {
+    // Encrypt user's credentials into a URL-safe token
+    const userToken = encryptUserToken({
+      uid: session.user?.id || '',
+      gk: ghlApiKey,
+      gl: ghlLocationId,
+      jt: session.accessToken,
+      ts: Date.now(),
+    });
 
-  results.webhookUrls = { jt: jtWebhookUrl, ghl: ghlWebhookUrl };
+    const webhookUrls = buildUserWebhookUrls(baseUrl, secret, userToken);
+    results.webhookUrls = webhookUrls;
 
-  // --- 5. Register JT connector (JT → GHL) ---
-  if (secret) {
+    // --- 5. Register JT connector with per-user URL ---
     try {
-      // Check if already registered
       const existing = await jtClient.listConnectors();
       const alreadyRegistered = existing.some(
-        (c) => c.url === jtWebhookUrl || c.name === 'BetterBoss GHL Sync'
+        (c) => c.url?.includes('/api/webhooks/jobtread') || c.name === 'BetterBoss GHL Sync'
       );
 
       if (alreadyRegistered) {
         results.jtConnector = 'already registered';
       } else {
-        const connector = await jtClient.registerWebhook(jtWebhookUrl, [
-          'contact.created',
-          'contact.updated',
-          'CONTACT_CREATED',
-          'CONTACT_UPDATED',
+        const connector = await jtClient.registerWebhook(webhookUrls.jt, [
+          'contact.created', 'contact.updated', 'CONTACT_CREATED', 'CONTACT_UPDATED',
         ]);
-        if (connector) {
-          results.jtConnector = 'registered';
-          results.jtConnectorId = connector.id;
-        } else {
-          results.jtConnector = 'manual';
-          results.jtConnectorNote = 'Auto-registration not supported — use JT Workflows to add the webhook URL.';
-        }
+        results.jtConnector = connector ? 'registered' : 'manual';
+        if (connector) results.jtConnectorId = connector.id;
+        else results.jtConnectorNote = 'Auto-registration not supported — use JT Workflows to add the webhook URL.';
       }
     } catch {
       results.jtConnector = 'manual';
       results.jtConnectorNote = 'Could not auto-register. Add the webhook URL in JT Workflows manually.';
     }
-  }
 
-  // --- 6. Register GHL connector (GHL → JT) ---
-  if (ghlClient && secret) {
-    try {
-      // Check if already registered
-      const existing = await ghlClient.listWebhooks();
-      const alreadyRegistered = existing.some((h) => h.url === ghlWebhookUrl);
+    // --- 6. Register GHL connector with per-user URL ---
+    if (ghlClient) {
+      try {
+        const existing = await ghlClient.listWebhooks();
+        const alreadyRegistered = existing.some((h) => h.url?.includes('/api/webhooks/ghl'));
 
-      if (alreadyRegistered) {
-        results.ghlConnector = 'already registered';
-      } else {
-        const hook = await ghlClient.registerWebhook(ghlWebhookUrl, [
-          'ContactCreate',
-          'ContactUpdate',
-        ]);
-        if (hook) {
-          results.ghlConnector = 'registered';
-          results.ghlConnectorId = hook.id;
+        if (alreadyRegistered) {
+          results.ghlConnector = 'already registered';
         } else {
-          results.ghlConnector = 'manual';
-          results.ghlConnectorNote = 'Auto-registration not available — use GHL Automations to add the webhook URL.';
+          const hook = await ghlClient.registerWebhook(webhookUrls.ghl, ['ContactCreate', 'ContactUpdate']);
+          results.ghlConnector = hook ? 'registered' : 'manual';
+          if (hook) results.ghlConnectorId = hook.id;
+          else results.ghlConnectorNote = 'Auto-registration not available — use GHL Automations to add the webhook URL.';
         }
+      } catch {
+        results.ghlConnector = 'manual';
+        results.ghlConnectorNote = 'Could not auto-register. Add the webhook URL in GHL Automations manually.';
       }
-    } catch {
-      results.ghlConnector = 'manual';
-      results.ghlConnectorNote = 'Could not auto-register. Add the webhook URL in GHL Automations manually.';
     }
+  } else {
+    // Fallback: global webhook URLs
+    results.webhookUrls = {
+      jt: secret ? `${baseUrl}/api/webhooks/jobtread?secret=${secret}` : null,
+      ghl: secret ? `${baseUrl}/api/webhooks/ghl?secret=${secret}` : null,
+    };
   }
 
   // --- 7. Overall status ---
