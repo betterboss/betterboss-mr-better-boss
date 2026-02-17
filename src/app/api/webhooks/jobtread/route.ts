@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { buildGHLClient } from '@/lib/ghl/client';
+import { checkRateLimit, getClientIp, LIMITS } from '@/lib/rate-limit';
+import { buildDedupKey, checkDedup, markProcessed } from '@/lib/webhook-dedup';
+import { trackUsage } from '@/lib/usage';
 
 // POST /api/webhooks/jobtread — receives webhook from JobTread workflow
 // when a contact is created/updated, and pushes it to GoHighLevel.
@@ -13,6 +16,14 @@ import { buildGHLClient } from '@/lib/ghl/client';
 //   OR { data: { ... } }  OR { record: { ... } }
 
 export async function POST(request: NextRequest) {
+  const ip = getClientIp(request.headers);
+
+  // Rate limit
+  const rl = checkRateLimit(`webhook-jt:${ip}`, LIMITS.webhook);
+  if (!rl.allowed) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
+
   // Verify webhook secret
   const secret = request.nextUrl.searchParams.get('secret');
   const expectedSecret = process.env.WEBHOOK_SECRET;
@@ -47,6 +58,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No usable contact data in payload' }, { status: 400 });
     }
 
+    // Idempotency check — skip if we already processed this contact recently
+    const dedupKey = buildDedupKey('jobtread', { id: jtId, email, firstName, lastName });
+    const cached = checkDedup(dedupKey);
+    if (cached) {
+      trackUsage('webhook.jobtread', { ip, metadata: { dedup: true } });
+      return NextResponse.json(cached);
+    }
+
     const ghlContact = await ghlClient.createOrUpdateContact({
       firstName,
       lastName,
@@ -61,15 +80,19 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    console.log(`[Webhook JT→GHL] Synced ${firstName} ${lastName} (${jtId})`);
-
-    return NextResponse.json({
+    const result = {
       ok: true,
       ghlContactId: ghlContact.id,
       message: `Synced ${firstName} ${lastName} to GHL`,
-    });
+    };
+
+    markProcessed(dedupKey, result);
+    trackUsage('webhook.jobtread', { ip, metadata: { contactId: jtId } });
+
+    return NextResponse.json(result);
   } catch (err) {
     console.error('[Webhook JT→GHL] Error:', err);
+    trackUsage('webhook.jobtread', { ip, metadata: { error: true } });
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Webhook processing failed' },
       { status: 500 }
