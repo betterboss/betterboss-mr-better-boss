@@ -113,11 +113,18 @@ export default function SettingsPage() {
       });
       const data = await res.json();
       if (data.ghlConnected) {
+        // Build a detailed status message
+        const parts = [`${data.ghlContactCount || 0} GHL contacts`];
+        if (data.jtConnector === 'registered') parts.push('JT webhook registered');
+        else if (data.jtConnector === 'already registered') parts.push('JT webhook active');
+        if (data.ghlConnector === 'registered') parts.push('GHL webhook registered');
+        else if (data.ghlConnector === 'already registered') parts.push('GHL webhook active');
+
         setGhlTestStatus({
           ok: true,
-          message: `Connected! ${data.ghlContactCount || 0} contacts in GHL. Credentials saved to server.`,
+          message: data.message || `Connected! ${parts.join(' · ')}`,
         });
-        // Refresh webhook info now that creds are saved
+        // Refresh webhook info
         const infoRes = await fetch('/api/webhooks/info');
         if (infoRes.ok) {
           const info = await infoRes.json();

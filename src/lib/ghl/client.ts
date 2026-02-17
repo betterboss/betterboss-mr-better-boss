@@ -121,6 +121,50 @@ export class GHLClient {
       total: result.meta?.total || 0,
     };
   }
+
+  // ---- Webhook / Connector Registration ----
+
+  async registerWebhook(
+    url: string,
+    events: string[] = ['ContactCreate', 'ContactUpdate']
+  ): Promise<{ id: string; url: string } | null> {
+    try {
+      const result = await this.request<{ id?: string; url?: string; webhookUrl?: string }>(
+        '/hooks/',
+        {
+          method: 'POST',
+          body: {
+            url,
+            locationId: this.locationId,
+            events,
+          },
+        }
+      );
+      return { id: result.id || '', url: result.url || result.webhookUrl || url };
+    } catch {
+      return null;
+    }
+  }
+
+  async listWebhooks(): Promise<Array<{ id: string; url: string; events?: string[] }>> {
+    try {
+      const result = await this.request<{ hooks?: Array<{ id: string; url: string; events?: string[] }> }>(
+        `/hooks/?locationId=${this.locationId}`
+      );
+      return result.hooks || [];
+    } catch {
+      return [];
+    }
+  }
+
+  async deleteWebhook(id: string): Promise<boolean> {
+    try {
+      await this.request(`/hooks/${id}`, { method: 'DELETE' });
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
 
 // Build a client from user-provided credentials (from Settings / request body)
