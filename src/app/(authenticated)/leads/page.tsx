@@ -111,10 +111,16 @@ export default function LeadsPage() {
           const merged = Array.from(new Set([...syncedIds, ...data.syncedIds]));
           saveSyncedIds(merged);
         }
-        if (isAuto && data.synced > 0) {
-          setGhlStatus({ message: `Auto-synced ${data.synced} new contact${data.synced > 1 ? 's' : ''} to GHL`, type: 'success' });
+        const total = (data.synced || 0) + (data.pulled || 0);
+        if (isAuto && total > 0) {
+          const parts: string[] = [];
+          if (data.synced > 0) parts.push(`${data.synced} to GHL`);
+          if (data.pulled > 0) parts.push(`${data.pulled} from GHL`);
+          setGhlStatus({ message: `Auto-synced ${parts.join(', ')}`, type: 'success' });
+          if (data.pulled > 0) refetch(); // refresh list to show new GHL contacts
         } else if (!isAuto) {
           setGhlStatus({ message: data.message, type: 'success' });
+          if (data.pulled > 0) refetch();
         }
       }
     } catch (err) {
@@ -124,7 +130,7 @@ export default function LeadsPage() {
     } finally {
       setGhlSyncing(false);
     }
-  }, []);
+  }, [refetch]);
 
   // Auto-sync: when contacts load and auto-sync is enabled, push new ones to GHL
   useEffect(() => {
