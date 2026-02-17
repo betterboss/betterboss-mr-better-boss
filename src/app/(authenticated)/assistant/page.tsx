@@ -22,10 +22,11 @@ const quickPrompts = [
   { icon: FileText, label: 'Generate Follow-up Email', prompt: 'Draft a professional follow-up email for my most recent proposal.' },
 ];
 
-const welcomeMessage: ChatMessage = {
-  id: 'welcome',
-  role: 'assistant',
-  content: `Welcome to your BetterBoss AI Assistant! I'm connected to your JobTread data.
+function createWelcomeMessage(): ChatMessage {
+  return {
+    id: 'welcome',
+    role: 'assistant',
+    content: `Welcome to your BetterBoss AI Assistant! I'm connected to your JobTread data.
 
 I can help you with:
 - **Business analytics** - Revenue, margins, trends
@@ -36,11 +37,12 @@ I can help you with:
 - **Document generation** - Emails, proposals, reports
 
 What would you like to know about your business?`,
-  timestamp: new Date(),
-};
+    timestamp: new Date(),
+  };
+}
 
 export default function AssistantPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>([welcomeMessage]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [createWelcomeMessage()]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -54,13 +56,17 @@ export default function AssistantPage() {
     scrollToBottom();
   }, [messages]);
 
-  const sendToAI = async (userMessage: string) => {
+  const sendToAI = async (userMessage: string, currentMessages: ChatMessage[]) => {
     setIsTyping(true);
     try {
+      // Send conversation history for multi-turn context
+      const history = currentMessages
+        .filter((m) => m.id !== 'welcome')
+        .map((m) => ({ role: m.role, content: m.content }));
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage }),
+        body: JSON.stringify({ message: userMessage, history }),
       });
 
       if (!res.ok) {
@@ -71,7 +77,7 @@ export default function AssistantPage() {
       const data = await res.json();
 
       const response: ChatMessage = {
-        id: Date.now().toString(),
+        id: crypto.randomUUID(),
         role: 'assistant',
         content: data.content || 'I wasn\'t able to process that. Please try again.',
         timestamp: new Date(),
@@ -79,7 +85,7 @@ export default function AssistantPage() {
       setMessages((prev) => [...prev, response]);
     } catch (err) {
       const response: ChatMessage = {
-        id: Date.now().toString(),
+        id: crypto.randomUUID(),
         role: 'assistant',
         content: `Sorry, I encountered an error: ${err instanceof Error ? err.message : 'Unknown error'}. Please check your connection and try again.`,
         timestamp: new Date(),
@@ -94,30 +100,32 @@ export default function AssistantPage() {
     if (!input.trim() || isTyping) return;
 
     const userMessage: ChatMessage = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       role: 'user',
       content: input,
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    const updated = [...messages, userMessage];
+    setMessages(updated);
     const msg = input;
     setInput('');
-    sendToAI(msg);
+    sendToAI(msg, updated);
   };
 
   const handleQuickPrompt = (prompt: string) => {
     if (isTyping) return;
 
     const userMessage: ChatMessage = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       role: 'user',
       content: prompt,
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
-    sendToAI(prompt);
+    const updated = [...messages, userMessage];
+    setMessages(updated);
+    sendToAI(prompt, updated);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -128,7 +136,7 @@ export default function AssistantPage() {
   };
 
   const handleNewChat = () => {
-    setMessages([welcomeMessage]);
+    setMessages([createWelcomeMessage()]);
     setInput('');
   };
 
@@ -155,7 +163,7 @@ export default function AssistantPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4" role="log" aria-live="polite">
         {messages.map((msg) => (
           <div key={msg.id} className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
             <div className={cn(msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant')}>
@@ -219,12 +227,19 @@ export default function AssistantPage() {
       <div className="p-3 border-t border-dark-700/50 bg-dark-900/40">
         <div className="flex items-end gap-2">
           <div className="flex-1 relative">
-            <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)}
+            <textarea ref={inputRef} value={input} onChange={(e) => {
+                setInput(e.target.value);
+                // Auto-resize textarea to fit content
+                const el = e.target;
+                el.style.height = 'auto';
+                el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+              }}
               onKeyDown={handleKeyDown} placeholder="Ask anything about your business..."
-              rows={1} className="input-field text-xs py-2 resize-none min-h-[36px] max-h-[120px]"
-              style={{ height: 'auto' }} />
+              aria-label="Message input"
+              rows={1} className="input-field text-xs py-2 resize-none min-h-[36px] max-h-[120px]" />
           </div>
           <button onClick={handleSend} disabled={!input.trim() || isTyping}
+            aria-label="Send message"
             className={cn(
               'p-2 rounded-lg transition-all',
               input.trim() && !isTyping

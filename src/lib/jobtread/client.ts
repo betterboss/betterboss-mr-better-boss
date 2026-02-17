@@ -146,7 +146,7 @@ export class JobTreadClient {
   ): Promise<PaginatedResponse<JobTreadContact>> {
     const data = await this.query<{ contacts: PaginatedResponse<JobTreadContact> }>(
       `query GetContacts($first: Int, $after: String, $type: String, $search: String) {
-        contacts(first: $first, after: $after, filter: { type: $type, search: $search }) {
+        contacts(first: $first, after: $after, filter: { type: $type, search: $search }, sort: { field: "createdAt", order: DESC }) {
           data {
             id type firstName lastName company email phone
             address { street1 city state zip }
@@ -156,7 +156,7 @@ export class JobTreadClient {
           pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
         }
       }`,
-      { ...filters, ...pagination }
+      { first: 500, ...filters, ...pagination }
     );
     return data.contacts;
   }
@@ -394,14 +394,83 @@ export class JobTreadClient {
     );
     return data.me;
   }
+
+  // ---- Connectors / Webhook Subscriptions ----
+
+  async listConnectors(): Promise<Array<{ id: string; name: string; url?: string; events?: string[] }>> {
+    // Try multiple possible schema names — JT's API may use any of these
+    for (const queryName of ['webhookSubscriptions', 'connectors', 'webhooks']) {
+      try {
+        const data = await this.query<Record<string, { data: Array<{ id: string; name: string; url?: string; events?: string[] }> }>>(
+          `query ListConnectors {
+            ${queryName} {
+              data { id name url events }
+            }
+          }`
+        );
+        return data[queryName]?.data || [];
+      } catch {
+        continue; // Try next schema name
+      }
+    }
+    return [];
+  }
+
+  async registerWebhook(url: string, events: string[]): Promise<{ id: string; url: string } | null> {
+    // Try multiple mutation names that JT's API might support
+    const mutations = [
+      {
+        name: 'createWebhookSubscription',
+        query: `mutation RegisterWebhook($input: CreateWebhookSubscriptionInput!) {
+          createWebhookSubscription(input: $input) { id url events }
+        }`,
+      },
+      {
+        name: 'createConnector',
+        query: `mutation RegisterConnector($input: CreateConnectorInput!) {
+          createConnector(input: $input) { id url events }
+        }`,
+      },
+      {
+        name: 'createWebhook',
+        query: `mutation RegisterWebhook($input: CreateWebhookInput!) {
+          createWebhook(input: $input) { id url events }
+        }`,
+      },
+    ];
+
+    for (const mutation of mutations) {
+      try {
+        const data = await this.query<Record<string, { id: string; url: string }>>(
+          mutation.query,
+          { input: { url, events, name: 'BetterBoss GHL Sync' } }
+        );
+        const result = data[mutation.name];
+        if (result?.id) return result;
+      } catch {
+        continue; // Try next mutation name
+      }
+    }
+    return null;
+  }
+
+  async deleteConnector(id: string): Promise<boolean> {
+    for (const mutName of ['deleteWebhookSubscription', 'deleteConnector', 'deleteWebhook']) {
+      try {
+        await this.query(
+          `mutation DeleteConnector($id: ID!) { ${mutName}(id: $id) { id } }`,
+          { id }
+        );
+        return true;
+      } catch {
+        continue;
+      }
+    }
+    return false;
+  }
 }
 
-// Singleton factory
-let clientInstance: JobTreadClient | null = null;
-
+// Factory — always creates a fresh client per request to prevent cross-user data leaks
 export function getJobTreadClient(accessToken: string): JobTreadClient {
-  if (!clientInstance || (clientInstance as unknown as { accessToken: string }).accessToken !== accessToken) {
-    clientInstance = new JobTreadClient(accessToken);
-  }
-  return clientInstance;
+  return new JobTreadClient(accessToken);
 }

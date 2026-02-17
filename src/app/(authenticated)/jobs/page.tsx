@@ -72,7 +72,7 @@ export default function JobsPage() {
         <div className="flex-1 relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-dark-500" />
           <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search jobs..." className="input-field pl-8 text-xs py-1.5" />
+            placeholder="Search jobs..." aria-label="Search jobs" className="input-field pl-8 text-xs py-1.5" />
         </div>
       </div>
 
@@ -140,6 +140,8 @@ export default function JobsPage() {
 
             return (
               <div key={job.id} onClick={() => setSelectedJobId(job.id === selectedJobId ? null : job.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedJobId(job.id === selectedJobId ? null : job.id); } }}
+                role="button" tabIndex={0}
                 className={cn('glass-card p-3 cursor-pointer transition-all group', selectedJobId === job.id && 'border-boss-500/30 glow-border')}>
                 <div className="flex items-start justify-between mb-1.5">
                   <div className="min-w-0 flex-1">

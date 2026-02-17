@@ -4,7 +4,7 @@ import { AlertTriangle, RefreshCw, Loader2 } from 'lucide-react';
 
 export function LoadingState({ label }: { label?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-12 text-dark-400">
+    <div role="status" aria-live="polite" className="flex flex-col items-center justify-center py-12 text-dark-400">
       <Loader2 className="w-6 h-6 animate-spin text-boss-400 mb-2" />
       <p className="text-xs">{label || 'Loading from JobTread...'}</p>
     </div>
@@ -13,7 +13,7 @@ export function LoadingState({ label }: { label?: string }) {
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div className="glass-card p-4 border-red-500/20 bg-red-500/5">
+    <div role="alert" className="glass-card p-4 border-red-500/20 bg-red-500/5">
       <div className="flex items-start gap-2">
         <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">

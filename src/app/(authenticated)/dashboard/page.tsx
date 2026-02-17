@@ -2,7 +2,7 @@
 
 import {
   Briefcase, DollarSign, Users, TrendingUp, AlertTriangle,
-  Zap, Target, BarChart3, Activity,
+  Zap, Target, BarChart3, Activity, CheckCircle2, XCircle,
 } from 'lucide-react';
 import { cn, formatCurrency, formatPercent } from '@/lib/utils/cn';
 import { useJobs, useInvoices, useContacts, useTasks } from '@/lib/hooks/useJobTread';
@@ -10,24 +10,44 @@ import { LoadingState, ErrorState } from '@/components/ui/DataState';
 
 export default function DashboardPage() {
   const { data: jobs, isLoading: jobsLoading, error: jobsErr, refetch: refetchJobs } = useJobs();
-  const { data: invoices, isLoading: invLoading } = useInvoices();
-  const { data: contacts, isLoading: conLoading } = useContacts();
-  const { data: tasks, isLoading: taskLoading } = useTasks();
+  const { data: invoices, isLoading: invLoading, error: invErr, refetch: refetchInv } = useInvoices();
+  const { data: contacts, isLoading: conLoading, error: conErr, refetch: refetchCon } = useContacts();
+  const { data: tasks, isLoading: taskLoading, error: taskErr, refetch: refetchTasks } = useTasks();
 
   const isLoading = jobsLoading || invLoading || conLoading || taskLoading;
+  const firstError = jobsErr || invErr || conErr || taskErr;
+  const retryAll = () => { refetchJobs(); refetchInv(); refetchCon(); refetchTasks(); };
 
   if (isLoading) return <LoadingState label="Loading your dashboard from JobTread..." />;
-  if (jobsErr) return <ErrorState message={jobsErr} onRetry={refetchJobs} />;
+  if (firstError) return <ErrorState message={firstError} onRetry={retryAll} />;
 
-  // Compute real metrics from live data
-  const activeJobs = jobs?.filter((j) => j.status === 'IN_PROGRESS' || j.status === 'CONTRACT') || [];
-  const totalRevenue = jobs?.reduce((s, j) => s + (j.budget?.estimatedRevenue || 0), 0) || 0;
-  const totalCost = jobs?.reduce((s, j) => s + (j.budget?.estimatedCost || 0), 0) || 0;
-  const totalProfit = totalRevenue - totalCost;
-  const avgMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+  const allJobs = jobs || [];
+  const jobRev = (j: typeof allJobs[0]) => j.budget?.actualRevenue || j.budget?.estimatedRevenue || 0;
+  const jobCost = (j: typeof allJobs[0]) => j.budget?.actualCost || j.budget?.estimatedCost || 0;
+
+  // Deal categories (matches Bolt HQ)
+  // Lost and Open are explicit; Won = everything else so closed/completed jobs always count
+  const lostStatuses = ['CANCELLED'];
+  const openStatuses = ['LEAD', 'ESTIMATE', 'PROPOSAL', 'ON_HOLD'];
+  const lostJobs = allJobs.filter((j) => lostStatuses.includes(j.status));
+  const openJobs = allJobs.filter((j) => openStatuses.includes(j.status));
+  const wonJobs = allJobs.filter((j) => !lostStatuses.includes(j.status) && !openStatuses.includes(j.status));
+
+  const wonRevenue = wonJobs.reduce((s, j) => s + jobRev(j), 0);
+  const openPipeline = openJobs.reduce((s, j) => s + jobRev(j), 0);
+
+  // Win rate: won / all deals (same as Bolt — includes open in denominator)
+  const totalDeals = wonJobs.length + lostJobs.length + openJobs.length;
+  const winRate = totalDeals > 0 ? (wonJobs.length / totalDeals) * 100 : 0;
+
+  // Active jobs for pipeline margin + top jobs
+  const activeJobs = allJobs.filter((j) => j.status === 'IN_PROGRESS' || j.status === 'CONTRACT');
+  const pipelineRevenue = activeJobs.reduce((s, j) => s + jobRev(j), 0);
+  const pipelineCost = activeJobs.reduce((s, j) => s + jobCost(j), 0);
+  const pipelineMargin = pipelineRevenue > 0 ? ((pipelineRevenue - pipelineCost) / pipelineRevenue) * 100 : 0;
 
   const overdueInvs = invoices?.filter((i) => {
-    if (i.status === 'PAID' || !i.dueDate) return false;
+    if (i.status === 'PAID' || i.status === 'VOID' || !i.dueDate) return false;
     return new Date(i.dueDate) < new Date();
   }) || [];
   const outstandingInvs = invoices?.filter((i) => i.status !== 'PAID' && i.status !== 'VOID') || [];
@@ -39,11 +59,15 @@ export default function DashboardPage() {
   }) || [];
   const pendingTasks = tasks?.filter((t) => t.status !== 'COMPLETED') || [];
 
-  // Top jobs by revenue
-  const topJobs = [...(jobs || [])]
-    .filter((j) => j.status === 'IN_PROGRESS' || j.status === 'CONTRACT')
-    .sort((a, b) => (b.budget?.estimatedRevenue || 0) - (a.budget?.estimatedRevenue || 0))
+  // Top jobs by revenue (prefer actuals)
+  const topJobs = [...activeJobs]
+    .sort((a, b) => jobRev(b) - jobRev(a))
     .slice(0, 5);
+
+  // Donut chart percentages
+  const wonPct = totalDeals > 0 ? (wonJobs.length / totalDeals) * 100 : 0;
+  const lostPct = totalDeals > 0 ? (lostJobs.length / totalDeals) * 100 : 0;
+  const openPct = totalDeals > 0 ? (openJobs.length / totalDeals) * 100 : 0;
 
   return (
     <div className="space-y-4">
@@ -65,36 +89,96 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Key Metrics */}
+      {/* Won Revenue + Active Pipeline */}
       <div className="grid grid-cols-2 gap-3">
-        <MetricCard label="Active Jobs" value={activeJobs.length.toString()} icon={Briefcase} color="text-boss-400" bgColor="bg-boss-500/10" />
-        <MetricCard label="Total Revenue" value={formatCurrency(totalRevenue)} icon={DollarSign} color="text-emerald-400" bgColor="bg-emerald-500/10" />
-        <MetricCard label="Total Profit" value={formatCurrency(totalProfit)} icon={TrendingUp} color="text-green-400" bgColor="bg-green-500/10" />
-        <MetricCard label="Avg Margin" value={formatPercent(avgMargin)} icon={BarChart3} color="text-accent-400" bgColor="bg-accent-500/10" />
+        <div className="glass-card p-3">
+          <div className="flex items-center gap-1.5 mb-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <span className="text-[10px] text-dark-400 uppercase tracking-wider">Won Revenue</span>
+          </div>
+          <p className="text-lg font-bold text-emerald-400">{formatCurrency(wonRevenue)}</p>
+        </div>
+        <div className="glass-card p-3">
+          <div className="flex items-center gap-1.5 mb-2">
+            <TrendingUp className="w-4 h-4 text-boss-400" />
+            <span className="text-[10px] text-dark-400 uppercase tracking-wider">Active Pipeline</span>
+          </div>
+          <p className="text-lg font-bold text-white">{formatCurrency(openPipeline)}</p>
+        </div>
       </div>
 
-      {/* Status Row */}
-      <div className="grid grid-cols-3 gap-2">
-        <div className="glass-card p-3 text-center">
-          <div className="flex items-center justify-center gap-1.5 mb-1">
-            <Users className="w-3.5 h-3.5 text-boss-400" />
-            <span className="text-lg font-bold text-white">{newLeads.length}</span>
+      {/* Deals — Win/Lost/Open with donut-style bar */}
+      <div className="glass-card p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+            <Target className="w-4 h-4 text-boss-400" />
+            Deals
+          </h2>
+          <span className="text-xs text-dark-400">{totalDeals} total</span>
+        </div>
+
+        {/* Stacked bar (donut alternative for sidebar) */}
+        <div className="flex h-3 rounded-full overflow-hidden mb-3">
+          {wonPct > 0 && <div className="bg-emerald-500 transition-all" style={{ width: `${wonPct}%` }} />}
+          {lostPct > 0 && <div className="bg-red-500 transition-all" style={{ width: `${lostPct}%` }} />}
+          {openPct > 0 && <div className="bg-boss-500 transition-all" style={{ width: `${openPct}%` }} />}
+        </div>
+
+        {/* Win rate + breakdown */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-center">
+            <p className="text-xl font-bold text-white">{formatPercent(winRate)}</p>
+            <p className="text-[10px] text-dark-500">Win Rate</p>
           </div>
+          <div className="flex gap-4">
+            <div className="text-center">
+              <div className="flex items-center gap-1 mb-0.5">
+                <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span className="text-sm font-bold text-emerald-400">{wonJobs.length}</span>
+              </div>
+              <p className="text-[10px] text-dark-500">Won</p>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center gap-1 mb-0.5">
+                <div className="w-2 h-2 rounded-full bg-red-500" />
+                <span className="text-sm font-bold text-red-400">{lostJobs.length}</span>
+              </div>
+              <p className="text-[10px] text-dark-500">Lost</p>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center gap-1 mb-0.5">
+                <div className="w-2 h-2 rounded-full bg-boss-500" />
+                <span className="text-sm font-bold text-boss-400">{openJobs.length}</span>
+              </div>
+              <p className="text-[10px] text-dark-500">Open</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Won revenue detail */}
+        <div className="flex items-center justify-between text-[10px] text-dark-500 pt-2 border-t border-dark-700/50">
+          <span>Won: {formatCurrency(wonRevenue)}</span>
+          <span>Pipeline: {formatCurrency(openPipeline)}</span>
+        </div>
+      </div>
+
+      {/* Quick stats row */}
+      <div className="grid grid-cols-4 gap-2">
+        <div className="glass-card p-3 text-center">
+          <span className="text-lg font-bold text-white">{activeJobs.length}</span>
+          <p className="text-[10px] text-dark-500 uppercase tracking-wider">Active</p>
+        </div>
+        <div className="glass-card p-3 text-center">
+          <span className="text-lg font-bold text-white">{formatPercent(pipelineMargin)}</span>
+          <p className="text-[10px] text-dark-500 uppercase tracking-wider">Margin</p>
+        </div>
+        <div className="glass-card p-3 text-center">
+          <span className="text-lg font-bold text-white">{newLeads.length}</span>
           <p className="text-[10px] text-dark-500 uppercase tracking-wider">Leads</p>
         </div>
         <div className="glass-card p-3 text-center">
-          <div className="flex items-center justify-center gap-1.5 mb-1">
-            <Target className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-lg font-bold text-white">{outstandingInvs.length}</span>
-          </div>
-          <p className="text-[10px] text-dark-500 uppercase tracking-wider">Open Invoices</p>
-        </div>
-        <div className="glass-card p-3 text-center">
-          <div className="flex items-center justify-center gap-1.5 mb-1">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-lg font-bold text-white">{overdueTasks.length}</span>
-          </div>
-          <p className="text-[10px] text-dark-500 uppercase tracking-wider">Overdue</p>
+          <span className="text-lg font-bold text-white">{outstandingInvs.length}</span>
+          <p className="text-[10px] text-dark-500 uppercase tracking-wider">Open Inv.</p>
         </div>
       </div>
 
@@ -136,11 +220,11 @@ export default function DashboardPage() {
         ) : (
           <div className="space-y-3">
             {topJobs.map((job) => {
-              const rev = job.budget?.estimatedRevenue || 0;
-              const cost = job.budget?.estimatedCost || 0;
+              const rev = jobRev(job);
+              const cost = jobCost(job);
               const margin = rev > 0 ? ((rev - cost) / rev) * 100 : 0;
               return (
-                <div key={job.id} className="group cursor-pointer">
+                <div key={job.id} className="group">
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-xs font-medium text-dark-200 group-hover:text-boss-400 transition-colors truncate">
                       {job.name}
@@ -186,20 +270,6 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function MetricCard({ label, value, icon: Icon, color, bgColor }: {
-  label: string; value: string; icon: React.ElementType; color: string; bgColor: string;
-}) {
-  return (
-    <div className="glass-card p-3">
-      <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center mb-2', bgColor)}>
-        <Icon className={cn('w-3.5 h-3.5', color)} />
-      </div>
-      <p className="text-base font-bold text-white">{value}</p>
-      <p className="text-[10px] text-dark-500 uppercase tracking-wider mt-0.5">{label}</p>
     </div>
   );
 }

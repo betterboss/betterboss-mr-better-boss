@@ -32,6 +32,10 @@ jobs:
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
           NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
           JOBTREAD_API_URL: https://api.jobtread.com/graphql
+          JOBTREAD_SERVICE_TOKEN: ${{ secrets.JOBTREAD_SERVICE_TOKEN }}
+          GHL_API_KEY: ${{ secrets.GHL_API_KEY }}
+          GHL_LOCATION_ID: ${{ secrets.GHL_LOCATION_ID }}
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
 
       - name: Install Vercel CLI
         run: npm install -g vercel
@@ -57,3 +61,29 @@ jobs:
           echo "DEPLOY_URL=$url" >> $GITHUB_ENV
           echo "### Preview Deployment" >> $GITHUB_STEP_SUMMARY
           echo "$url" >> $GITHUB_STEP_SUMMARY
+
+      - name: Register webhook connectors
+        if: env.DEPLOY_URL != ''
+        env:
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+        run: |
+          echo "Waiting 10s for deployment to warm up..."
+          sleep 10
+          echo "Registering connectors at $DEPLOY_URL..."
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            "$DEPLOY_URL/api/auto-setup?secret=$WEBHOOK_SECRET" \
+            -H "Content-Type: application/json" \
+            -d "{\"secret\":\"$WEBHOOK_SECRET\",\"appUrl\":\"$DEPLOY_URL\"}")
+          http_code=$(echo "$response" | tail -1)
+          body=$(echo "$response" | head -n -1)
+          echo "HTTP $http_code"
+          echo "$body" | jq . 2>/dev/null || echo "$body"
+          if [ "$http_code" = "200" ]; then
+            echo "### Connectors Registered" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            echo "$body" | jq . >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "$body" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### Connector Registration Failed (HTTP $http_code)" >> $GITHUB_STEP_SUMMARY
+            echo "Manual setup: Open $DEPLOY_URL/settings and click Connect & Save" >> $GITHUB_STEP_SUMMARY
+          fi
