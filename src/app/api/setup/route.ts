@@ -70,8 +70,10 @@ export async function POST(request: NextRequest) {
     results.jtConnected = true;
     results.jtUser = `${me.firstName} ${me.lastName}`;
     results.jtOrg = me.organization?.name;
-  } catch (err) {
-    results.jtConnected = true; // Session is valid if we got here
+  } catch {
+    // Session token is valid (we're authenticated) but JT API call failed
+    // Still mark as connected since the user has a valid session
+    results.jtConnected = true;
     results.jtUser = session.user?.name;
   }
 
@@ -197,11 +199,11 @@ export async function GET() {
     webhookSecret: config.webhookSecret ? 'configured' : 'missing',
     // Masked values for UI display — enough to confirm which key is loaded
     maskedGhlApiKey: mask(config.ghlApiKey),
-    maskedGhlLocationId: config.ghlLocationId || '',
+    maskedGhlLocationId: mask(config.ghlLocationId),
     maskedJtToken: mask(config.jtServiceToken),
     webhookUrls: config.webhookSecret ? {
-      jt: `${baseUrl}/api/webhooks/jobtread?secret=${config.webhookSecret}`,
-      ghl: `${baseUrl}/api/webhooks/ghl?secret=${config.webhookSecret}`,
+      jt: `${baseUrl}/api/webhooks/jobtread`,
+      ghl: `${baseUrl}/api/webhooks/ghl`,
     } : null,
     ready: Boolean(config.ghlApiKey && config.ghlLocationId && config.jtServiceToken && config.webhookSecret),
   });

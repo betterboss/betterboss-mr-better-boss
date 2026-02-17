@@ -25,13 +25,9 @@ function useJobTreadQuery<T>(
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [trigger, setTrigger] = useState(0);
-  const [varsKey, setVarsKey] = useState(() => JSON.stringify(variables));
+  const varsKey = JSON.stringify(variables);
 
   const refetch = useCallback(() => setTrigger((t) => t + 1), []);
-
-  // Update varsKey only when variables actually change
-  const currentVarsKey = JSON.stringify(variables);
-  if (currentVarsKey !== varsKey) setVarsKey(currentVarsKey);
 
   useEffect(() => {
     if (status !== 'authenticated' || options?.skip) {

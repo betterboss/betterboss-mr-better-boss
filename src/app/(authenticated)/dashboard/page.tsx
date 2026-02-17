@@ -10,14 +10,16 @@ import { LoadingState, ErrorState } from '@/components/ui/DataState';
 
 export default function DashboardPage() {
   const { data: jobs, isLoading: jobsLoading, error: jobsErr, refetch: refetchJobs } = useJobs();
-  const { data: invoices, isLoading: invLoading } = useInvoices();
-  const { data: contacts, isLoading: conLoading } = useContacts();
-  const { data: tasks, isLoading: taskLoading } = useTasks();
+  const { data: invoices, isLoading: invLoading, error: invErr, refetch: refetchInv } = useInvoices();
+  const { data: contacts, isLoading: conLoading, error: conErr, refetch: refetchCon } = useContacts();
+  const { data: tasks, isLoading: taskLoading, error: taskErr, refetch: refetchTasks } = useTasks();
 
   const isLoading = jobsLoading || invLoading || conLoading || taskLoading;
+  const firstError = jobsErr || invErr || conErr || taskErr;
+  const retryAll = () => { refetchJobs(); refetchInv(); refetchCon(); refetchTasks(); };
 
   if (isLoading) return <LoadingState label="Loading your dashboard from JobTread..." />;
-  if (jobsErr) return <ErrorState message={jobsErr} onRetry={refetchJobs} />;
+  if (firstError) return <ErrorState message={firstError} onRetry={retryAll} />;
 
   // Compute real metrics from live data
   const activeJobs = jobs?.filter((j) => j.status === 'IN_PROGRESS' || j.status === 'CONTRACT') || [];

@@ -77,9 +77,12 @@ function buildResponse(
   jobs: JobData[],
   invoices: InvoiceData[],
   tasks: TaskData[],
-  contacts: ContactData[]
+  contacts: ContactData[],
+  history: { role: string; content: string }[] = []
 ): string {
-  const lowerMsg = message.toLowerCase();
+  // Combine current message with recent history for topic detection
+  const recentContext = history.slice(-4).map((m) => m.content).join(' ');
+  const lowerMsg = (message + ' ' + recentContext).toLowerCase();
 
   const activeJobs = jobs.filter((j) => j.status === 'IN_PROGRESS' || j.status === 'CONTRACT');
   const totalRevenue = jobs.reduce((s, j) => s + (j.budget?.estimatedRevenue || 0), 0);
@@ -257,11 +260,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { message } = await request.json();
+    const { message, history } = await request.json();
 
     if (!message || typeof message !== 'string') {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
+
+    // history is an array of { role, content } from previous turns
+    const conversationHistory: { role: string; content: string }[] = Array.isArray(history) ? history : [];
 
     // Fetch real data from JobTread in parallel
     const [jobsData, invoicesData, tasksData, contactsData] = await Promise.all([
@@ -276,7 +282,7 @@ export async function POST(request: NextRequest) {
     const tasks: TaskData[] = tasksData?.tasks?.data || [];
     const contacts: ContactData[] = contactsData?.contacts?.data || [];
 
-    const content = buildResponse(message, jobs, invoices, tasks, contacts);
+    const content = buildResponse(message, jobs, invoices, tasks, contacts, conversationHistory);
 
     return NextResponse.json({
       role: 'assistant',

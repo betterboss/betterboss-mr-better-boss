@@ -10,13 +10,13 @@ import { LoadingState, ErrorState } from '@/components/ui/DataState';
 
 export default function FinancesPage() {
   const { data: jobs, isLoading: jobsLoading, error: jobsErr, refetch: refetchJobs } = useJobs();
-  const { data: invoices, isLoading: invLoading, error: invErr } = useInvoices();
+  const { data: invoices, isLoading: invLoading, error: invErr, refetch: refetchInv } = useInvoices();
 
   const isLoading = jobsLoading || invLoading;
 
   if (isLoading) return <LoadingState label="Loading financial data from JobTread..." />;
   if (jobsErr) return <ErrorState message={jobsErr} onRetry={refetchJobs} />;
-  if (invErr) return <ErrorState message={invErr} />;
+  if (invErr) return <ErrorState message={invErr} onRetry={refetchInv} />;
 
   const allJobs = jobs || [];
   const allInvoices = invoices || [];

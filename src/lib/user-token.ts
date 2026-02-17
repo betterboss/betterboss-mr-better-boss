@@ -90,3 +90,16 @@ export function buildUserWebhookUrls(
     ghl: `${baseUrl}/api/webhooks/ghl?ut=${userToken}&secret=${webhookSecret}`,
   };
 }
+
+/**
+ * Timing-safe string comparison to prevent timing attacks on webhook secrets.
+ */
+export function safeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    // Still do a constant-time compare to avoid leaking length info
+    const buf = Buffer.from(a);
+    crypto.timingSafeEqual(buf, buf);
+    return false;
+  }
+  return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}

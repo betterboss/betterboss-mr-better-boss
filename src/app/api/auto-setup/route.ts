@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GHLClient } from '@/lib/ghl/client';
 import { getJobTreadClient } from '@/lib/jobtread/client';
 import { getServerConfig } from '@/lib/server-config';
+import { safeCompare } from '@/lib/user-token';
 
 // POST /api/auto-setup — Register webhook connectors without a browser session.
 // Auth: webhook secret as query param OR in request body.
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest) {
   } catch { /* no body */ }
 
   const secret = querySecret || bodySecret;
-  if (!expectedSecret || secret !== expectedSecret) {
+  if (!expectedSecret || !secret || !safeCompare(secret, expectedSecret)) {
     return NextResponse.json({ error: 'Invalid or missing secret' }, { status: 401 });
   }
 
@@ -107,7 +108,8 @@ export async function POST(request: NextRequest) {
       results.jtConnected = true;
       results.jtUser = `${me.firstName} ${me.lastName}`;
     } catch {
-      results.jtConnected = true; // Token is valid if env var is set
+      results.jtConnected = false;
+      results.jtError = 'JT API connection failed — token may be invalid';
     }
 
     // Register webhook
@@ -150,22 +152,5 @@ export async function POST(request: NextRequest) {
 
   results.ready = Boolean(results.ghlConnected && results.jtConnected);
 
-  // CORS headers so the HTML tool can call this endpoint
-  const response = NextResponse.json(results);
-  response.headers.set('Access-Control-Allow-Origin', '*');
-  response.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
-  return response;
-}
-
-// OPTIONS handler for CORS preflight
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
+  return NextResponse.json(results);
 }

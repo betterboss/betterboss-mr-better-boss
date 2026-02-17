@@ -4,7 +4,7 @@ import { checkRateLimit, getClientIp, LIMITS } from '@/lib/rate-limit';
 import { buildDedupKey, checkDedup, markProcessed } from '@/lib/webhook-dedup';
 import { trackUsage } from '@/lib/usage';
 import { getServerConfig } from '@/lib/server-config';
-import { decryptUserToken } from '@/lib/user-token';
+import { decryptUserToken, safeCompare } from '@/lib/user-token';
 
 // POST /api/webhooks/jobtread — receives webhook from JobTread workflow
 // when a contact is created/updated, and pushes it to GoHighLevel.
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   if (!expectedSecret) {
     return NextResponse.json({ error: 'WEBHOOK_SECRET not configured' }, { status: 503 });
   }
-  if (secret !== expectedSecret) {
+  if (!secret || !safeCompare(secret, expectedSecret)) {
     return NextResponse.json({ error: 'Invalid secret' }, { status: 401 });
   }
 

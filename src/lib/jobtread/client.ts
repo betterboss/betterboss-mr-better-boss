@@ -470,12 +470,7 @@ export class JobTreadClient {
   }
 }
 
-// Singleton factory
-let clientInstance: JobTreadClient | null = null;
-
+// Factory — always creates a fresh client per request to prevent cross-user data leaks
 export function getJobTreadClient(accessToken: string): JobTreadClient {
-  if (!clientInstance || (clientInstance as unknown as { accessToken: string }).accessToken !== accessToken) {
-    clientInstance = new JobTreadClient(accessToken);
-  }
-  return clientInstance;
+  return new JobTreadClient(accessToken);
 }

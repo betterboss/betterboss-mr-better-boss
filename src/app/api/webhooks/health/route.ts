@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerConfig } from '@/lib/server-config';
+import { safeCompare } from '@/lib/user-token';
 
 // GET /api/webhooks/health — Diagnostic endpoint.
 // Shows exactly which env vars are set and what's missing.
@@ -11,7 +12,7 @@ export async function GET(request: NextRequest) {
   const expectedSecret = config.webhookSecret;
 
   // Require secret to see diagnostics (prevents info leakage)
-  if (!expectedSecret || secret !== expectedSecret) {
+  if (!expectedSecret || !secret || !safeCompare(secret, expectedSecret)) {
     return NextResponse.json(
       { error: 'Pass ?secret=WEBHOOK_SECRET to view diagnostics' },
       { status: 401 }
@@ -43,9 +44,9 @@ export async function GET(request: NextRequest) {
     checks,
     missing,
     webhookUrls: {
-      jt: `${baseUrl}/api/webhooks/jobtread?secret=${config.webhookSecret}`,
-      ghl: `${baseUrl}/api/webhooks/ghl?secret=${config.webhookSecret}`,
-      health: `${baseUrl}/api/webhooks/health?secret=${config.webhookSecret}`,
+      jt: `${baseUrl}/api/webhooks/jobtread?secret=<WEBHOOK_SECRET>`,
+      ghl: `${baseUrl}/api/webhooks/ghl?secret=<WEBHOOK_SECRET>`,
+      health: `${baseUrl}/api/webhooks/health?secret=<WEBHOOK_SECRET>`,
     },
     instructions: missing.length > 0
       ? [

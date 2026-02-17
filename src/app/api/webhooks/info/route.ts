@@ -60,8 +60,8 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    jt: secret && baseUrl ? `${baseUrl}/api/webhooks/jobtread?secret=${secret}` : null,
-    ghl: secret && baseUrl ? `${baseUrl}/api/webhooks/ghl?secret=${secret}` : null,
+    jt: secret && baseUrl ? `${baseUrl}/api/webhooks/jobtread` : null,
+    ghl: secret && baseUrl ? `${baseUrl}/api/webhooks/ghl` : null,
     config,
     missing,
     ready: missing.length === 0,
