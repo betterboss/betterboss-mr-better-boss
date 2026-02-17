@@ -124,13 +124,24 @@ export class GHLClient {
 }
 
 // Build a client from user-provided credentials (from Settings / request body)
-// Falls back to env vars if not provided
+// Falls back to server config (env vars + local config file)
 export function buildGHLClient(
   userApiKey?: string,
   userLocationId?: string
 ): GHLClient | null {
-  const apiKey = userApiKey || process.env.GHL_API_KEY;
-  const locationId = userLocationId || process.env.GHL_LOCATION_ID;
+  // Dynamic import avoided — read env vars first, then try config file
+  let configApiKey: string | undefined;
+  let configLocationId: string | undefined;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getServerConfig } = require('@/lib/server-config') as { getServerConfig: () => { ghlApiKey?: string; ghlLocationId?: string } };
+    const cfg = getServerConfig();
+    configApiKey = cfg.ghlApiKey;
+    configLocationId = cfg.ghlLocationId;
+  } catch { /* server-config not available (edge runtime) — use env only */ }
+
+  const apiKey = userApiKey || configApiKey || process.env.GHL_API_KEY;
+  const locationId = userLocationId || configLocationId || process.env.GHL_LOCATION_ID;
 
   if (!apiKey || !locationId) {
     return null;

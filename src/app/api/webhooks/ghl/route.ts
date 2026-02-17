@@ -3,6 +3,7 @@ import { getJobTreadClient } from '@/lib/jobtread/client';
 import { checkRateLimit, getClientIp, LIMITS } from '@/lib/rate-limit';
 import { buildDedupKey, checkDedup, markProcessed } from '@/lib/webhook-dedup';
 import { trackUsage } from '@/lib/usage';
+import { getServerConfig } from '@/lib/server-config';
 
 // POST /api/webhooks/ghl — receives webhook from GoHighLevel workflow
 // when a contact is created, and pushes it to JobTread.
@@ -24,9 +25,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
 
+  // Read config from env vars + local config file
+  const config = getServerConfig();
+
   // Verify webhook secret
   const secret = request.nextUrl.searchParams.get('secret');
-  const expectedSecret = process.env.WEBHOOK_SECRET;
+  const expectedSecret = config.webhookSecret;
   if (!expectedSecret) {
     return NextResponse.json({ error: 'WEBHOOK_SECRET not configured' }, { status: 503 });
   }
@@ -34,7 +38,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid secret' }, { status: 401 });
   }
 
-  const jtToken = process.env.JOBTREAD_SERVICE_TOKEN;
+  const jtToken = config.jtServiceToken;
   if (!jtToken) {
     return NextResponse.json({ error: 'JOBTREAD_SERVICE_TOKEN not configured' }, { status: 503 });
   }

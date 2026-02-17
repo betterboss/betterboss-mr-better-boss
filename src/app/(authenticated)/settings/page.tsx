@@ -97,7 +97,7 @@ export default function SettingsPage() {
       .catch(() => {});
   }, []);
 
-  const testGhlConnection = async () => {
+  const connectGhl = async () => {
     if (!settings.ghlApiKey || !settings.ghlLocationId) {
       setGhlTestStatus({ ok: false, message: 'Enter both API Key and Location ID first.' });
       return;
@@ -105,16 +105,26 @@ export default function SettingsPage() {
     setGhlTesting(true);
     setGhlTestStatus(null);
     try {
-      const res = await fetch('/api/ghl/test', {
+      // Save creds server-side + validate GHL connection in one call
+      const res = await fetch('/api/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ghlApiKey: settings.ghlApiKey, ghlLocationId: settings.ghlLocationId }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        setGhlTestStatus({ ok: false, message: data.error || 'Connection failed' });
+      if (data.ghlConnected) {
+        setGhlTestStatus({
+          ok: true,
+          message: `Connected! ${data.ghlContactCount || 0} contacts in GHL. Credentials saved to server.`,
+        });
+        // Refresh webhook info now that creds are saved
+        const infoRes = await fetch('/api/webhooks/info');
+        if (infoRes.ok) {
+          const info = await infoRes.json();
+          setWebhookInfo(info);
+        }
       } else {
-        setGhlTestStatus({ ok: true, message: data.message || 'Connected!' });
+        setGhlTestStatus({ ok: false, message: data.ghlError || 'Connection failed' });
       }
     } catch (err) {
       setGhlTestStatus({ ok: false, message: err instanceof Error ? err.message : 'Connection failed' });
@@ -297,12 +307,12 @@ export default function SettingsPage() {
             </button>
           </div>
           <button
-            onClick={testGhlConnection}
+            onClick={connectGhl}
             disabled={ghlTesting || !settings.ghlApiKey || !settings.ghlLocationId}
-            className="btn-secondary w-full text-xs flex items-center justify-center gap-1.5 disabled:opacity-50"
+            className="btn-primary w-full text-xs flex items-center justify-center gap-1.5 disabled:opacity-50"
           >
             <RefreshCw className={cn('w-3.5 h-3.5', ghlTesting && 'animate-spin')} />
-            {ghlTesting ? 'Testing...' : 'Test Connection'}
+            {ghlTesting ? 'Connecting...' : 'Connect & Save'}
           </button>
           {ghlTestStatus && (
             <div className={cn(

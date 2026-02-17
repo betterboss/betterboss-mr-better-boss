@@ -3,6 +3,7 @@ import { buildGHLClient } from '@/lib/ghl/client';
 import { checkRateLimit, getClientIp, LIMITS } from '@/lib/rate-limit';
 import { buildDedupKey, checkDedup, markProcessed } from '@/lib/webhook-dedup';
 import { trackUsage } from '@/lib/usage';
+import { getServerConfig } from '@/lib/server-config';
 
 // POST /api/webhooks/jobtread — receives webhook from JobTread workflow
 // when a contact is created/updated, and pushes it to GoHighLevel.
@@ -24,9 +25,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
 
+  // Read config from env vars + local config file
+  const config = getServerConfig();
+
   // Verify webhook secret
   const secret = request.nextUrl.searchParams.get('secret');
-  const expectedSecret = process.env.WEBHOOK_SECRET;
+  const expectedSecret = config.webhookSecret;
   if (!expectedSecret) {
     return NextResponse.json({ error: 'WEBHOOK_SECRET not configured' }, { status: 503 });
   }
@@ -34,7 +38,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid secret' }, { status: 401 });
   }
 
-  const ghlClient = buildGHLClient();
+  const ghlClient = buildGHLClient(config.ghlApiKey, config.ghlLocationId);
   if (!ghlClient) {
     return NextResponse.json({ error: 'GHL_API_KEY / GHL_LOCATION_ID not configured' }, { status: 503 });
   }
