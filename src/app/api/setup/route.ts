@@ -19,23 +19,31 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => ({}));
-  const { ghlApiKey, ghlLocationId } = body as {
+  const { ghlApiKey: bodyGhlApiKey, ghlLocationId: bodyGhlLocationId } = body as {
     ghlApiKey?: string;
     ghlLocationId?: string;
   };
 
   const results: Record<string, unknown> = {};
 
-  // --- 1. Save credentials server-side ---
-  if (ghlApiKey && ghlLocationId) {
+  // --- 1. Save credentials server-side (if new values provided) ---
+  if (bodyGhlApiKey && bodyGhlLocationId) {
     const saveResult = saveServerConfig({
-      ghlApiKey,
-      ghlLocationId,
+      ghlApiKey: bodyGhlApiKey,
+      ghlLocationId: bodyGhlLocationId,
       jtServiceToken: session.accessToken,
     });
     results.configSaved = saveResult.saved;
     if (!saveResult.saved) results.configError = saveResult.error;
+  } else {
+    // Even without new creds, save the JT token from session
+    saveServerConfig({ jtServiceToken: session.accessToken });
   }
+
+  // Resolve GHL credentials: body > server config > env vars
+  const config = getServerConfig();
+  const ghlApiKey = bodyGhlApiKey || config.ghlApiKey;
+  const ghlLocationId = bodyGhlLocationId || config.ghlLocationId;
 
   // --- 2. Validate GHL connection ---
   let ghlClient: GHLClient | null = null;
@@ -49,6 +57,9 @@ export async function POST(request: NextRequest) {
       results.ghlConnected = false;
       results.ghlError = err instanceof Error ? err.message : 'GHL connection failed';
     }
+  } else {
+    results.ghlConnected = false;
+    results.ghlError = 'GHL credentials not configured';
   }
 
   // --- 3. Validate JT connection ---
@@ -64,8 +75,9 @@ export async function POST(request: NextRequest) {
   }
 
   // --- 4. Build webhook URLs ---
-  const config = getServerConfig();
-  const secret = config.webhookSecret;
+  // Re-read config in case credentials were just saved above
+  const latestConfig = getServerConfig();
+  const secret = latestConfig.webhookSecret;
   const baseUrl =
     process.env.NEXT_PUBLIC_APP_URL ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
@@ -166,7 +178,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ ...results, ready, message });
 }
 
-// GET /api/setup — Returns current connection status
+// GET /api/setup — Returns current connection status + masked credentials
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.accessToken) {
@@ -178,11 +190,18 @@ export async function GET() {
     process.env.NEXT_PUBLIC_APP_URL ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 
+  // Return masked values so the Settings page can show "configured" status
+  const mask = (val?: string) => val ? `${val.slice(0, 6)}...${val.slice(-4)}` : '';
+
   return NextResponse.json({
     ghlApiKey: config.ghlApiKey ? 'configured' : 'missing',
     ghlLocationId: config.ghlLocationId ? 'configured' : 'missing',
     jtServiceToken: config.jtServiceToken ? 'configured' : 'missing',
     webhookSecret: config.webhookSecret ? 'configured' : 'missing',
+    // Masked values for UI display — enough to confirm which key is loaded
+    maskedGhlApiKey: mask(config.ghlApiKey),
+    maskedGhlLocationId: config.ghlLocationId || '',
+    maskedJtToken: mask(config.jtServiceToken),
     webhookUrls: config.webhookSecret ? {
       jt: `${baseUrl}/api/webhooks/jobtread?secret=${config.webhookSecret}`,
       ghl: `${baseUrl}/api/webhooks/ghl?secret=${config.webhookSecret}`,

@@ -86,6 +86,9 @@ export default function SettingsPage() {
   const [copied, setCopied] = useState<string | null>(null);
   const [webhookTestStatus, setWebhookTestStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [webhookTesting, setWebhookTesting] = useState(false);
+  const [envConfigured, setEnvConfigured] = useState<{
+    ghlApiKey: boolean; ghlLocationId: boolean; maskedGhlApiKey: string; maskedGhlLocationId: string;
+  } | null>(null);
 
   useEffect(() => {
     setLastSynced(new Date());
@@ -95,30 +98,59 @@ export default function SettingsPage() {
       .then((r) => r.ok ? r.json() : null)
       .then((data) => { if (data) setWebhookInfo(data); })
       .catch(() => {});
+    // Check if GHL credentials are already configured via env vars / server config
+    fetch('/api/setup')
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data) {
+          setEnvConfigured({
+            ghlApiKey: data.ghlApiKey === 'configured',
+            ghlLocationId: data.ghlLocationId === 'configured',
+            maskedGhlApiKey: data.maskedGhlApiKey || '',
+            maskedGhlLocationId: data.maskedGhlLocationId || '',
+          });
+          // If GHL is configured via env but Settings inputs are empty, show connected status
+          if (data.ghlApiKey === 'configured' && !loadSettings().ghlApiKey) {
+            setGhlTestStatus({ ok: true, message: `GHL connected via env (${data.maskedGhlApiKey})` });
+          }
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const connectGhl = async () => {
-    if (!settings.ghlApiKey || !settings.ghlLocationId) {
+    // Allow connecting even without input values if env vars are configured
+    const hasInputCreds = settings.ghlApiKey && settings.ghlLocationId;
+    const hasEnvCreds = envConfigured?.ghlApiKey && envConfigured?.ghlLocationId;
+
+    if (!hasInputCreds && !hasEnvCreds) {
       setGhlTestStatus({ ok: false, message: 'Enter both API Key and Location ID first.' });
       return;
     }
     setGhlTesting(true);
     setGhlTestStatus(null);
     try {
-      // Save creds server-side + validate GHL connection in one call
+      // Save creds server-side + validate GHL connection + register connectors in one call
+      const payload: Record<string, string> = {};
+      if (settings.ghlApiKey) payload.ghlApiKey = settings.ghlApiKey;
+      if (settings.ghlLocationId) payload.ghlLocationId = settings.ghlLocationId;
+
       const res = await fetch('/api/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ghlApiKey: settings.ghlApiKey, ghlLocationId: settings.ghlLocationId }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (data.ghlConnected) {
+      if (data.ghlConnected || data.jtConnected) {
         // Build a detailed status message
-        const parts = [`${data.ghlContactCount || 0} GHL contacts`];
+        const parts: string[] = [];
+        if (data.ghlContactCount != null) parts.push(`${data.ghlContactCount} GHL contacts`);
         if (data.jtConnector === 'registered') parts.push('JT webhook registered');
         else if (data.jtConnector === 'already registered') parts.push('JT webhook active');
+        else if (data.jtConnector === 'manual') parts.push('JT webhook: manual setup');
         if (data.ghlConnector === 'registered') parts.push('GHL webhook registered');
         else if (data.ghlConnector === 'already registered') parts.push('GHL webhook active');
+        else if (data.ghlConnector === 'manual') parts.push('GHL webhook: manual setup');
 
         setGhlTestStatus({
           ok: true,
@@ -264,6 +296,15 @@ export default function SettingsPage() {
           GoHighLevel (GHL)
         </h2>
         <div className="space-y-3">
+          {/* Show env-configured badge if credentials are from env vars */}
+          {envConfigured?.ghlApiKey && !settings.ghlApiKey && (
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+              <span className="text-[10px] text-emerald-400">
+                Configured via environment: {envConfigured.maskedGhlApiKey} / {envConfigured.maskedGhlLocationId}
+              </span>
+            </div>
+          )}
           <div>
             <label className="text-xs text-dark-400 mb-1 block">GHL API Key</label>
             <div className="relative">
@@ -271,7 +312,7 @@ export default function SettingsPage() {
                 type={showGhlKey ? 'text' : 'password'}
                 value={settings.ghlApiKey}
                 onChange={(e) => updateSettings({ ghlApiKey: e.target.value.trim() })}
-                placeholder="eyJhbGciOiJSUzI1NiIs..."
+                placeholder={envConfigured?.ghlApiKey ? envConfigured.maskedGhlApiKey : 'pit-xxxxxxxx-xxxx-xxxx...'}
                 className="input-field text-xs pr-8"
               />
               <button
@@ -290,7 +331,7 @@ export default function SettingsPage() {
               type="text"
               value={settings.ghlLocationId}
               onChange={(e) => updateSettings({ ghlLocationId: e.target.value.trim() })}
-              placeholder="loc_abc123..."
+              placeholder={envConfigured?.ghlLocationId ? envConfigured.maskedGhlLocationId : 'loc_abc123...'}
               className="input-field text-xs"
             />
           </div>
@@ -315,11 +356,11 @@ export default function SettingsPage() {
           </div>
           <button
             onClick={connectGhl}
-            disabled={ghlTesting || !settings.ghlApiKey || !settings.ghlLocationId}
+            disabled={ghlTesting || (!settings.ghlApiKey && !envConfigured?.ghlApiKey) || (!settings.ghlLocationId && !envConfigured?.ghlLocationId)}
             className="btn-primary w-full text-xs flex items-center justify-center gap-1.5 disabled:opacity-50"
           >
             <RefreshCw className={cn('w-3.5 h-3.5', ghlTesting && 'animate-spin')} />
-            {ghlTesting ? 'Connecting...' : 'Connect & Save'}
+            {ghlTesting ? 'Connecting & Registering Webhooks...' : 'Connect & Save'}
           </button>
           {ghlTestStatus && (
             <div className={cn(
