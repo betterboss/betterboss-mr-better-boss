@@ -28,6 +28,9 @@ yarn-error.log*
 .env
 .betterboss-config.json
 
+# extension sync data (server-side)
+/data/
+
 # vercel
 .vercel
 
