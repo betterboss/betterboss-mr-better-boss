@@ -1,0 +1,45 @@
+# Dependencies
+node_modules
+npm-debug.log*
+
+# Build output
+.next
+out
+dist
+
+# Version control
+.git
+.gitignore
+
+# Environment files (never include secrets in images)
+.env
+.env.local
+.env.*.local
+.betterboss-config.json
+
+# IDE & editor
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage
+src/__tests__
+
+# Documentation & config not needed at runtime
+*.md
+LICENSE
+.eslintrc*
+.prettierrc*
+vitest.config.ts
+
+# CI/CD
+.github
+
+# Chrome extension (not part of Next.js app)
+extension
