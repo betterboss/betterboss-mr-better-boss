@@ -1,13 +1,15 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import {
   DollarSign, TrendingUp, AlertTriangle, BarChart3,
-  PieChart, Receipt, CreditCard,
+  PieChart, Receipt, CreditCard, Download,
 } from 'lucide-react';
 import { cn, formatCurrency, formatPercent } from '@/lib/utils/cn';
 import { useJobs, useInvoices } from '@/lib/hooks/useJobTread';
 import { LoadingState, ErrorState } from '@/components/ui/DataState';
+import { downloadCSV } from '@/lib/utils/export-csv';
+import { useToast } from '@/components/ui/Toast';
 
 export default function FinancesPage() {
   const { data: jobs, isLoading: jobsLoading, error: jobsErr, refetch: refetchJobs } = useJobs();
@@ -55,6 +57,43 @@ export default function FinancesPage() {
     };
   }, [jobs, invoices]);
 
+  const toast = useToast();
+
+  const exportFinancials = useCallback(() => {
+    const allJobs = jobs || [];
+    if (allJobs.length === 0) {
+      toast.warning('No data to export');
+      return;
+    }
+    const data = allJobs.map((j) => ({
+      name: j.name,
+      number: j.number || '',
+      status: j.status,
+      revenue: j.budget?.estimatedRevenue || 0,
+      cost: j.budget?.estimatedCost || 0,
+      profit: (j.budget?.estimatedRevenue || 0) - (j.budget?.estimatedCost || 0),
+      margin: j.budget?.estimatedRevenue
+        ? (((j.budget.estimatedRevenue - (j.budget.estimatedCost || 0)) / j.budget.estimatedRevenue) * 100).toFixed(1) + '%'
+        : '0%',
+      invoiced: j.budget?.invoiced || 0,
+      paid: j.budget?.paid || 0,
+      outstanding: j.budget?.outstanding || 0,
+    }));
+    downloadCSV(data, `betterboss-financials-${new Date().toISOString().slice(0, 10)}`, [
+      { key: 'name', label: 'Job Name' },
+      { key: 'number', label: 'Job #' },
+      { key: 'status', label: 'Status' },
+      { key: 'revenue', label: 'Est. Revenue' },
+      { key: 'cost', label: 'Est. Cost' },
+      { key: 'profit', label: 'Profit' },
+      { key: 'margin', label: 'Margin' },
+      { key: 'invoiced', label: 'Invoiced' },
+      { key: 'paid', label: 'Paid' },
+      { key: 'outstanding', label: 'Outstanding' },
+    ]);
+    toast.success('Financial report exported');
+  }, [jobs, toast]);
+
   if (isLoading) return <LoadingState label="Loading financial data from JobTread..." />;
   if (jobsErr) return <ErrorState message={jobsErr.message} onRetry={refetchJobs} />;
   if (invErr) return <ErrorState message={invErr.message} onRetry={refetchInv} />;
@@ -76,6 +115,14 @@ export default function FinancesPage() {
           </h1>
           <p className="text-xs text-dark-400">Live financial data from JobTread</p>
         </div>
+        <button
+          onClick={exportFinancials}
+          aria-label="Export financial data as CSV"
+          className="btn-secondary text-[10px] px-2.5 py-1 flex items-center gap-1"
+        >
+          <Download className="w-3 h-3" />
+          Export CSV
+        </button>
       </div>
 
       {/* Overdue Alert */}

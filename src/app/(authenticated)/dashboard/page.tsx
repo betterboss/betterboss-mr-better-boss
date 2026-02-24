@@ -1,9 +1,11 @@
 'use client';
 
 import { useMemo, useCallback } from 'react';
+import Link from 'next/link';
 import {
   Briefcase, DollarSign, Users, TrendingUp, AlertTriangle,
   Zap, Target, BarChart3, Activity, CheckCircle2, XCircle,
+  ChevronRight,
 } from 'lucide-react';
 import { cn, formatCurrency, formatPercent } from '@/lib/utils/cn';
 import { useJobs, useInvoices, useContacts, useTasks } from '@/lib/hooks/useJobTread';
@@ -103,20 +105,20 @@ export default function DashboardPage() {
 
       {/* Won Revenue + Active Pipeline */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="glass-card p-3">
+        <Link href="/finances" className="glass-card p-3 hover:border-emerald-500/30 transition-colors">
           <div className="flex items-center gap-1.5 mb-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             <span className="text-[10px] text-dark-400 uppercase tracking-wider">Won Revenue</span>
           </div>
           <p className="text-lg font-bold text-emerald-400">{formatCurrency(wonRevenue)}</p>
-        </div>
-        <div className="glass-card p-3">
+        </Link>
+        <Link href="/jobs" className="glass-card p-3 hover:border-boss-500/30 transition-colors">
           <div className="flex items-center gap-1.5 mb-2">
             <TrendingUp className="w-4 h-4 text-boss-400" />
             <span className="text-[10px] text-dark-400 uppercase tracking-wider">Active Pipeline</span>
           </div>
           <p className="text-lg font-bold text-white">{formatCurrency(openPipeline)}</p>
-        </div>
+        </Link>
       </div>
 
       {/* Deals — Win/Lost/Open with donut-style bar */}
@@ -174,42 +176,50 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Quick stats row */}
+      {/* Quick stats row — clickable drilldowns */}
       <div className="grid grid-cols-4 gap-2">
-        <div className="glass-card p-3 text-center">
+        <Link href="/jobs" className="glass-card p-3 text-center hover:border-boss-500/30 transition-colors group">
           <span className="text-lg font-bold text-white">{activeJobs.length}</span>
-          <p className="text-[10px] text-dark-500 uppercase tracking-wider">Active</p>
-        </div>
-        <div className="glass-card p-3 text-center">
+          <p className="text-[10px] text-dark-500 uppercase tracking-wider group-hover:text-boss-400 transition-colors">Active</p>
+        </Link>
+        <Link href="/finances" className="glass-card p-3 text-center hover:border-boss-500/30 transition-colors group">
           <span className="text-lg font-bold text-white">{formatPercent(pipelineMargin)}</span>
-          <p className="text-[10px] text-dark-500 uppercase tracking-wider">Margin</p>
-        </div>
-        <div className="glass-card p-3 text-center">
+          <p className="text-[10px] text-dark-500 uppercase tracking-wider group-hover:text-boss-400 transition-colors">Margin</p>
+        </Link>
+        <Link href="/leads" className="glass-card p-3 text-center hover:border-boss-500/30 transition-colors group">
           <span className="text-lg font-bold text-white">{newLeads.length}</span>
-          <p className="text-[10px] text-dark-500 uppercase tracking-wider">Leads</p>
-        </div>
-        <div className="glass-card p-3 text-center">
+          <p className="text-[10px] text-dark-500 uppercase tracking-wider group-hover:text-boss-400 transition-colors">Leads</p>
+        </Link>
+        <Link href="/finances" className="glass-card p-3 text-center hover:border-boss-500/30 transition-colors group">
           <span className="text-lg font-bold text-white">{outstandingInvs.length}</span>
-          <p className="text-[10px] text-dark-500 uppercase tracking-wider">Open Inv.</p>
-        </div>
+          <p className="text-[10px] text-dark-500 uppercase tracking-wider group-hover:text-boss-400 transition-colors">Open Inv.</p>
+        </Link>
       </div>
 
       {/* Overdue alerts */}
       {(overdueInvs.length > 0 || overdueTasks.length > 0) && (
         <div className="glass-card p-4 border-amber-500/20">
-          <h2 className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
-            <AlertTriangle className="w-4 h-4 text-amber-400" />
-            Needs Attention
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
+              Needs Attention
+            </h2>
+            <Link href="/finances" className="text-[10px] text-boss-400 hover:text-boss-300 flex items-center gap-0.5">
+              View All <ChevronRight className="w-3 h-3" />
+            </Link>
+          </div>
           <div className="space-y-2">
             {overdueInvs.map((inv) => (
-              <div key={inv.id} className="flex items-center justify-between p-2 rounded-lg bg-red-500/5 border border-red-500/10 text-xs">
+              <Link key={inv.id} href="/finances" className="flex items-center justify-between p-2 rounded-lg bg-red-500/5 border border-red-500/10 text-xs hover:bg-red-500/10 transition-colors">
                 <div>
                   <span className="text-dark-200">Invoice {inv.number || inv.id}</span>
                   <span className="text-dark-500 ml-2">overdue</span>
                 </div>
-                <span className="text-red-400 font-bold">{formatCurrency(inv.total || 0)}</span>
-              </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-red-400 font-bold">{formatCurrency(inv.total || 0)}</span>
+                  <ChevronRight className="w-3 h-3 text-dark-500" />
+                </div>
+              </Link>
             ))}
             {overdueTasks.slice(0, 3).map((t) => (
               <div key={t.id} className="flex items-center justify-between p-2 rounded-lg bg-amber-500/5 border border-amber-500/10 text-xs">
@@ -223,10 +233,15 @@ export default function DashboardPage() {
 
       {/* Top Jobs */}
       <div className="glass-card p-4">
-        <h2 className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
-          <Briefcase className="w-4 h-4 text-boss-400" />
-          Top Jobs by Revenue
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+            <Briefcase className="w-4 h-4 text-boss-400" />
+            Top Jobs by Revenue
+          </h2>
+          <Link href="/jobs" className="text-[10px] text-boss-400 hover:text-boss-300 flex items-center gap-0.5">
+            View All <ChevronRight className="w-3 h-3" />
+          </Link>
+        </div>
         {topJobs.length === 0 ? (
           <p className="text-xs text-dark-500 py-4 text-center">No active jobs found in JobTread.</p>
         ) : (
@@ -258,10 +273,15 @@ export default function DashboardPage() {
 
       {/* Pending Tasks */}
       <div className="glass-card p-4">
-        <h2 className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
-          <Activity className="w-4 h-4 text-boss-400" />
-          Pending Tasks ({pendingTasks.length})
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+            <Activity className="w-4 h-4 text-boss-400" />
+            Pending Tasks ({pendingTasks.length})
+          </h2>
+          <Link href="/jobs" className="text-[10px] text-boss-400 hover:text-boss-300 flex items-center gap-0.5">
+            View All <ChevronRight className="w-3 h-3" />
+          </Link>
+        </div>
         {pendingTasks.length === 0 ? (
           <p className="text-xs text-dark-500 py-4 text-center">All caught up!</p>
         ) : (

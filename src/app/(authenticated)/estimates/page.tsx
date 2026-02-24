@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import {
-  Calculator, Zap, FileText, Wand2, ChevronDown, ChevronUp,
+  Calculator, Zap, FileText, Wand2, ChevronDown, ChevronUp, Download,
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils/cn';
 import { useEstimates } from '@/lib/hooks/useJobTread';
 import { LoadingState, ErrorState } from '@/components/ui/DataState';
+import { useToast } from '@/components/ui/Toast';
+import { downloadCSV } from '@/lib/utils/export-csv';
 
 type ProjectType = 'roofing' | 'remodel' | 'addition' | 'commercial' | 'custom';
 
@@ -37,6 +39,7 @@ export default function EstimatesPage() {
   const [expandedEstimate, setExpandedEstimate] = useState<string | null>(null);
 
   const { data: estimates, isLoading, error, refetch } = useEstimates();
+  const toast = useToast();
 
   const handleGenerate = async () => {
     if (!selectedType) return;
@@ -60,11 +63,40 @@ export default function EstimatesPage() {
       }
       const data = await res.json();
       setGenerated(data);
+      toast.success(`Estimate generated: ${formatCurrency(data.total)}`);
     } catch (err: unknown) {
-      setGenerateError(err instanceof Error ? err.message : 'Generation failed');
+      const msg = err instanceof Error ? err.message : 'Generation failed';
+      setGenerateError(msg);
+      toast.error(msg);
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const exportEstimate = () => {
+    if (!generated) return;
+    downloadCSV(
+      generated.lineItems.map((item) => ({
+        name: item.name,
+        category: item.category,
+        quantity: item.quantity,
+        unit: item.unit,
+        unitCost: item.unitCost,
+        unitPrice: item.unitPrice,
+        totalPrice: item.totalPrice,
+      })),
+      `estimate-${selectedType}-${new Date().toISOString().slice(0, 10)}`,
+      [
+        { key: 'name', label: 'Item' },
+        { key: 'category', label: 'Category' },
+        { key: 'quantity', label: 'Qty' },
+        { key: 'unit', label: 'Unit' },
+        { key: 'unitCost', label: 'Unit Cost' },
+        { key: 'unitPrice', label: 'Unit Price' },
+        { key: 'totalPrice', label: 'Total Price' },
+      ]
+    );
+    toast.success('Estimate exported to CSV');
   };
 
   return (
@@ -127,7 +159,12 @@ export default function EstimatesPage() {
         <div className="glass-card p-4 glow-border animate-fade-in space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-white flex items-center gap-2"><Zap className="w-4 h-4 text-accent-400" />AI-Generated Estimate</h2>
-            <span className="badge-success text-[10px]">{Math.round((generated.confidence || 0.9) * 100)}% confidence</span>
+            <div className="flex items-center gap-2">
+              <button onClick={exportEstimate} className="btn-secondary text-[10px] px-2 py-0.5 flex items-center gap-1" aria-label="Export estimate as CSV">
+                <Download className="w-3 h-3" />CSV
+              </button>
+              <span className="badge-success text-[10px]">{Math.round((generated.confidence || 0.9) * 100)}% confidence</span>
+            </div>
           </div>
           <div className="grid grid-cols-3 gap-2">
             <div className="text-center p-2 bg-dark-800/60 rounded-lg">
