@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   Briefcase, Search, Plus, MapPin, DollarSign, ChevronRight, CheckCircle2,
   Clock, AlertTriangle, Pause, XCircle, Filter,
@@ -8,8 +8,11 @@ import {
 import { cn, formatCurrency, formatPercent } from '@/lib/utils/cn';
 import { useJobs, type JTJob } from '@/lib/hooks/useJobTread';
 import { LoadingState, ErrorState, EmptyState } from '@/components/ui/DataState';
+import { useDebounce } from '@/lib/hooks/useDebounce';
 
 type StatusFilter = 'ALL' | 'LEAD' | 'ESTIMATE' | 'CONTRACT' | 'IN_PROGRESS' | 'COMPLETED' | 'ON_HOLD';
+
+const STATUS_TABS = ['ALL', 'IN_PROGRESS', 'CONTRACT', 'ESTIMATE', 'ON_HOLD', 'COMPLETED'] as const;
 
 const statusConfig: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
   LEAD: { icon: Clock, color: 'text-blue-400', bg: 'bg-blue-500/10' },
@@ -22,37 +25,42 @@ const statusConfig: Record<string, { icon: React.ElementType; color: string; bg:
 };
 
 export default function JobsPage() {
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const search = useDebounce(searchInput, 300);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
   const { data: jobs, isLoading, error, refetch } = useJobs();
 
-  if (isLoading) return <LoadingState label="Loading jobs from JobTread..." />;
-  if (error) return <ErrorState message={error.message} onRetry={refetch} />;
-
-  const allJobs = jobs || [];
-
-  const filteredJobs = allJobs.filter((job) => {
-    const matchesSearch = !search ||
-      job.name.toLowerCase().includes(search.toLowerCase()) ||
-      (job.number || '').toLowerCase().includes(search.toLowerCase()) ||
-      `${job.customer?.firstName || ''} ${job.customer?.lastName || ''}`.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === 'ALL' || job.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  const selectedJob = allJobs.find((j) => j.id === selectedJobId);
-  const statusCounts = allJobs.reduce<Record<string, number>>((acc, job) => {
-    acc[job.status] = (acc[job.status] || 0) + 1;
-    return acc;
-  }, {});
-
-  const getMargin = (job: JTJob) => {
+  const getMargin = useCallback((job: JTJob) => {
     const rev = job.budget?.estimatedRevenue || 0;
     const cost = job.budget?.estimatedCost || 0;
     return rev > 0 ? ((rev - cost) / rev) * 100 : 0;
-  };
+  }, []);
+
+  const allJobs = jobs || [];
+
+  const { filteredJobs, statusCounts } = useMemo(() => {
+    const lowerSearch = search.toLowerCase();
+    const filtered = allJobs.filter((job) => {
+      const matchesSearch = !search ||
+        job.name.toLowerCase().includes(lowerSearch) ||
+        (job.number || '').toLowerCase().includes(lowerSearch) ||
+        `${job.customer?.firstName || ''} ${job.customer?.lastName || ''}`.toLowerCase().includes(lowerSearch);
+      const matchesStatus = statusFilter === 'ALL' || job.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+    const counts = allJobs.reduce<Record<string, number>>((acc, job) => {
+      acc[job.status] = (acc[job.status] || 0) + 1;
+      return acc;
+    }, {});
+    return { filteredJobs: filtered, statusCounts: counts };
+  }, [allJobs, search, statusFilter]);
+
+  const selectedJob = useMemo(() => allJobs.find((j) => j.id === selectedJobId), [allJobs, selectedJobId]);
+
+  if (isLoading) return <LoadingState label="Loading jobs from JobTread..." />;
+  if (error) return <ErrorState message={error.message} onRetry={refetch} />;
 
   return (
     <div className="space-y-4">
@@ -71,13 +79,13 @@ export default function JobsPage() {
       <div className="flex gap-2">
         <div className="flex-1 relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-dark-500" />
-          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+          <input type="text" value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search jobs..." aria-label="Search jobs" className="input-field pl-8 text-xs py-1.5" />
         </div>
       </div>
 
       <div className="flex gap-1.5 overflow-x-auto pb-1">
-        {(['ALL', 'IN_PROGRESS', 'CONTRACT', 'ESTIMATE', 'ON_HOLD', 'COMPLETED'] as const).map((status) => (
+        {STATUS_TABS.map((status) => (
           <button key={status} onClick={() => setStatusFilter(status)}
             className={cn(
               'text-[10px] font-medium px-2.5 py-1 rounded-full whitespace-nowrap transition-colors',

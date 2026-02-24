@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import {
   DollarSign, TrendingUp, AlertTriangle, BarChart3,
   PieChart, Receipt, CreditCard,
@@ -14,43 +15,55 @@ export default function FinancesPage() {
 
   const isLoading = jobsLoading || invLoading;
 
+  const metrics = useMemo(() => {
+    const allJobs = jobs || [];
+    const allInvoices = invoices || [];
+
+    const totalRevenue = allJobs.reduce((s, j) => s + (j.budget?.estimatedRevenue || 0), 0);
+    const totalCost = allJobs.reduce((s, j) => s + (j.budget?.estimatedCost || 0), 0);
+    const totalProfit = totalRevenue - totalCost;
+    const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+
+    const totalInvoiced = allJobs.reduce((s, j) => s + (j.budget?.invoiced || 0), 0);
+    const totalPaid = allJobs.reduce((s, j) => s + (j.budget?.paid || 0), 0);
+    const totalOutstanding = allJobs.reduce((s, j) => s + (j.budget?.outstanding || 0), 0);
+
+    const overdueInvs = allInvoices.filter((inv) => {
+      if (inv.status === 'PAID' || inv.status === 'VOID' || !inv.dueDate) return false;
+      return new Date(inv.dueDate) < new Date();
+    });
+    const overdueTotal = overdueInvs.reduce((s, inv) => s + (inv.total || 0), 0);
+
+    const unpaidInvs = allInvoices.filter((inv) => inv.status !== 'PAID' && inv.status !== 'VOID');
+    const paidInvs = allInvoices.filter((inv) => inv.status === 'PAID');
+
+    const activeJobs = allJobs.filter((j) => j.status === 'IN_PROGRESS' || j.status === 'CONTRACT');
+    const jobProfit = activeJobs
+      .map((j) => {
+        const rev = j.budget?.estimatedRevenue || 0;
+        const cost = j.budget?.estimatedCost || 0;
+        const margin = rev > 0 ? ((rev - cost) / rev) * 100 : 0;
+        return { id: j.id, name: j.name, revenue: rev, cost, margin };
+      })
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 6);
+
+    return {
+      allInvoices, totalRevenue, totalProfit, profitMargin,
+      totalInvoiced, totalPaid, totalOutstanding,
+      overdueInvs, overdueTotal, unpaidInvs, paidInvs, jobProfit,
+    };
+  }, [jobs, invoices]);
+
   if (isLoading) return <LoadingState label="Loading financial data from JobTread..." />;
   if (jobsErr) return <ErrorState message={jobsErr.message} onRetry={refetchJobs} />;
   if (invErr) return <ErrorState message={invErr.message} onRetry={refetchInv} />;
 
-  const allJobs = jobs || [];
-  const allInvoices = invoices || [];
-
-  // Compute real metrics from live data
-  const totalRevenue = allJobs.reduce((s, j) => s + (j.budget?.estimatedRevenue || 0), 0);
-  const totalCost = allJobs.reduce((s, j) => s + (j.budget?.estimatedCost || 0), 0);
-  const totalProfit = totalRevenue - totalCost;
-  const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
-
-  const totalInvoiced = allJobs.reduce((s, j) => s + (j.budget?.invoiced || 0), 0);
-  const totalPaid = allJobs.reduce((s, j) => s + (j.budget?.paid || 0), 0);
-  const totalOutstanding = allJobs.reduce((s, j) => s + (j.budget?.outstanding || 0), 0);
-
-  const overdueInvs = allInvoices.filter((inv) => {
-    if (inv.status === 'PAID' || inv.status === 'VOID' || !inv.dueDate) return false;
-    return new Date(inv.dueDate) < new Date();
-  });
-  const overdueTotal = overdueInvs.reduce((s, inv) => s + (inv.total || 0), 0);
-
-  const unpaidInvs = allInvoices.filter((inv) => inv.status !== 'PAID' && inv.status !== 'VOID');
-  const paidInvs = allInvoices.filter((inv) => inv.status === 'PAID');
-
-  // Job profitability for active jobs
-  const activeJobs = allJobs.filter((j) => j.status === 'IN_PROGRESS' || j.status === 'CONTRACT');
-  const jobProfit = activeJobs
-    .map((j) => {
-      const rev = j.budget?.estimatedRevenue || 0;
-      const cost = j.budget?.estimatedCost || 0;
-      const margin = rev > 0 ? ((rev - cost) / rev) * 100 : 0;
-      return { id: j.id, name: j.name, revenue: rev, cost, margin };
-    })
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 6);
+  const {
+    allInvoices, totalRevenue, totalProfit, profitMargin,
+    totalInvoiced, totalPaid, totalOutstanding,
+    overdueInvs, overdueTotal, unpaidInvs, paidInvs, jobProfit,
+  } = metrics;
 
   return (
     <div className="space-y-4">

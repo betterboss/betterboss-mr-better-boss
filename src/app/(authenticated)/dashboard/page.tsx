@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo, useCallback } from 'react';
 import {
   Briefcase, DollarSign, Users, TrendingUp, AlertTriangle,
   Zap, Target, BarChart3, Activity, CheckCircle2, XCircle,
@@ -7,6 +8,9 @@ import {
 import { cn, formatCurrency, formatPercent } from '@/lib/utils/cn';
 import { useJobs, useInvoices, useContacts, useTasks } from '@/lib/hooks/useJobTread';
 import { LoadingState, ErrorState } from '@/components/ui/DataState';
+
+const LOST_STATUSES = ['CANCELLED'];
+const OPEN_STATUSES = ['LEAD', 'ESTIMATE', 'PROPOSAL', 'ON_HOLD'];
 
 export default function DashboardPage() {
   const { data: jobs, isLoading: jobsLoading, error: jobsErr, refetch: refetchJobs } = useJobs();
@@ -16,58 +20,66 @@ export default function DashboardPage() {
 
   const isLoading = jobsLoading || invLoading || conLoading || taskLoading;
   const firstError = jobsErr || invErr || conErr || taskErr;
-  const retryAll = () => { refetchJobs(); refetchInv(); refetchCon(); refetchTasks(); };
+  const retryAll = useCallback(() => { refetchJobs(); refetchInv(); refetchCon(); refetchTasks(); }, [refetchJobs, refetchInv, refetchCon, refetchTasks]);
+
+  // Memoize all expensive computations
+  const metrics = useMemo(() => {
+    const allJobs = jobs || [];
+    const jobRev = (j: typeof allJobs[0]) => j.budget?.actualRevenue || j.budget?.estimatedRevenue || 0;
+    const jobCost = (j: typeof allJobs[0]) => j.budget?.actualCost || j.budget?.estimatedCost || 0;
+
+    const lostJobs = allJobs.filter((j) => LOST_STATUSES.includes(j.status));
+    const openJobs = allJobs.filter((j) => OPEN_STATUSES.includes(j.status));
+    const wonJobs = allJobs.filter((j) => !LOST_STATUSES.includes(j.status) && !OPEN_STATUSES.includes(j.status));
+
+    const wonRevenue = wonJobs.reduce((s, j) => s + jobRev(j), 0);
+    const openPipeline = openJobs.reduce((s, j) => s + jobRev(j), 0);
+    const totalDeals = wonJobs.length + lostJobs.length + openJobs.length;
+    const winRate = totalDeals > 0 ? (wonJobs.length / totalDeals) * 100 : 0;
+
+    const activeJobs = allJobs.filter((j) => j.status === 'IN_PROGRESS' || j.status === 'CONTRACT');
+    const pipelineRevenue = activeJobs.reduce((s, j) => s + jobRev(j), 0);
+    const pipelineCost = activeJobs.reduce((s, j) => s + jobCost(j), 0);
+    const pipelineMargin = pipelineRevenue > 0 ? ((pipelineRevenue - pipelineCost) / pipelineRevenue) * 100 : 0;
+
+    const overdueInvs = (invoices || []).filter((i) => {
+      if (i.status === 'PAID' || i.status === 'VOID' || !i.dueDate) return false;
+      return new Date(i.dueDate) < new Date();
+    });
+    const outstandingInvs = (invoices || []).filter((i) => i.status !== 'PAID' && i.status !== 'VOID');
+    const newLeads = (contacts || []).filter((c) => c.type === 'LEAD');
+
+    const overdueTasks = (tasks || []).filter((t) => {
+      if (t.status === 'COMPLETED' || !t.dueDate) return false;
+      return new Date(t.dueDate) < new Date();
+    });
+    const pendingTasks = (tasks || []).filter((t) => t.status !== 'COMPLETED');
+
+    const topJobs = [...activeJobs].sort((a, b) => jobRev(b) - jobRev(a)).slice(0, 5);
+
+    const wonPct = totalDeals > 0 ? (wonJobs.length / totalDeals) * 100 : 0;
+    const lostPct = totalDeals > 0 ? (lostJobs.length / totalDeals) * 100 : 0;
+    const openPct = totalDeals > 0 ? (openJobs.length / totalDeals) * 100 : 0;
+
+    return {
+      allJobs, jobRev, jobCost, wonJobs, openJobs, lostJobs,
+      wonRevenue, openPipeline, totalDeals, winRate,
+      activeJobs, pipelineMargin, overdueInvs, outstandingInvs,
+      newLeads, overdueTasks, pendingTasks, topJobs,
+      wonPct, lostPct, openPct,
+    };
+  }, [jobs, invoices, contacts, tasks]);
 
   if (isLoading) return <LoadingState label="Loading your dashboard from JobTread..." />;
   if (firstError) return <ErrorState message={firstError.message} onRetry={retryAll} />;
 
-  const allJobs = jobs || [];
-  const jobRev = (j: typeof allJobs[0]) => j.budget?.actualRevenue || j.budget?.estimatedRevenue || 0;
-  const jobCost = (j: typeof allJobs[0]) => j.budget?.actualCost || j.budget?.estimatedCost || 0;
-
-  // Deal categories (matches Bolt HQ)
-  // Lost and Open are explicit; Won = everything else so closed/completed jobs always count
-  const lostStatuses = ['CANCELLED'];
-  const openStatuses = ['LEAD', 'ESTIMATE', 'PROPOSAL', 'ON_HOLD'];
-  const lostJobs = allJobs.filter((j) => lostStatuses.includes(j.status));
-  const openJobs = allJobs.filter((j) => openStatuses.includes(j.status));
-  const wonJobs = allJobs.filter((j) => !lostStatuses.includes(j.status) && !openStatuses.includes(j.status));
-
-  const wonRevenue = wonJobs.reduce((s, j) => s + jobRev(j), 0);
-  const openPipeline = openJobs.reduce((s, j) => s + jobRev(j), 0);
-
-  // Win rate: won / all deals (same as Bolt — includes open in denominator)
-  const totalDeals = wonJobs.length + lostJobs.length + openJobs.length;
-  const winRate = totalDeals > 0 ? (wonJobs.length / totalDeals) * 100 : 0;
-
-  // Active jobs for pipeline margin + top jobs
-  const activeJobs = allJobs.filter((j) => j.status === 'IN_PROGRESS' || j.status === 'CONTRACT');
-  const pipelineRevenue = activeJobs.reduce((s, j) => s + jobRev(j), 0);
-  const pipelineCost = activeJobs.reduce((s, j) => s + jobCost(j), 0);
-  const pipelineMargin = pipelineRevenue > 0 ? ((pipelineRevenue - pipelineCost) / pipelineRevenue) * 100 : 0;
-
-  const overdueInvs = invoices?.filter((i) => {
-    if (i.status === 'PAID' || i.status === 'VOID' || !i.dueDate) return false;
-    return new Date(i.dueDate) < new Date();
-  }) || [];
-  const outstandingInvs = invoices?.filter((i) => i.status !== 'PAID' && i.status !== 'VOID') || [];
-  const newLeads = contacts?.filter((c) => c.type === 'LEAD') || [];
-
-  const overdueTasks = tasks?.filter((t) => {
-    if (t.status === 'COMPLETED' || !t.dueDate) return false;
-    return new Date(t.dueDate) < new Date();
-  }) || [];
-  const pendingTasks = tasks?.filter((t) => t.status !== 'COMPLETED') || [];
-
-  // Top jobs by revenue (prefer actuals)
-  const topJobs = [...activeJobs]
-    .sort((a, b) => jobRev(b) - jobRev(a))
-    .slice(0, 5);
-
-  // Donut chart percentages
-  const wonPct = totalDeals > 0 ? (wonJobs.length / totalDeals) * 100 : 0;
-  const lostPct = totalDeals > 0 ? (lostJobs.length / totalDeals) * 100 : 0;
-  const openPct = totalDeals > 0 ? (openJobs.length / totalDeals) * 100 : 0;
+  const {
+    jobRev, jobCost, wonJobs, openJobs, lostJobs,
+    wonRevenue, openPipeline, totalDeals, winRate,
+    activeJobs, pipelineMargin, overdueInvs, outstandingInvs,
+    newLeads, overdueTasks, pendingTasks, topJobs,
+    wonPct, lostPct, openPct,
+  } = metrics;
 
   return (
     <div className="space-y-4">

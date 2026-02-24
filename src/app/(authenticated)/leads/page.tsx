@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Users, Search, Target, Phone, Mail, Calendar, Star, Zap, RefreshCw, Upload, CheckCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useContacts, type JTContact } from '@/lib/hooks/useJobTread';
 import { LoadingState, ErrorState, EmptyState } from '@/components/ui/DataState';
+import { useDebounce } from '@/lib/hooks/useDebounce';
 
 const SETTINGS_KEY = 'betterboss-settings';
 const GHL_SYNCED_KEY = 'betterboss-ghl-synced';
@@ -63,7 +64,8 @@ function computeLeadScore(contact: JTContact): number {
 }
 
 export default function LeadsPage() {
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const search = useDebounce(searchInput, 300);
   const [sortBy, setSortBy] = useState<'score' | 'recent'>('score');
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [ghlSyncing, setGhlSyncing] = useState(false);
@@ -152,25 +154,31 @@ export default function LeadsPage() {
 
   const allContacts = contacts || [];
 
-  const leadsWithScores = allContacts.map((c) => ({
-    ...c,
-    score: computeLeadScore(c),
-  }));
+  const leadsWithScores = useMemo(
+    () => allContacts.map((c) => ({ ...c, score: computeLeadScore(c) })),
+    [allContacts]
+  );
 
-  const filteredLeads = leadsWithScores
-    .filter((l) =>
-      !search ||
-      `${l.firstName} ${l.lastName}`.toLowerCase().includes(search.toLowerCase()) ||
-      (l.company || '').toLowerCase().includes(search.toLowerCase()) ||
-      (l.email || '').toLowerCase().includes(search.toLowerCase())
-    )
-    .sort((a, b) => {
-      if (sortBy === 'score') return b.score - a.score;
-      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-    });
+  const filteredLeads = useMemo(
+    () => {
+      const lowerSearch = search.toLowerCase();
+      return leadsWithScores
+        .filter((l) =>
+          !search ||
+          `${l.firstName} ${l.lastName}`.toLowerCase().includes(lowerSearch) ||
+          (l.company || '').toLowerCase().includes(lowerSearch) ||
+          (l.email || '').toLowerCase().includes(lowerSearch)
+        )
+        .sort((a, b) => {
+          if (sortBy === 'score') return b.score - a.score;
+          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+        });
+    },
+    [leadsWithScores, search, sortBy]
+  );
 
-  const hotLeads = leadsWithScores.filter((l) => l.score >= 80).length;
-  const activeLead = leadsWithScores.find((l) => l.id === selectedLeadId);
+  const hotLeads = useMemo(() => leadsWithScores.filter((l) => l.score >= 80).length, [leadsWithScores]);
+  const activeLead = useMemo(() => leadsWithScores.find((l) => l.id === selectedLeadId), [leadsWithScores, selectedLeadId]);
   const isGhlConfigured = ghlConfigured();
 
   return (
@@ -252,7 +260,7 @@ export default function LeadsPage() {
       <div className="flex gap-2">
         <div className="flex-1 relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-dark-500" />
-          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+          <input type="text" value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search contacts..." aria-label="Search contacts" className="input-field pl-8 text-xs py-1.5" />
         </div>
         <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
