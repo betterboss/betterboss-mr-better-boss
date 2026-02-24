@@ -26,7 +26,23 @@ export async function POST(request: NextRequest) {
 
   const { ghlApiKey: bodyGhlApiKey, ghlLocationId: bodyGhlLocationId } = input!;
 
-  const results: Record<string, unknown> = {};
+  const results: {
+    configSaved?: boolean;
+    configError?: string;
+    ghlConnected?: boolean;
+    ghlContactCount?: number;
+    ghlError?: string;
+    jtConnected?: boolean;
+    jtUser?: string | null;
+    jtOrg?: string;
+    webhookUrls?: { jt: string | null; ghl: string | null };
+    jtConnector?: string;
+    jtConnectorId?: string;
+    jtConnectorNote?: string;
+    ghlConnector?: string;
+    ghlConnectorId?: string;
+    ghlConnectorNote?: string;
+  } = {};
 
   // --- 1. Save credentials server-side (if new values provided) ---
   if (bodyGhlApiKey && bodyGhlLocationId) {
@@ -115,7 +131,8 @@ export async function POST(request: NextRequest) {
         if (connector) results.jtConnectorId = connector.id;
         else results.jtConnectorNote = 'Auto-registration not supported — use JT Workflows to add the webhook URL.';
       }
-    } catch {
+    } catch (err) {
+      console.error('[setup] JT connector registration failed:', err instanceof Error ? err.message : err);
       results.jtConnector = 'manual';
       results.jtConnectorNote = 'Could not auto-register. Add the webhook URL in JT Workflows manually.';
     }
@@ -134,7 +151,8 @@ export async function POST(request: NextRequest) {
           if (hook) results.ghlConnectorId = hook.id;
           else results.ghlConnectorNote = 'Auto-registration not available — use GHL Automations to add the webhook URL.';
         }
-      } catch {
+      } catch (err) {
+        console.error('[setup] GHL connector registration failed:', err instanceof Error ? err.message : err);
         results.ghlConnector = 'manual';
         results.ghlConnectorNote = 'Could not auto-register. Add the webhook URL in GHL Automations manually.';
       }

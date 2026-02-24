@@ -22,7 +22,15 @@ export async function POST(request: NextRequest) {
     }
 
     const direction = input!.direction;
-    const results: Record<string, unknown> = { direction };
+    const results: {
+      direction: string;
+      status?: string;
+      message?: string;
+      error?: string;
+      fix?: string;
+      ghlContact?: unknown;
+      jtContact?: unknown;
+    } = { direction };
 
     if (direction === 'jt-to-ghl') {
       const ghlClient = buildGHLClient();
@@ -49,7 +57,8 @@ export async function POST(request: NextRequest) {
         results.ghlContact = testContact;
         results.status = 'success';
         results.message = 'Test contact created/updated in GHL! Check your GHL contacts for "BetterBoss Test Contact".';
-      } catch {
+      } catch (err) {
+        console.error('[webhook-test] GHL API call failed:', err instanceof Error ? err.message : err);
         results.status = 'error';
         results.error = 'GHL API call failed';
         results.fix = 'Check your GHL_API_KEY and GHL_LOCATION_ID. The API key should be a Location API key, not an Agency key.';
@@ -70,7 +79,8 @@ export async function POST(request: NextRequest) {
         results.jtContact = testContact;
         results.status = 'success';
         results.message = 'Test contact created in JobTread! Check your JT contacts.';
-      } catch {
+      } catch (err) {
+        console.error('[webhook-test] JT API call failed:', err instanceof Error ? err.message : err);
         results.status = 'error';
         results.error = 'JT API call failed';
         results.fix = 'Check your JOBTREAD_SERVICE_TOKEN or make sure your JT API key has write access.';

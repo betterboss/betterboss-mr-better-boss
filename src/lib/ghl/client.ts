@@ -93,7 +93,8 @@ export class GHLClient {
         `/contacts/lookup?email=${encodeURIComponent(email)}&locationId=${this.locationId}`
       );
       return result.contacts?.[0] || null;
-    } catch {
+    } catch (err) {
+      console.error('[GHL] findContactByEmail failed:', err instanceof Error ? err.message : err);
       return null;
     }
   }
@@ -141,7 +142,8 @@ export class GHLClient {
         }
       );
       return { id: result.id || '', url: result.url || result.webhookUrl || url };
-    } catch {
+    } catch (err) {
+      console.error('[GHL] registerWebhook failed:', err instanceof Error ? err.message : err);
       return null;
     }
   }
@@ -152,7 +154,8 @@ export class GHLClient {
         `/hooks/?locationId=${this.locationId}`
       );
       return result.hooks || [];
-    } catch {
+    } catch (err) {
+      console.error('[GHL] listWebhooks failed:', err instanceof Error ? err.message : err);
       return [];
     }
   }
@@ -161,7 +164,8 @@ export class GHLClient {
     try {
       await this.request(`/hooks/${id}`, { method: 'DELETE' });
       return true;
-    } catch {
+    } catch (err) {
+      console.error('[GHL] deleteWebhook failed:', err instanceof Error ? err.message : err);
       return false;
     }
   }

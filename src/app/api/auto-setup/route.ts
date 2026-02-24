@@ -43,7 +43,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid or missing secret' }, { status: 401 });
   }
 
-  const results: Record<string, unknown> = {};
+  const results: {
+    ghlError?: string;
+    ghlConnected?: boolean;
+    ghlContactCount?: number;
+    ghlWebhook?: string;
+    ghlWebhookId?: string;
+    ghlWebhookNote?: string;
+    ghlWebhookError?: string;
+    jtError?: string;
+    jtConnected?: boolean;
+    jtUser?: string;
+    jtWebhook?: string;
+    jtWebhookId?: string;
+    jtWebhookNote?: string;
+    webhookUrls?: { jt: string; ghl: string };
+    baseUrl?: string;
+    message?: string;
+    ready?: boolean;
+  } = {};
 
   // Resolve credentials from env/config
   const ghlApiKey = config.ghlApiKey;
@@ -118,7 +136,8 @@ export async function POST(request: NextRequest) {
       const me = await jtClient.getCurrentUser();
       results.jtConnected = true;
       results.jtUser = `${me.firstName} ${me.lastName}`;
-    } catch {
+    } catch (err) {
+      console.error('[auto-setup] JT connection test failed:', err instanceof Error ? err.message : err);
       results.jtConnected = false;
       results.jtError = 'JT API connection failed — token may be invalid';
     }
@@ -142,7 +161,8 @@ export async function POST(request: NextRequest) {
           results.jtWebhookNote = 'Paste this URL in JT Workflows: ' + jtWebhookUrl;
         }
       }
-    } catch {
+    } catch (err) {
+      console.error('[auto-setup] JT webhook registration failed:', err instanceof Error ? err.message : err);
       results.jtWebhook = 'manual';
       results.jtWebhookNote = 'JT API does not support webhook registration. Paste URL in JT Workflows: ' + jtWebhookUrl;
     }

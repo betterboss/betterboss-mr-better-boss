@@ -22,7 +22,8 @@ async function fetchJobTreadData(token: string, query: string) {
     if (!res.ok) return null;
     const data = await res.json();
     return data?.data || null;
-  } catch {
+  } catch (err) {
+    console.error('[chat] JobTread GraphQL fetch failed:', err instanceof Error ? err.message : err);
     return null;
   }
 }

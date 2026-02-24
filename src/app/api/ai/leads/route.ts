@@ -80,7 +80,8 @@ What's the best next action for this lead?`,
     });
 
     return response.choices[0]?.message?.content || null;
-  } catch {
+  } catch (err) {
+    console.error('[lead-scoring] AI recommendation failed:', err instanceof Error ? err.message : err);
     return null;
   }
 }

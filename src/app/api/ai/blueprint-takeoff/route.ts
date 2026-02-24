@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiGuard } from '@/lib/api-guard';
 import { blueprintRequestSchema, validateBody } from '@/lib/validate';
-import { BLUEPRINT_MAX_IMAGE_SIZE } from '@/lib/constants';
+import { BLUEPRINT_MAX_IMAGE_SIZE, DEFAULT_TAX_RATE } from '@/lib/constants';
 import type { TakeoffLineItem, BlueprintMeasurement } from '@/types/jobtread';
 
 // =============================================================================
@@ -270,7 +270,7 @@ function applyMarkup(
 
   const subtotalCost = lineItems.reduce((s, i) => s + i.totalCost, 0);
   const subtotalPrice = lineItems.reduce((s, i) => s + i.totalPrice, 0);
-  const taxRate = 0.0825;
+  const taxRate = DEFAULT_TAX_RATE / 100;
   const tax = Math.round(subtotalPrice * taxRate * 100) / 100;
 
   return {
@@ -406,7 +406,7 @@ function generateHeuristicTakeoff(projectType: string, markupPct: number) {
 
   const subtotalCost = lineItems.reduce((s, i) => s + i.totalCost, 0);
   const subtotalPrice = lineItems.reduce((s, i) => s + i.totalPrice, 0);
-  const taxRate = 0.0825;
+  const taxRate = DEFAULT_TAX_RATE / 100;
   const tax = Math.round(subtotalPrice * taxRate * 100) / 100;
 
   const measurements: BlueprintMeasurement[] = [
