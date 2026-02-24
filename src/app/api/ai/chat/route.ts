@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth-options';
+import { chatRequestSchema, validateBody } from '@/lib/validate';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
+import { RATE_LIMITS } from '@/lib/constants';
 
 // AI Chat API endpoint
 // Fetches real JobTread data and builds contextual responses
@@ -254,20 +257,29 @@ I can help you dig deeper into any area. Try asking about:
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit
+    const ip = getClientIp(request.headers);
+    const rl = checkRateLimit(`ai-chat:${ip}`, RATE_LIMITS.ai);
+    if (!rl.allowed) {
+      return NextResponse.json({ error: 'Rate limit exceeded. Try again later.' }, { status: 429 });
+    }
+
     const session = await getServerSession(authOptions);
 
     if (!session?.accessToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { message, history } = await request.json();
-
-    if (!message || typeof message !== 'string') {
-      return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+    const body = await request.json();
+    const { data: input, error: validationError } = validateBody(chatRequestSchema, body);
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
+    const { message, history } = input!;
+
     // history is an array of { role, content } from previous turns
-    const conversationHistory: { role: string; content: string }[] = Array.isArray(history) ? history : [];
+    const conversationHistory: { role: string; content: string }[] = history;
 
     // Fetch real data from JobTread in parallel
     const [jobsData, invoicesData, tasksData, contactsData] = await Promise.all([

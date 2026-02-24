@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth/auth-options';
+import { apiGuard } from '@/lib/api-guard';
+import { ghlSyncRequestSchema, validateBody } from '@/lib/validate';
+import { RATE_LIMITS } from '@/lib/constants';
 import { getJobTreadClient } from '@/lib/jobtread/client';
 import { buildGHLClient } from '@/lib/ghl/client';
 
@@ -18,28 +19,23 @@ import { buildGHLClient } from '@/lib/ghl/client';
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.accessToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { session, error: guardError } = await apiGuard(request, { rateLimit: RATE_LIMITS.api });
+    if (guardError) return guardError;
 
     const body = await request.json().catch(() => ({}));
+    const { data: input, error: validationError } = validateBody(ghlSyncRequestSchema, body);
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 });
+    }
+
     const {
       contactId,
       ghlApiKey,
       ghlLocationId,
-      mode = 'full',
+      mode,
       direction = contactId ? 'push' : 'both',
       syncedIds,
-    } = body as {
-      contactId?: string;
-      ghlApiKey?: string;
-      ghlLocationId?: string;
-      mode?: 'full' | 'auto';
-      direction?: 'push' | 'pull' | 'both';
-      syncedIds?: string[];
-    };
+    } = input!;
 
     const ghlClient = buildGHLClient(ghlApiKey, ghlLocationId);
     if (!ghlClient) {
@@ -49,7 +45,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const jtClient = getJobTreadClient(session.accessToken);
+    const jtClient = getJobTreadClient(session!.accessToken);
 
     // --- Single contact push (JT → GHL) ---
     if (contactId) {
@@ -185,7 +181,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('GHL sync error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'GHL sync failed' },
+      { error: 'GHL sync failed' },
       { status: 500 }
     );
   }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth/auth-options';
+import { apiGuard } from '@/lib/api-guard';
+import { leadScoreRequestSchema, validateBody } from '@/lib/validate';
+import { RATE_LIMITS } from '@/lib/constants';
 
 // AI Lead Scoring Endpoint
 // Analyzes lead data and returns AI-powered scoring with actionable recommendations
@@ -8,21 +9,16 @@ import { authOptions } from '@/lib/auth/auth-options';
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const { error: guardError } = await apiGuard(request, { rateLimit: RATE_LIMITS.ai });
+    if (guardError) return guardError;
 
-    if (!session?.accessToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const body = await request.json();
+    const { data: input, error: validationError } = validateBody(leadScoreRequestSchema, body);
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
-    const { contactId, contactData } = await request.json();
-
-    // In production, this would:
-    // 1. Pull full contact history from JobTread
-    // 2. Analyze engagement patterns (email opens, page views, response times)
-    // 3. Compare with historical conversion data
-    // 4. Factor in project type, value, and market conditions
-    // 5. Generate a weighted score with explainable factors
-
+    const { contactData } = input!;
     const score = calculateLeadScore(contactData);
 
     return NextResponse.json(score);
@@ -36,8 +32,6 @@ export async function POST(request: NextRequest) {
 }
 
 function calculateLeadScore(contactData: Record<string, unknown>) {
-  // Placeholder scoring algorithm
-  // In production, this uses ML models trained on historical conversion data
   const baseScore = 50;
   const factors = [];
 

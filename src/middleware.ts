@@ -8,6 +8,7 @@ export default withAuth({
 
 export const config = {
   matcher: [
+    // Protected UI routes
     '/dashboard/:path*',
     '/jobs/:path*',
     '/estimates/:path*',
@@ -16,8 +17,10 @@ export const config = {
     '/finances/:path*',
     '/assistant/:path*',
     '/settings/:path*',
+    // Protected API routes (require auth session)
     '/api/jobtread/:path*',
     '/api/ai/:path*',
     '/api/ghl/:path*',
+    '/api/setup/:path*',
   ],
 };

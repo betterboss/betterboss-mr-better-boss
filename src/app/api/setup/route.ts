@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth/auth-options';
+import { apiGuard } from '@/lib/api-guard';
+import { setupRequestSchema, validateBody } from '@/lib/validate';
+import { RATE_LIMITS } from '@/lib/constants';
 import { saveServerConfig, getServerConfig } from '@/lib/server-config';
 import { GHLClient } from '@/lib/ghl/client';
 import { getJobTreadClient } from '@/lib/jobtread/client';
@@ -14,16 +15,16 @@ import { encryptUserToken, buildUserWebhookUrls } from '@/lib/user-token';
 // After this, contacts created in JT flow to GHL and vice versa — no manual URL pasting.
 
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.accessToken) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const { session, error: guardError } = await apiGuard(request, { rateLimit: RATE_LIMITS.api });
+  if (guardError) return guardError;
 
   const body = await request.json().catch(() => ({}));
-  const { ghlApiKey: bodyGhlApiKey, ghlLocationId: bodyGhlLocationId } = body as {
-    ghlApiKey?: string;
-    ghlLocationId?: string;
-  };
+  const { data: input, error: validationError } = validateBody(setupRequestSchema, body);
+  if (validationError) {
+    return NextResponse.json({ error: validationError }, { status: 400 });
+  }
+
+  const { ghlApiKey: bodyGhlApiKey, ghlLocationId: bodyGhlLocationId } = input!;
 
   const results: Record<string, unknown> = {};
 
@@ -32,13 +33,13 @@ export async function POST(request: NextRequest) {
     const saveResult = saveServerConfig({
       ghlApiKey: bodyGhlApiKey,
       ghlLocationId: bodyGhlLocationId,
-      jtServiceToken: session.accessToken,
+      jtServiceToken: session!.accessToken,
     });
     results.configSaved = saveResult.saved;
     if (!saveResult.saved) results.configError = saveResult.error;
   } else {
     // Even without new creds, save the JT token from session
-    saveServerConfig({ jtServiceToken: session.accessToken });
+    saveServerConfig({ jtServiceToken: session!.accessToken });
   }
 
   // Resolve GHL credentials: body > server config > env vars
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest) {
   }
 
   // --- 3. Validate JT connection ---
-  const jtClient = getJobTreadClient(session.accessToken);
+  const jtClient = getJobTreadClient(session!.accessToken);
   try {
     const me = await jtClient.getCurrentUser();
     results.jtConnected = true;
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
     // Session token is valid (we're authenticated) but JT API call failed
     // Still mark as connected since the user has a valid session
     results.jtConnected = true;
-    results.jtUser = session.user?.name;
+    results.jtUser = session!.user?.name;
   }
 
   // --- 4. Generate per-user encrypted token + personalized webhook URLs ---
@@ -87,10 +88,10 @@ export async function POST(request: NextRequest) {
   if (secret && ghlApiKey && ghlLocationId) {
     // Encrypt user's credentials into a URL-safe token
     const userToken = encryptUserToken({
-      uid: session.user?.id || '',
+      uid: session!.user?.id || '',
       gk: ghlApiKey,
       gl: ghlLocationId,
-      jt: session.accessToken,
+      jt: session!.accessToken,
       ts: Date.now(),
     });
 
@@ -178,11 +179,9 @@ export async function POST(request: NextRequest) {
 }
 
 // GET /api/setup — Returns current connection status + masked credentials
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.accessToken) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+export async function GET(request: NextRequest) {
+  const { error: getGuardError } = await apiGuard(request, { rateLimit: RATE_LIMITS.api });
+  if (getGuardError) return getGuardError;
 
   const config = getServerConfig();
   const baseUrl =

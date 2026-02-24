@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth/auth-options';
+import { apiGuard } from '@/lib/api-guard';
+import { estimateRequestSchema, validateBody } from '@/lib/validate';
+import { DEFAULT_TAX_RATE, AI_ESTIMATE_CONFIDENCE, AI_MARKET_COMPARISON_LOW, AI_MARKET_COMPARISON_HIGH, RATE_LIMITS } from '@/lib/constants';
 
 // AI Estimate Generation Endpoint
 // Takes project parameters and generates detailed line-item estimates
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const { error: guardError } = await apiGuard(request, { rateLimit: RATE_LIMITS.ai });
+    if (guardError) return guardError;
 
-    if (!session?.accessToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const body = await request.json();
+    const { data: input, error: validationError } = validateBody(estimateRequestSchema, body);
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
-    const { projectType, squareFootage, description } = await request.json();
+    const { projectType, squareFootage, description } = input!;
 
     const lineItems = generateEstimateLineItems(projectType || 'roofing', squareFootage || 0);
 
@@ -21,7 +25,7 @@ export async function POST(request: NextRequest) {
       (sum: number, item: { totalPrice: number }) => sum + item.totalPrice,
       0
     );
-    const tax = subtotal * 0.0825;
+    const tax = subtotal * (DEFAULT_TAX_RATE / 100);
 
     return NextResponse.json({
       projectType,
@@ -31,12 +35,12 @@ export async function POST(request: NextRequest) {
       subtotal,
       tax,
       total: subtotal + tax,
-      confidence: 0.92,
+      confidence: AI_ESTIMATE_CONFIDENCE,
       generatedAt: new Date().toISOString(),
       marketComparison: {
-        low: subtotal * 0.82,
+        low: subtotal * AI_MARKET_COMPARISON_LOW,
         average: subtotal,
-        high: subtotal * 1.15,
+        high: subtotal * AI_MARKET_COMPARISON_HIGH,
       },
     });
   } catch (error) {

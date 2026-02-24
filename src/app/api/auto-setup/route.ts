@@ -3,6 +3,7 @@ import { GHLClient } from '@/lib/ghl/client';
 import { getJobTreadClient } from '@/lib/jobtread/client';
 import { getServerConfig } from '@/lib/server-config';
 import { safeCompare } from '@/lib/user-token';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 // POST /api/auto-setup — Register webhook connectors without a browser session.
 // Auth: webhook secret as query param OR in request body.
@@ -13,7 +14,17 @@ import { safeCompare } from '@/lib/user-token';
 //
 // curl -X POST "https://your-app.vercel.app/api/auto-setup?secret=YOUR_WEBHOOK_SECRET"
 
+// Aggressive rate limit: 5 requests per hour per IP
+const AUTO_SETUP_RATE_LIMIT = { max: 5, windowSec: 3600 };
+
 export async function POST(request: NextRequest) {
+  // Rate limit before any processing
+  const ip = getClientIp(request.headers);
+  const rl = checkRateLimit(`auto-setup:${ip}`, AUTO_SETUP_RATE_LIMIT);
+  if (!rl.allowed) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
+
   const config = getServerConfig();
   const expectedSecret = config.webhookSecret;
 

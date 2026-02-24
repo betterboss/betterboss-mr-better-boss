@@ -129,6 +129,7 @@ export const authOptions: NextAuthOptions = {
         token.accessToken = user.accessToken;
         token.organization = user.organization;
         token.sub = user.id;
+        token.issuedAt = Date.now();
       }
       return token;
     },
@@ -149,7 +150,22 @@ export const authOptions: NextAuthOptions = {
 
   session: {
     strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    // 7 days — reduced from 30 for better security
+    maxAge: 7 * 24 * 60 * 60,
+    // Re-validate session every 24 hours
+    updateAge: 24 * 60 * 60,
+  },
+
+  cookies: {
+    sessionToken: {
+      name: `${process.env.NODE_ENV === 'production' ? '__Secure-' : ''}next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'strict',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+      },
+    },
   },
 
   secret: process.env.NEXTAUTH_SECRET,

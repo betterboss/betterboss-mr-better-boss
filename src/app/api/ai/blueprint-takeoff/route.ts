@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth/auth-options';
+import { apiGuard } from '@/lib/api-guard';
+import { blueprintRequestSchema, validateBody } from '@/lib/validate';
+import { BLUEPRINT_MAX_IMAGE_SIZE } from '@/lib/constants';
 import type { TakeoffLineItem, BlueprintMeasurement } from '@/types/jobtread';
 
 // =============================================================================
@@ -10,23 +11,24 @@ import type { TakeoffLineItem, BlueprintMeasurement } from '@/types/jobtread';
 // POST body: { imageData: string (base64), projectType?: string, defaultMarkup?: number, notes?: string }
 // =============================================================================
 
+// Stricter rate limit for expensive AI operations (10 per hour)
+const BLUEPRINT_RATE_LIMIT = { max: 10, windowSec: 3600 };
+
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.accessToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { error: guardError } = await apiGuard(request, { rateLimit: BLUEPRINT_RATE_LIMIT });
+    if (guardError) return guardError;
 
     const body = await request.json();
-    const { imageData, projectType, defaultMarkup, notes } = body;
-
-    if (!imageData || typeof imageData !== 'string') {
-      return NextResponse.json({ error: 'Image is required. Please upload a blueprint.' }, { status: 400 });
+    const { data: input, error: validationError } = validateBody(blueprintRequestSchema, body);
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
-    // Validate base64 image size (max 10MB encoded ≈ 13.3MB base64)
-    const MAX_BASE64_LENGTH = 14_000_000;
-    if (imageData.length > MAX_BASE64_LENGTH) {
+    const { imageData, projectType, defaultMarkup, notes } = input!;
+
+    // Validate base64 image size (max 10MB encoded)
+    if (imageData.length > BLUEPRINT_MAX_IMAGE_SIZE) {
       return NextResponse.json({ error: 'Image too large. Maximum size is 10MB.' }, { status: 400 });
     }
 
@@ -35,17 +37,6 @@ export async function POST(request: NextRequest) {
     const mimeMatch = imageData.match(/^data:(image\/[a-z]+);base64,/);
     if (mimeMatch && !ALLOWED_MIMES.includes(mimeMatch[1])) {
       return NextResponse.json({ error: 'Unsupported image format. Use JPEG, PNG, or WebP.' }, { status: 400 });
-    }
-
-    // Validate projectType if provided
-    const VALID_PROJECT_TYPES = ['residential', 'commercial', 'industrial', 'roofing', 'remodel', 'addition', 'custom'];
-    if (projectType && typeof projectType === 'string' && !VALID_PROJECT_TYPES.includes(projectType)) {
-      return NextResponse.json({ error: `Invalid project type. Must be one of: ${VALID_PROJECT_TYPES.join(', ')}` }, { status: 400 });
-    }
-
-    // Validate defaultMarkup if provided
-    if (defaultMarkup !== undefined && (typeof defaultMarkup !== 'number' || defaultMarkup < 0 || defaultMarkup > 500 || !isFinite(defaultMarkup))) {
-      return NextResponse.json({ error: 'Markup must be a number between 0 and 500.' }, { status: 400 });
     }
 
     // Attempt AI vision analysis first — falls back to heuristic engine if no API key
