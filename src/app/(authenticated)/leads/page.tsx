@@ -340,7 +340,12 @@ export default function LeadsPage() {
               <Upload className={cn('w-4 h-4 text-boss-400', ghlSyncing && 'animate-spin')} />
               <span className="text-[10px] text-dark-300">Sync GHL</span>
             </button>
-            <button className="quick-action">
+            <button className="quick-action" onClick={() => {
+              const name = `${activeLead.firstName} ${activeLead.lastName}`.trim();
+              const subject = encodeURIComponent(`Follow-up: ${name}`);
+              const body = encodeURIComponent(`Hi ${activeLead.firstName},\n\nI wanted to schedule a time to discuss your project. When would be a good time to connect?\n\nBest regards`);
+              window.open(`mailto:${activeLead.email || ''}?subject=${subject}&body=${body}`, '_self');
+            }}>
               <Calendar className="w-4 h-4 text-boss-400" />
               <span className="text-[10px] text-dark-300">Schedule</span>
             </button>
