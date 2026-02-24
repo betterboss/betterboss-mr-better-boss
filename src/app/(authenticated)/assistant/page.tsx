@@ -189,7 +189,7 @@ export default function AssistantPage() {
         ))}
 
         {isTyping && (
-          <div className="flex justify-start">
+          <div className="flex justify-start" role="status" aria-label="Assistant is thinking">
             <div className="chat-bubble-assistant">
               <div className="flex items-center gap-1">
                 <div className="w-1.5 h-1.5 bg-boss-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />

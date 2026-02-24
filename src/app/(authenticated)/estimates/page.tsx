@@ -78,6 +78,7 @@ export default function EstimatesPage() {
           <p className="text-xs text-dark-400">AI-powered estimates from your cost catalog</p>
         </div>
         <button onClick={() => { setShowNewEstimate(!showNewEstimate); setGenerated(null); }}
+          aria-expanded={showNewEstimate} aria-label="Toggle AI estimate form"
           className="btn-accent text-xs flex items-center gap-1.5 px-3 py-1.5">
           <Wand2 className="w-3.5 h-3.5" />AI Estimate
         </button>
@@ -111,7 +112,7 @@ export default function EstimatesPage() {
             <textarea value={description} onChange={(e) => setDescription(e.target.value)}
               className="input-field text-xs min-h-[60px] resize-none" placeholder="Scope, materials, requirements..." />
           </div>
-          {generateError && <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2 text-xs text-red-400">{generateError}</div>}
+          {generateError && <div role="alert" className="bg-red-500/10 border border-red-500/20 rounded-lg p-2 text-xs text-red-400">{generateError}</div>}
           <button onClick={handleGenerate} disabled={!selectedType || isGenerating}
             className={cn('btn-accent w-full flex items-center justify-center gap-2 py-2.5 text-sm', (!selectedType || isGenerating) && 'opacity-50 cursor-not-allowed')}>
             {isGenerating ? (
@@ -177,6 +178,8 @@ export default function EstimatesPage() {
             <div className="space-y-2">
               {estimates.map((est) => (
                 <div key={est.id} onClick={() => setExpandedEstimate(expandedEstimate === est.id ? null : est.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedEstimate(expandedEstimate === est.id ? null : est.id); } }}
+                  role="button" tabIndex={0} aria-expanded={expandedEstimate === est.id}
                   className="p-2.5 rounded-lg hover:bg-dark-700/30 cursor-pointer transition-colors">
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">

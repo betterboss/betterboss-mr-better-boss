@@ -68,6 +68,9 @@ function LoginForm() {
                 placeholder="you@company.com"
                 required
                 autoFocus
+                aria-invalid={!!error}
+                aria-describedby={error ? 'login-error' : undefined}
+                autoComplete="email"
               />
             </div>
 
@@ -83,14 +86,17 @@ function LoginForm() {
                 className="input-field"
                 placeholder="Paste your JobTread API key"
                 required
+                aria-invalid={!!error}
+                aria-describedby={error ? 'login-error' : 'apiKey-help'}
+                autoComplete="current-password"
               />
-              <p className="mt-1.5 text-xs text-dark-500">
+              <p id="apiKey-help" className="mt-1.5 text-xs text-dark-500">
                 JobTread &rarr; Settings &rarr; API &rarr; Create or copy your key
               </p>
             </div>
 
             {error && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-sm text-red-400">
+              <div role="alert" id="login-error" className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-sm text-red-400">
                 {error}
               </div>
             )}
