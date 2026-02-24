@@ -47,19 +47,39 @@ function getScoreColor(score: number) {
   return { text: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20' };
 }
 
+// Source quality weights for lead scoring
+const SOURCE_QUALITY: Record<string, number> = {
+  referral: 15, 'repeat customer': 18, 'google ads': 10,
+  'website form': 8, 'google organic': 6, homeadvisor: 4,
+};
+
 function computeLeadScore(contact: JTContact): number {
-  let score = 50;
-  if (contact.email) score += 10;
-  if (contact.phone) score += 10;
-  if (contact.company) score += 10;
-  if (contact.source) score += 5;
-  if (contact.notes) score += 5;
+  let score = 30; // base score
+
+  // Data completeness (0-25 points)
+  if (contact.email) score += 8;
+  if (contact.phone) score += 8;
+  if (contact.company) score += 5;
+  if (contact.notes) score += 4;
+
+  // Source quality (0-18 points)
+  const source = (contact.source || '').toLowerCase();
+  score += SOURCE_QUALITY[source] || 3;
+
+  // Recency (0-20 points)
   if (contact.createdAt) {
     const days = (Date.now() - new Date(contact.createdAt).getTime()) / (1000 * 60 * 60 * 24);
-    if (days < 1) score += 15;
-    else if (days < 3) score += 10;
-    else if (days < 7) score += 5;
+    if (days < 1) score += 20;
+    else if (days < 3) score += 15;
+    else if (days < 7) score += 10;
+    else if (days < 14) score += 5;
+    else if (days < 30) score += 2;
   }
+
+  // Contact richness bonus (0-7 points) - both email AND phone means engaged
+  if (contact.email && contact.phone) score += 5;
+  if (contact.company && contact.notes) score += 2;
+
   return Math.min(score, 100);
 }
 

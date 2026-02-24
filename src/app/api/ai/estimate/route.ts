@@ -4,7 +4,88 @@ import { estimateRequestSchema, validateBody } from '@/lib/validate';
 import { DEFAULT_TAX_RATE, AI_ESTIMATE_CONFIDENCE, AI_MARKET_COMPARISON_LOW, AI_MARKET_COMPARISON_HIGH, RATE_LIMITS } from '@/lib/constants';
 
 // AI Estimate Generation Endpoint
-// Takes project parameters and generates detailed line-item estimates
+// Uses OpenAI to generate intelligent estimates when available
+// Falls back to template-based generation otherwise
+
+const ESTIMATE_SYSTEM_PROMPT = `You are an expert construction estimator. Given a project type, square footage, and description, generate accurate line-item estimates.
+
+Rules:
+- Return ONLY valid JSON (no markdown, no explanation)
+- Each line item must have: name, category (Labor/Materials/Equipment/Subcontractor/General), quantity, unit (SQ/SF/LF/EA/HR/LS/FT/GAL/TON/CY), unitCost (number), unitPrice (number)
+- unitCost is your cost, unitPrice is what you charge the customer
+- Maintain 25-40% margins on labor, 30-50% on materials
+- Use realistic 2024 construction pricing for the US market
+- Include all necessary items: demo, materials, labor, disposal, permits where applicable
+- Keep line items between 4-10 items
+- Use SQ (roofing squares = 100 sqft) for roofing, SF for interior work
+
+Response format:
+{"lineItems": [{"name": "...", "category": "...", "quantity": 1, "unit": "SQ", "unitCost": 45, "unitPrice": 72}], "notes": "Brief estimator notes about assumptions"}`;
+
+interface AILineItem {
+  name: string;
+  category: string;
+  quantity: number;
+  unit: string;
+  unitCost: number;
+  unitPrice: number;
+}
+
+async function generateWithOpenAI(
+  projectType: string,
+  squareFootage: number,
+  description: string
+): Promise<{ lineItems: AILineItem[]; notes?: string } | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({ apiKey });
+
+    const userPrompt = `Project: ${projectType}
+Square Footage: ${squareFootage || 'Not specified'}
+Description: ${description || 'Standard ' + projectType + ' project'}
+
+Generate a detailed line-item estimate.`;
+
+    const response = await client.chat.completions.create({
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: ESTIMATE_SYSTEM_PROMPT },
+        { role: 'user', content: userPrompt },
+      ],
+      max_tokens: 1000,
+      temperature: 0.3,
+      response_format: { type: 'json_object' },
+    });
+
+    const raw = response.choices[0]?.message?.content;
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed.lineItems) || parsed.lineItems.length === 0) return null;
+
+    // Validate and sanitize each line item
+    const validItems: AILineItem[] = parsed.lineItems
+      .filter((item: Record<string, unknown>) =>
+        item.name && item.category && typeof item.unitCost === 'number' && typeof item.unitPrice === 'number'
+      )
+      .map((item: Record<string, unknown>) => ({
+        name: String(item.name).slice(0, 200),
+        category: String(item.category),
+        quantity: Math.max(0, Number(item.quantity) || 1),
+        unit: String(item.unit || 'EA'),
+        unitCost: Math.max(0, Number(item.unitCost)),
+        unitPrice: Math.max(0, Number(item.unitPrice)),
+      }));
+
+    return validItems.length > 0 ? { lineItems: validItems, notes: parsed.notes } : null;
+  } catch (error) {
+    console.error('OpenAI estimate error:', error);
+    return null;
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,13 +99,26 @@ export async function POST(request: NextRequest) {
     }
 
     const { projectType, squareFootage, description } = input!;
+    let lineItems: { name: string; category: string; quantity: number; unit: string; unitCost: number; unitPrice: number; totalCost: number; totalPrice: number }[];
+    let aiGenerated = false;
+    let estimatorNotes: string | undefined;
 
-    const lineItems = generateEstimateLineItems(projectType || 'roofing', squareFootage || 0);
+    // Try AI-powered estimate first
+    const aiResult = await generateWithOpenAI(projectType, squareFootage || 0, description);
+    if (aiResult) {
+      aiGenerated = true;
+      estimatorNotes = aiResult.notes;
+      lineItems = aiResult.lineItems.map((item) => ({
+        ...item,
+        totalCost: Math.round(item.quantity * item.unitCost * 100) / 100,
+        totalPrice: Math.round(item.quantity * item.unitPrice * 100) / 100,
+      }));
+    } else {
+      // Fallback to template-based generation
+      lineItems = generateEstimateLineItems(projectType || 'roofing', squareFootage || 0);
+    }
 
-    const subtotal = lineItems.reduce(
-      (sum: number, item: { totalPrice: number }) => sum + item.totalPrice,
-      0
-    );
+    const subtotal = lineItems.reduce((sum, item) => sum + item.totalPrice, 0);
     const tax = subtotal * (DEFAULT_TAX_RATE / 100);
 
     return NextResponse.json({
@@ -37,6 +131,8 @@ export async function POST(request: NextRequest) {
       total: subtotal + tax,
       confidence: AI_ESTIMATE_CONFIDENCE,
       generatedAt: new Date().toISOString(),
+      aiPowered: aiGenerated,
+      ...(estimatorNotes ? { notes: estimatorNotes } : {}),
       marketComparison: {
         low: subtotal * AI_MARKET_COMPARISON_LOW,
         average: subtotal,
