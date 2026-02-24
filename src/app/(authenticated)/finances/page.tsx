@@ -15,8 +15,8 @@ export default function FinancesPage() {
   const isLoading = jobsLoading || invLoading;
 
   if (isLoading) return <LoadingState label="Loading financial data from JobTread..." />;
-  if (jobsErr) return <ErrorState message={jobsErr} onRetry={refetchJobs} />;
-  if (invErr) return <ErrorState message={invErr} onRetry={refetchInv} />;
+  if (jobsErr) return <ErrorState message={jobsErr.message} onRetry={refetchJobs} />;
+  if (invErr) return <ErrorState message={invErr.message} onRetry={refetchInv} />;
 
   const allJobs = jobs || [];
   const allInvoices = invoices || [];

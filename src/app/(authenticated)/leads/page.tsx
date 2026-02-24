@@ -148,7 +148,7 @@ export default function LeadsPage() {
   }, [contacts, ghlConfigured, syncToGHL]);
 
   if (isLoading) return <LoadingState label="Loading leads from JobTread..." />;
-  if (error) return <ErrorState message={error} onRetry={refetch} />;
+  if (error) return <ErrorState message={error.message} onRetry={refetch} />;
 
   const allContacts = contacts || [];
 
@@ -187,7 +187,7 @@ export default function LeadsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={refetch} aria-label="Refresh contacts"
+          <button onClick={() => refetch()} aria-label="Refresh contacts"
             className="btn-secondary text-[10px] px-2 py-1 flex items-center gap-1">
             <RefreshCw className="w-3 h-3" />
           </button>

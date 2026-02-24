@@ -1,77 +1,38 @@
 // =============================================================================
 // Client-side hooks for live JobTread data via /api/jobtread proxy
-// Replaces all hardcoded demo data throughout the app
+// Uses TanStack React Query for caching, dedup, background refetch, and retry
 // =============================================================================
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
+import { useCallback } from 'react';
+import { DEFAULT_PAGE_SIZE } from '@/lib/constants';
 
-interface UseQueryResult<T> {
-  data: T | null;
-  isLoading: boolean;
-  error: string | null;
-  refetch: () => void;
-}
+// ---- API helper ----
 
-function useJobTreadQuery<T>(
+async function jtFetch<T>(
   query: string,
   variables?: Record<string, unknown>,
-  options?: { skip?: boolean; transform?: (raw: Record<string, unknown>) => T }
-): UseQueryResult<T> {
-  const { status } = useSession();
-  const [data, setData] = useState<T | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [trigger, setTrigger] = useState(0);
-  const varsKey = JSON.stringify(variables);
+  transform?: (raw: Record<string, unknown>) => T
+): Promise<T> {
+  const res = await fetch('/api/jobtread', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, variables }),
+  });
 
-  const refetch = useCallback(() => setTrigger((t) => t + 1), []);
+  if (res.status === 401) throw new Error('Session expired. Please log in again.');
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `API error ${res.status}`);
+  }
 
-  useEffect(() => {
-    if (status !== 'authenticated' || options?.skip) {
-      setIsLoading(false);
-      return;
-    }
+  const result = await res.json();
+  if (result.errors?.length) throw new Error(result.errors[0].message);
 
-    let cancelled = false;
-    setIsLoading(true);
-    setError(null);
-
-    fetch('/api/jobtread', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, variables }),
-    })
-      .then(async (res) => {
-        if (res.status === 401) throw new Error('Session expired. Please log in again.');
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body.error || `API error ${res.status}`);
-        }
-        return res.json();
-      })
-      .then((result) => {
-        if (cancelled) return;
-        if (result.errors?.length) throw new Error(result.errors[0].message);
-        const transformed = options?.transform
-          ? options.transform(result.data)
-          : (result.data as T);
-        setData(transformed);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err.message);
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, varsKey, status, trigger, options?.skip]);
-
-  return { data, isLoading, error, refetch };
+  return transform ? transform(result.data) : (result.data as T);
 }
 
 // ---- Typed data interfaces ----
@@ -150,95 +111,178 @@ export interface JTTask {
   completedAt?: string;
 }
 
-// ---- Data hooks ----
+// ---- Query key factory (enables targeted invalidation) ----
+
+export const jtKeys = {
+  all: ['jobtread'] as const,
+  jobs: (filters?: { status?: string; search?: string }) =>
+    [...jtKeys.all, 'jobs', filters ?? {}] as const,
+  job: (id: string | null) => [...jtKeys.all, 'job', id] as const,
+  contacts: (filters?: { type?: string; search?: string }) =>
+    [...jtKeys.all, 'contacts', filters ?? {}] as const,
+  estimates: (jobId?: string) =>
+    [...jtKeys.all, 'estimates', jobId ?? 'all'] as const,
+  invoices: (filters?: { jobId?: string; status?: string }) =>
+    [...jtKeys.all, 'invoices', filters ?? {}] as const,
+  tasks: (filters?: { jobId?: string; status?: string }) =>
+    [...jtKeys.all, 'tasks', filters ?? {}] as const,
+};
+
+// ---- Data hooks (React Query) ----
 
 export function useJobs(filters?: { status?: string; search?: string }) {
-  return useJobTreadQuery<JTJob[]>(
-    `query GetJobs($first: Int, $status: String, $search: String) {
-      jobs(first: $first, filter: { status: $status, search: $search }, sort: { field: "createdAt", order: DESC }) {
-        data {
-          id name number status description startDate endDate createdAt updatedAt
-          customer { id firstName lastName company email phone }
-          address { street1 city state zip }
-          budget { estimatedRevenue estimatedCost estimatedProfit actualRevenue actualCost actualProfit invoiced paid outstanding }
-        }
-        totalCount
-      }
-    }`,
-    { first: 500, ...filters },
-    { transform: (raw) => ((raw?.jobs as { data?: JTJob[] })?.data) || [] }
-  );
+  const { status: authStatus } = useSession();
+  return useQuery({
+    queryKey: jtKeys.jobs(filters),
+    queryFn: () =>
+      jtFetch<JTJob[]>(
+        `query GetJobs($first: Int, $status: String, $search: String) {
+          jobs(first: $first, filter: { status: $status, search: $search }, sort: { field: "createdAt", order: DESC }) {
+            data {
+              id name number status description startDate endDate createdAt updatedAt
+              customer { id firstName lastName company email phone }
+              address { street1 city state zip }
+              budget { estimatedRevenue estimatedCost estimatedProfit actualRevenue actualCost actualProfit invoiced paid outstanding }
+            }
+            totalCount
+          }
+        }`,
+        { first: DEFAULT_PAGE_SIZE, ...filters },
+        (raw) => ((raw?.jobs as { data?: JTJob[] })?.data) || []
+      ),
+    enabled: authStatus === 'authenticated',
+  });
 }
 
 export function useJob(id: string | null) {
-  return useJobTreadQuery<JTJob>(
-    `query GetJob($id: ID!) {
-      job(id: $id) {
-        id name number status description startDate endDate createdAt updatedAt
-        customer { id firstName lastName company email phone }
-        address { street1 city state zip }
-        budget { estimatedRevenue estimatedCost estimatedProfit actualRevenue actualCost actualProfit invoiced paid outstanding }
-        tasks { id title status dueDate }
-      }
-    }`,
-    { id },
-    { skip: !id, transform: (raw) => (raw?.job as JTJob) || null }
-  );
+  const { status: authStatus } = useSession();
+  return useQuery({
+    queryKey: jtKeys.job(id),
+    queryFn: () =>
+      jtFetch<JTJob | null>(
+        `query GetJob($id: ID!) {
+          job(id: $id) {
+            id name number status description startDate endDate createdAt updatedAt
+            customer { id firstName lastName company email phone }
+            address { street1 city state zip }
+            budget { estimatedRevenue estimatedCost estimatedProfit actualRevenue actualCost actualProfit invoiced paid outstanding }
+            tasks { id title status dueDate }
+          }
+        }`,
+        { id },
+        (raw) => (raw?.job as JTJob) || null
+      ),
+    enabled: authStatus === 'authenticated' && !!id,
+  });
 }
 
 export function useContacts(filters?: { type?: string; search?: string }) {
-  return useJobTreadQuery<JTContact[]>(
-    `query GetContacts($first: Int, $type: String, $search: String) {
-      contacts(first: $first, filter: { type: $type, search: $search }, sort: { field: "createdAt", order: DESC }) {
-        data { id type firstName lastName company email phone source notes createdAt }
-        totalCount
-      }
-    }`,
-    { first: 500, ...filters },
-    { transform: (raw) => ((raw?.contacts as { data?: JTContact[] })?.data) || [] }
-  );
+  const { status: authStatus } = useSession();
+  return useQuery({
+    queryKey: jtKeys.contacts(filters),
+    queryFn: () =>
+      jtFetch<JTContact[]>(
+        `query GetContacts($first: Int, $type: String, $search: String) {
+          contacts(first: $first, filter: { type: $type, search: $search }, sort: { field: "createdAt", order: DESC }) {
+            data { id type firstName lastName company email phone source notes createdAt }
+            totalCount
+          }
+        }`,
+        { first: DEFAULT_PAGE_SIZE, ...filters },
+        (raw) => ((raw?.contacts as { data?: JTContact[] })?.data) || []
+      ),
+    enabled: authStatus === 'authenticated',
+  });
 }
 
 export function useEstimates(jobId?: string) {
-  return useJobTreadQuery<JTEstimate[]>(
-    `query GetEstimates($jobId: ID) {
-      estimates(filter: { jobId: $jobId }) {
-        data {
-          id jobId name status subtotal tax total createdAt
-          lineItems { id name quantity unitCost unitPrice totalPrice }
-        }
-      }
-    }`,
-    { jobId },
-    { transform: (raw) => ((raw?.estimates as { data?: JTEstimate[] })?.data) || [] }
-  );
+  const { status: authStatus } = useSession();
+  return useQuery({
+    queryKey: jtKeys.estimates(jobId),
+    queryFn: () =>
+      jtFetch<JTEstimate[]>(
+        `query GetEstimates($jobId: ID) {
+          estimates(filter: { jobId: $jobId }) {
+            data {
+              id jobId name status subtotal tax total createdAt
+              lineItems { id name quantity unitCost unitPrice totalPrice }
+            }
+          }
+        }`,
+        { jobId },
+        (raw) => ((raw?.estimates as { data?: JTEstimate[] })?.data) || []
+      ),
+    enabled: authStatus === 'authenticated',
+  });
 }
 
 export function useInvoices(filters?: { jobId?: string; status?: string }) {
-  return useJobTreadQuery<JTInvoice[]>(
-    `query GetInvoices($jobId: ID, $status: String) {
-      invoices(filter: { jobId: $jobId, status: $status }) {
-        data { id jobId number status subtotal tax total dueDate paidAt createdAt }
-      }
-    }`,
-    filters,
-    { transform: (raw) => ((raw?.invoices as { data?: JTInvoice[] })?.data) || [] }
-  );
+  const { status: authStatus } = useSession();
+  return useQuery({
+    queryKey: jtKeys.invoices(filters),
+    queryFn: () =>
+      jtFetch<JTInvoice[]>(
+        `query GetInvoices($jobId: ID, $status: String) {
+          invoices(filter: { jobId: $jobId, status: $status }) {
+            data { id jobId number status subtotal tax total dueDate paidAt createdAt }
+          }
+        }`,
+        filters,
+        (raw) => ((raw?.invoices as { data?: JTInvoice[] })?.data) || []
+      ),
+    enabled: authStatus === 'authenticated',
+  });
 }
 
 export function useTasks(filters?: { jobId?: string; status?: string }) {
-  return useJobTreadQuery<JTTask[]>(
-    `query GetTasks($jobId: ID, $status: String) {
-      tasks(filter: { jobId: $jobId, status: $status }) {
-        data { id jobId title status priority dueDate completedAt }
-      }
-    }`,
-    filters,
-    { transform: (raw) => ((raw?.tasks as { data?: JTTask[] })?.data) || [] }
-  );
+  const { status: authStatus } = useSession();
+  return useQuery({
+    queryKey: jtKeys.tasks(filters),
+    queryFn: () =>
+      jtFetch<JTTask[]>(
+        `query GetTasks($jobId: ID, $status: String) {
+          tasks(filter: { jobId: $jobId, status: $status }) {
+            data { id jobId title status priority dueDate completedAt }
+          }
+        }`,
+        filters,
+        (raw) => ((raw?.tasks as { data?: JTTask[] })?.data) || []
+      ),
+    enabled: authStatus === 'authenticated',
+  });
 }
 
-// ---- Mutation helper ----
+// ---- Mutation helper with automatic cache invalidation ----
+
+export function useJTMutation() {
+  const queryClient = useQueryClient();
+
+  const mutate = useCallback(
+    async (query: string, variables?: Record<string, unknown>) => {
+      const res = await fetch('/api/jobtread', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, variables }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `API error ${res.status}`);
+      }
+      const result = await res.json();
+      if (result.errors?.length) throw new Error(result.errors[0].message);
+
+      // Invalidate all jobtread queries so lists refresh
+      queryClient.invalidateQueries({ queryKey: jtKeys.all });
+
+      return result.data;
+    },
+    [queryClient]
+  );
+
+  return mutate;
+}
+
+// ---- Legacy jtMutate for backwards compatibility ----
 
 export async function jtMutate(query: string, variables?: Record<string, unknown>) {
   const res = await fetch('/api/jobtread', {

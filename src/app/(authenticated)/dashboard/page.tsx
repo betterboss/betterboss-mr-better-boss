@@ -19,7 +19,7 @@ export default function DashboardPage() {
   const retryAll = () => { refetchJobs(); refetchInv(); refetchCon(); refetchTasks(); };
 
   if (isLoading) return <LoadingState label="Loading your dashboard from JobTread..." />;
-  if (firstError) return <ErrorState message={firstError} onRetry={retryAll} />;
+  if (firstError) return <ErrorState message={firstError.message} onRetry={retryAll} />;
 
   const allJobs = jobs || [];
   const jobRev = (j: typeof allJobs[0]) => j.budget?.actualRevenue || j.budget?.estimatedRevenue || 0;

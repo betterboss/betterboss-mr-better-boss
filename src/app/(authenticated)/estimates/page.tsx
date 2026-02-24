@@ -170,7 +170,7 @@ export default function EstimatesPage() {
           <FileText className="w-4 h-4 text-boss-400" />
           Estimates from JobTread
         </h2>
-        {isLoading ? <LoadingState /> : error ? <ErrorState message={error} onRetry={refetch} /> : (
+        {isLoading ? <LoadingState /> : error ? <ErrorState message={error.message} onRetry={refetch} /> : (
           !estimates || estimates.length === 0 ? (
             <p className="text-xs text-dark-500 py-4 text-center">No estimates found in your JobTread account.</p>
           ) : (

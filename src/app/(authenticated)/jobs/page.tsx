@@ -29,7 +29,7 @@ export default function JobsPage() {
   const { data: jobs, isLoading, error, refetch } = useJobs();
 
   if (isLoading) return <LoadingState label="Loading jobs from JobTread..." />;
-  if (error) return <ErrorState message={error} onRetry={refetch} />;
+  if (error) return <ErrorState message={error.message} onRetry={refetch} />;
 
   const allJobs = jobs || [];
 
