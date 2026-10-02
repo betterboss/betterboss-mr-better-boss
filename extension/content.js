@@ -1,75 +1,364 @@
 // =============================================================================
-// Better Boss — DocFill v2.0 Content Script
+// Better Boss — DocFill v4.0
 // https://better-boss.ai
 //
-// Multi-template document builder for JobTread.
-// Features: template library, snippets, custom variables, keyboard shortcuts,
-//           Copy All, live preview, toast notifications.
-//
-// JobTread formatting:
-//   *bold*  ^italic^  _underline_  ~strikethrough~
-//   # H1  ## H2  ### H3  #### H4
-//   - bullet  1. numbered  > quote  --- hr  [text](url)
+// Auto-populate document descriptions + footers for JobTread.
+// Uses fetch interception to capture real API data — not guesswork.
 // =============================================================================
 
 (function () {
   'use strict';
 
-  // ==========================================================================
-  // CONFIG
-  // ==========================================================================
+  const VERSION = '4.0.0';
+  const PANEL_ID = 'bb-panel';
+  const TRIGGER_ID = 'bb-trigger';
 
-  const VERSION = '2.0.0';
-  const BRAND = 'Better Boss';
-  const FAB_ID = 'bb-docfill-fab';
-  const PANEL_ID = 'bb-docfill-panel';
-  const TOAST_ID = 'bb-docfill-toast';
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
 
-  // ==========================================================================
-  // HELPERS
-  // ==========================================================================
+  function esc(s) {
+    return (s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
 
-  function log(...a) { console.log(`[${BRAND}]`, ...a); }
-  function uid() { return 'bb_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
-  function esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
-  function debounce(fn, ms) { let t; return function (...a) { clearTimeout(t); t = setTimeout(() => fn.apply(this, a), ms); }; }
+  function debounce(fn, ms) {
+    let t;
+    return function (...a) { clearTimeout(t); t = setTimeout(() => fn.apply(this, a), ms); };
+  }
+
   function initials(name) {
     if (!name) return 'BB';
     const p = name.trim().split(/\s+/);
-    return p.length >= 2 ? (p[0][0] + p[p.length - 1][0]).toUpperCase() : p[0].substring(0, 2).toUpperCase();
+    return p.length >= 2 ? (p[0][0] + p[p.length - 1][0]).toUpperCase() : p[0].slice(0, 2).toUpperCase();
   }
 
-  // ==========================================================================
-  // TOAST NOTIFICATIONS
-  // ==========================================================================
+  // ---------------------------------------------------------------------------
+  // Toast
+  // ---------------------------------------------------------------------------
 
   function toast(msg, type = 'success') {
-    const prev = document.getElementById(TOAST_ID);
-    if (prev) prev.remove();
-    const el = document.createElement('div');
-    el.id = TOAST_ID;
-    el.className = `bb-toast bb-toast--${type}`;
-    el.textContent = msg;
+    let el = document.getElementById('bb-toast');
+    if (el) el.remove();
+    el = document.createElement('div');
+    el.id = 'bb-toast';
+    el.className = 'bb-toast bb-toast--' + type;
+    const icon = type === 'success'
+      ? '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>'
+      : '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+    el.innerHTML = icon + '<span>' + esc(msg) + '</span>';
     document.body.appendChild(el);
     requestAnimationFrame(() => el.classList.add('bb-toast--show'));
-    setTimeout(() => {
-      el.classList.remove('bb-toast--show');
-      setTimeout(() => el.remove(), 300);
-    }, 2200);
+    setTimeout(() => { el.classList.remove('bb-toast--show'); setTimeout(() => el.remove(), 300); }, 2200);
   }
 
-  // ==========================================================================
-  // DEFAULT DATA
-  // ==========================================================================
+  // ---------------------------------------------------------------------------
+  // 1. FETCH INTERCEPTOR — capture JT's actual API responses
+  // ---------------------------------------------------------------------------
 
-  function getDefaultDescTemplates() {
+  const _captured = { contacts: [], jobs: [], entities: {}, ts: 0 };
+
+  function injectInterceptor() {
+    const script = document.createElement('script');
+    script.textContent = [
+      '(function(){',
+      'var F=window.fetch;',
+      'window.fetch=function(){',
+      '  var a=arguments,u=typeof a[0]==="string"?a[0]:(a[0]||{}).url||"";',
+      '  var r=F.apply(this,a);',
+      '  try{',
+      '    if(/graphql|\\/api|\\.jobtread\\.com/i.test(u)){',
+      '      r.then(function(resp){return resp.clone().json();})',
+      '       .then(function(j){window.postMessage({t:"__BB__",d:j,u:u},"*");})',
+      '       .catch(function(){});',
+      '    }',
+      '  }catch(e){}',
+      '  return r;',
+      '};',
+      'var XO=XMLHttpRequest.prototype.open,XS=XMLHttpRequest.prototype.send;',
+      'XMLHttpRequest.prototype.open=function(m,u){this._bbu=u;return XO.apply(this,arguments);};',
+      'XMLHttpRequest.prototype.send=function(){',
+      '  var x=this;',
+      '  x.addEventListener("load",function(){',
+      '    try{',
+      '      if(/graphql|\\/api|\\.jobtread\\.com/i.test(x._bbu||"")){',
+      '        window.postMessage({t:"__BB__",d:JSON.parse(x.responseText),u:x._bbu},"*");',
+      '      }',
+      '    }catch(e){}',
+      '  });',
+      '  return XS.apply(this,arguments);',
+      '};',
+      '})();',
+    ].join('\n');
+    (document.head || document.documentElement).prepend(script);
+    script.remove();
+  }
+
+  // Listen for intercepted API responses
+  window.addEventListener('message', (e) => {
+    if (e.source !== window || !e.data || e.data.t !== '__BB__') return;
+    try { processIntercepted(e.data.d); } catch (_) {}
+  });
+
+  function processIntercepted(payload) {
+    if (!payload || typeof payload !== 'object') return;
+    walkObj(payload);
+    _captured.ts = Date.now();
+  }
+
+  function walkObj(obj) {
+    if (!obj || typeof obj !== 'object') return;
+    if (Array.isArray(obj)) { obj.forEach(walkObj); return; }
+    tryIdentify(obj);
+    for (const k of Object.keys(obj)) {
+      if (k === '__typename' || k === 'extensions') continue;
+      walkObj(obj[k]);
+    }
+  }
+
+  function tryIdentify(obj) {
+    if (!obj || typeof obj !== 'object' || !obj.id) return;
+
+    // Contact / Customer shape
+    if (hasAny(obj, ['firstName', 'lastName']) && !hasAny(obj, ['budget', 'lineItems'])) {
+      upsert(_captured.contacts, {
+        id: obj.id,
+        firstName: obj.firstName || '',
+        lastName: obj.lastName || '',
+        company: obj.company || obj.companyName || obj.organizationName || '',
+        email: obj.email || '',
+        phone: obj.phone || obj.mobilePhone || obj.cellPhone || '',
+        type: obj.type || obj.contactType || obj.__typename || '',
+        address: fmtAddr(obj.address),
+      });
+    }
+
+    // Job shape
+    if (obj.name !== undefined && hasAny(obj, ['status', 'number', 'budget', 'stage', 'jobNumber', 'customer'])) {
+      const cust = obj.customer || obj.contact || obj.client || obj.owner || {};
+      upsert(_captured.jobs, {
+        id: obj.id,
+        name: obj.name || '',
+        number: obj.number || obj.jobNumber || '',
+        status: obj.status || '',
+        stage: obj.stage || '',
+        description: obj.description || '',
+        address: fmtAddr(obj.address || obj.jobAddress || obj.siteAddress),
+        custName: joinName(cust.firstName, cust.lastName) || cust.name || '',
+        custCompany: cust.company || cust.companyName || '',
+        custEmail: cust.email || '',
+        custPhone: cust.phone || '',
+      });
+    }
+  }
+
+  function hasAny(o, keys) { return keys.some(k => o[k] !== undefined); }
+
+  function upsert(arr, item) {
+    const idx = arr.findIndex(x => x.id === item.id);
+    if (idx >= 0) {
+      // Merge — keep non-empty values
+      for (const k of Object.keys(item)) { if (item[k]) arr[idx][k] = item[k]; }
+    } else {
+      arr.push(item);
+    }
+  }
+
+  function fmtAddr(a) {
+    if (!a || typeof a !== 'object') return typeof a === 'string' ? a : '';
+    return [a.street1, a.street2, a.city, a.state, a.zip, a.country].filter(Boolean).join(', ');
+  }
+
+  function joinName(f, l) { return [f, l].filter(Boolean).join(' '); }
+
+  // ---------------------------------------------------------------------------
+  // 2. URL PARSER
+  // ---------------------------------------------------------------------------
+
+  function parseURL() {
+    const p = location.pathname + location.hash;
+    const patterns = [
+      [/\/jobs?\/([^/?#]+)/i, 'job'],
+      [/\/customers?\/([^/?#]+)/i, 'customer'],
+      [/\/contacts?\/([^/?#]+)/i, 'contact'],
+      [/\/estimates?\/([^/?#]+)/i, 'estimate'],
+      [/\/proposals?\/([^/?#]+)/i, 'proposal'],
+      [/\/invoices?\/([^/?#]+)/i, 'invoice'],
+      [/\/contracts?\/([^/?#]+)/i, 'contract'],
+      [/\/purchase-orders?\/([^/?#]+)/i, 'purchase_order'],
+      [/\/change-orders?\/([^/?#]+)/i, 'change_order'],
+      [/\/work-orders?\/([^/?#]+)/i, 'work_order'],
+      [/\/bills?\/([^/?#]+)/i, 'bill'],
+      [/\/quotes?\/([^/?#]+)/i, 'quote'],
+      [/\/documents?\/([^/?#]+)/i, 'document'],
+      [/\/budget/i, 'budget'],
+    ];
+    for (const [re, type] of patterns) {
+      const m = p.match(re);
+      if (m) return { type, id: m[1] || null };
+    }
+    return { type: 'unknown', id: null };
+  }
+
+  const DOC_TYPES = {
+    job: 'Job', customer: 'Customer', contact: 'Contact',
+    estimate: 'Estimate', proposal: 'Proposal', invoice: 'Invoice',
+    contract: 'Contract', purchase_order: 'Purchase Order',
+    change_order: 'Change Order', work_order: 'Work Order',
+    bill: 'Bill', quote: 'Quote', document: 'Document', budget: 'Budget',
+  };
+
+  // ---------------------------------------------------------------------------
+  // 3. DOM SCRAPER — smart fallback for when interceptor hasn't captured yet
+  // ---------------------------------------------------------------------------
+
+  function scrapeDOMFallback() {
+    const d = { customerName: '', company: '', customerEmail: '', customerPhone: '', jobName: '', jobNumber: '', jobAddress: '' };
+    try {
+      // Title
+      const titleClean = (document.title || '').replace(/\s*[-|–—]\s*JobTread.*$/i, '').trim();
+      if (titleClean && titleClean.length > 1 && titleClean.length < 120) d.jobName = titleClean;
+
+      // Headings
+      const skip = new Set(['jobs', 'documents', 'settings', 'dashboard', 'home', 'contacts', 'customers', 'loading', 'jobtread', 'sign in', 'log in']);
+      for (const h of document.querySelectorAll('h1, h2, [role="heading"]')) {
+        const t = h.textContent.trim();
+        if (t.length > 1 && t.length < 100 && !skip.has(t.toLowerCase())) {
+          d.jobName = t;
+          break;
+        }
+      }
+
+      // Visible text patterns
+      const body = document.body?.innerText || '';
+
+      // Email
+      const em = body.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+      if (em) d.customerEmail = em[1];
+
+      // Phone
+      const ph = body.match(/(\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4})/);
+      if (ph) d.customerPhone = ph[1];
+
+      // Job number
+      const jn = body.match(/(?:Job|Project)\s*#?\s*:?\s*(\d{3,})/i);
+      if (jn) d.jobNumber = jn[1];
+
+      // Label-value pairs — broad selectors for React SPAs
+      const labelEls = document.querySelectorAll(
+        '[class*="label" i], [class*="field" i], [class*="detail" i], [class*="info" i], ' +
+        '[class*="header" i], [class*="title" i], dt, th, label, ' +
+        '[data-testid], [data-field], [aria-label]'
+      );
+      for (const el of labelEls) {
+        const lt = (el.textContent || '').trim().toLowerCase().replace(/:$/, '');
+        if (lt.length > 30 || lt.length < 2) continue;
+
+        let val = '';
+        const next = el.nextElementSibling;
+        if (next) val = next.textContent.trim();
+        if (!val || val.length > 200) {
+          const p = el.parentElement;
+          if (p) {
+            const dd = p.querySelector('dd, [class*="value" i], [class*="data" i], [class*="content" i]');
+            if (dd) val = dd.textContent.trim();
+          }
+        }
+        if (!val || val.length > 200) continue;
+
+        if (!d.customerName && /^(customer|client|contact|owner|bill\s*to|sold\s*to)$/.test(lt)) d.customerName = val;
+        if (!d.company && /^(company|organization|business|firm)$/.test(lt)) d.company = val;
+        if (!d.jobNumber && /^(job\s*#|job\s*no|job\s*number|project\s*number)$/.test(lt)) d.jobNumber = val;
+        if (!d.jobAddress && /^(address|job\s*address|site\s*address|project\s*address|location)$/.test(lt)) d.jobAddress = val;
+      }
+
+      // Breadcrumbs
+      for (const a of document.querySelectorAll('nav a, [class*="breadcrumb" i] a, [aria-label*="breadcrumb" i] a')) {
+        const t = a.textContent.trim();
+        if (t.length > 2 && t.length < 80 && !skip.has(t.toLowerCase())) {
+          if (!d.jobName) d.jobName = t;
+        }
+      }
+
+      // Detect company-like customer names
+      if (d.customerName && !d.company) {
+        const biz = ['llc', 'inc', 'corp', 'co', 'ltd', 'group', 'services', 'construction', 'builders', 'contracting', 'enterprises', 'homes', 'roofing', 'plumbing', 'electric', 'remodeling', 'renovations', 'design', 'solutions'];
+        if (d.customerName.split(/\s+/).some(w => biz.includes(w.toLowerCase().replace(/[.,]/g, '')))) {
+          d.company = d.customerName;
+        }
+      }
+    } catch (_) {}
+    return d;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 4. COMBINED DATA GATHERER
+  // ---------------------------------------------------------------------------
+
+  function gatherData() {
+    const url = parseURL();
+    const dom = scrapeDOMFallback();
+
+    const r = {
+      customerName: '', company: '', customerEmail: '', customerPhone: '',
+      customerAddress: '', jobName: '', jobNumber: '', jobAddress: '',
+      docType: DOC_TYPES[url.type] || '', pageType: url.type, source: 'none',
+      fieldCount: 0,
+    };
+
+    // Intercepted data (priority)
+    if (_captured.ts > 0) {
+      let job = url.id ? _captured.jobs.find(j => j.id === url.id) : null;
+      if (!job && _captured.jobs.length) job = _captured.jobs[_captured.jobs.length - 1];
+
+      if (job) {
+        r.jobName = job.name; r.jobNumber = job.number; r.jobAddress = job.address;
+        r.customerName = job.custName; r.company = job.custCompany;
+        r.customerEmail = job.custEmail; r.customerPhone = job.custPhone;
+        r.source = 'api';
+      }
+
+      if (['customer', 'contact'].includes(url.type)) {
+        let c = url.id ? _captured.contacts.find(x => x.id === url.id) : null;
+        if (!c && _captured.contacts.length) c = _captured.contacts[_captured.contacts.length - 1];
+        if (c) {
+          r.customerName = joinName(c.firstName, c.lastName) || r.customerName;
+          r.company = c.company || r.company;
+          r.customerEmail = c.email || r.customerEmail;
+          r.customerPhone = c.phone || r.customerPhone;
+          r.customerAddress = c.address || r.customerAddress;
+          r.source = 'api';
+        }
+      }
+    }
+
+    // Fill gaps from DOM
+    if (!r.jobName) r.jobName = dom.jobName;
+    if (!r.jobNumber) r.jobNumber = dom.jobNumber;
+    if (!r.customerName) r.customerName = dom.customerName;
+    if (!r.company) r.company = dom.company;
+    if (!r.customerEmail) r.customerEmail = dom.customerEmail;
+    if (!r.customerPhone) r.customerPhone = dom.customerPhone;
+    if (!r.jobAddress) r.jobAddress = dom.jobAddress;
+    if (r.source === 'none' && (r.jobName || r.customerName)) r.source = 'dom';
+
+    // Count filled fields
+    r.fieldCount = [r.customerName, r.company, r.customerEmail, r.customerPhone, r.jobName, r.jobNumber, r.jobAddress, r.customerAddress].filter(Boolean).length;
+
+    return r;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Default templates
+  // ---------------------------------------------------------------------------
+
+  function defaultDescTemplates() {
     return [
       {
-        id: 'desc_sow',
-        name: 'JT Implementation SOW',
-        content: `*JobTread Implementation Agreement \u2014 *^{{company}}^**
-*Client:* *^{{company}}^* (\u201CClient\u201D) \u2022 *Contact:* *^{{customerName}}^*
-*Provider:* {{bizName}} (\u201CProvider\u201D)
+        id: 'sow',
+        name: 'Implementation SOW',
+        body: `*JobTread Implementation Agreement — *^{{company}}^**
+*Client:* *^{{company}}^* ("Client") • *Contact:* *^{{customerName}}^*
+*Provider:* {{bizName}} ("Provider")
 *Project:* Full JobTread build-out operating system for remodeling and construction
 *Term:* 30 business day implementation from kickoff
 *Total Contract Value:* *$10,000 USD*
@@ -97,7 +386,7 @@ Custom views across all modules including jobs, customers, catalog, and more for
 ####2.7 Document Templates
 Document template build-out including details, design, and custom cover PDFs. Proposals, Closeout Packets, Certificates of Completion, Contracts, and Change Orders configured and branded.
 ####2.8 Dashboards
-1-2 custom dashboards with live metrics by role\u2014estimating accuracy, job costs, and pipeline status.
+1-2 custom dashboards with live metrics by role—estimating accuracy, job costs, and pipeline status.
 ####2.9 Automation Suite
 Up to 5 custom notifications OR 2-4 workflows as needed for client and trade partner communication including reminders, scheduling, and follow-ups.
 ####2.10 SOP Guides
@@ -124,9 +413,9 @@ Role-based videos, SOP reference map, and admin maintenance guide for full contr
 ##6) Pricing & Financing
 *Fixed Fee*: $10,000 USD
 *Financing options:*
-6 mo: $1,666.67/mo \u2014 no interest
-12 mo: $879.13/mo \u2014 ~$549.56 interest
-36 mo: $322.63/mo \u2014 ~$1,614.90 interest
+6 mo: $1,666.67/mo — no interest
+12 mo: $879.13/mo — ~$549.56 interest
+36 mo: $322.63/mo — ~$1,614.90 interest
 ^Final terms subject to credit and approvals.^
 ##7) Payment Terms
 - *100% due at kickoff* to schedule and start work
@@ -162,13 +451,12 @@ This document is the full agreement; changes require written approval.
 ##19) Counterparts & E-Signature
 This agreement may be signed electronically and in counterparts.
 ##20) Acceptance & Signature
-This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019s acceptance is deemed upon (a) commencement of services or (b) receipt of the first payment.* No additional Provider signature required.`,
-        isDefault: true,
+This Agreement is binding upon Client's signature below. *{{bizName}}'s acceptance is deemed upon (a) commencement of services or (b) receipt of the first payment.* No additional Provider signature required.`,
       },
       {
-        id: 'desc_proposal',
-        name: 'Construction Proposal',
-        content: `## Proposal \u2014 {{jobName}}
+        id: 'proposal',
+        name: 'Proposal',
+        body: `## Proposal — {{jobName}}
 
 *Prepared for:* {{customerName}}{{#company}} | {{company}}{{/company}}
 *Prepared by:* {{bizName}}
@@ -210,12 +498,11 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
 
 ---
 *{{bizName}}* | {{bizPhone}} | {{bizEmail}}`,
-        isDefault: true,
       },
       {
-        id: 'desc_change_order',
+        id: 'change_order',
         name: 'Change Order',
-        content: `## Change Order
+        body: `## Change Order
 
 *Project:* {{jobName}}{{#jobNumber}} (Job #{{jobNumber}}){{/jobNumber}}
 *Client:* {{customerName}}{{#company}} | {{company}}{{/company}}
@@ -230,9 +517,6 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
 ### Reason for Change
 [Explain why this change is needed.]
 
-### Impact on Scope
-[Describe how this affects the original scope of work.]
-
 ### Cost Adjustment
 | Item | Amount |
 |------|--------|
@@ -241,272 +525,96 @@ This Agreement is binding upon Client\u2019s signature below. *{{bizName}}\u2019
 | *Change Order Total* | *$0.00* |
 
 ### Schedule Impact
-[Describe any timeline changes. Example: "Adds 3 business days to completion."]
+[Describe any timeline changes.]
 
 ### Authorization
 This change order becomes part of the original contract upon signature.
 
 Client Signature: _________________________ Date: _________
 {{bizName}} Signature: _________________________ Date: _________`,
-        isDefault: true,
       },
-      {
-        id: 'desc_blank',
-        name: 'Blank Template',
-        content: '',
-        isDefault: true,
-      },
+      { id: 'blank', name: 'Blank', body: '' },
     ];
   }
 
-  function getDefaultFooterTemplates() {
+  function defaultFooterTemplates() {
     return [
       {
-        id: 'footer_full',
-        name: 'Full Contact Footer',
-        content:
-          '{{#customerName}}*Prepared for:* {{customerName}}{{/customerName}}' +
-          '{{#company}} | *{{company}}*{{/company}}' +
-          '{{#jobName}} | Project: {{jobName}}{{/jobName}}' +
-          '{{#jobNumber}} | Job #{{jobNumber}}{{/jobNumber}}' +
-          '\n{{#bizName}}*{{bizName}}*{{/bizName}}' +
-          '{{#bizPhone}} | {{bizPhone}}{{/bizPhone}}' +
-          '{{#bizEmail}} | {{bizEmail}}{{/bizEmail}}' +
-          '{{#bizWebsite}} | {{bizWebsite}}{{/bizWebsite}}' +
-          '{{#bizLicense}} | Lic #{{bizLicense}}{{/bizLicense}}',
-        isDefault: true,
+        id: 'full',
+        name: 'Full Contact',
+        body: '{{#customerName}}*Prepared for:* {{customerName}}{{/customerName}}{{#company}} | *{{company}}*{{/company}}{{#jobName}} | Project: {{jobName}}{{/jobName}}{{#jobNumber}} | Job #{{jobNumber}}{{/jobNumber}}\n{{#bizName}}*{{bizName}}*{{/bizName}}{{#bizPhone}} | {{bizPhone}}{{/bizPhone}}{{#bizEmail}} | {{bizEmail}}{{/bizEmail}}{{#bizWebsite}} | {{bizWebsite}}{{/bizWebsite}}{{#bizLicense}} | Lic #{{bizLicense}}{{/bizLicense}}',
       },
       {
-        id: 'footer_minimal',
-        name: 'Minimal Footer',
-        content: '{{#bizName}}*{{bizName}}*{{/bizName}}{{#bizPhone}} | {{bizPhone}}{{/bizPhone}}',
-        isDefault: true,
+        id: 'minimal',
+        name: 'Minimal',
+        body: '{{#bizName}}*{{bizName}}*{{/bizName}}{{#bizPhone}} | {{bizPhone}}{{/bizPhone}}',
       },
-      {
-        id: 'footer_blank',
-        name: 'Blank Footer',
-        content: '',
-        isDefault: true,
-      },
+      { id: 'blank', name: 'None', body: '' },
     ];
   }
 
-  function getDefaultSnippets() {
-    return [
-      {
-        id: 'snip_payment',
-        name: 'Payment Terms',
-        content: '##Payment Terms\n- 50% deposit due upon contract signing\n- 25% due at project midpoint\n- 25% due upon final completion and walkthrough\n- Late payments subject to 1.5% monthly interest\n- All payments due within 15 days of invoice date',
-      },
-      {
-        id: 'snip_warranty',
-        name: 'Warranty Clause',
-        content: '##Warranty\nContractor warrants all work performed under this agreement for a period of *one (1) year* from the date of substantial completion. This warranty covers defects in workmanship and materials provided by the Contractor. This warranty does not cover damage caused by the Client, normal wear and tear, or acts of nature.',
-      },
-      {
-        id: 'snip_change_policy',
-        name: 'Change Order Policy',
-        content: '##Change Orders\nAny changes to the original scope of work must be documented in writing via a Change Order signed by both parties. Change orders may affect project cost and timeline. No additional work will begin until the change order is approved and signed.',
-      },
-      {
-        id: 'snip_insurance',
-        name: 'Insurance & Liability',
-        content: '##Insurance & Liability\nContractor maintains general liability insurance, workers\u2019 compensation, and auto insurance. Certificates of insurance available upon request. Contractor\u2019s total liability shall not exceed the total contract value. Contractor is not liable for pre-existing conditions or concealed defects discovered during work.',
-      },
-      {
-        id: 'snip_cancellation',
-        name: 'Cancellation Policy',
-        content: '##Cancellation\nEither party may cancel this agreement with *14 days written notice*. If Client cancels after work has begun, Client is responsible for payment of all completed work plus materials ordered. Deposit is non-refundable after project kickoff.',
-      },
-    ];
-  }
-
-  function getDefaultData() {
-    return {
-      profile: {},
-      descTemplates: getDefaultDescTemplates(),
-      footerTemplates: getDefaultFooterTemplates(),
-      snippets: getDefaultSnippets(),
-      activeDescId: 'desc_sow',
-      activeFooterId: 'footer_full',
-      customVars: {},
-      prefs: { shortcuts: true },
-    };
-  }
-
-  // ==========================================================================
-  // STORAGE (chrome.storage.local with in-memory cache)
-  // ==========================================================================
+  // ---------------------------------------------------------------------------
+  // Storage
+  // ---------------------------------------------------------------------------
 
   let _data = null;
 
-  function loadData() {
+  function defaults() {
+    return {
+      profile: {},
+      descTemplates: defaultDescTemplates(),
+      footerTemplates: defaultFooterTemplates(),
+      activeDesc: 'sow',
+      activeFooter: 'full',
+    };
+  }
+
+  function load() {
     return new Promise((resolve) => {
-      try {
-        chrome.storage.local.get(null, (result) => {
-          if (chrome.runtime.lastError) {
-            log('Storage read error:', chrome.runtime.lastError);
-            _data = getDefaultData();
-          } else if (!result || !result.descTemplates) {
-            // First run or migration needed — check sync storage
-            chrome.storage.sync.get(null, (syncResult) => {
-              if (syncResult && syncResult.profile && syncResult.profile.ownerName) {
-                // Migrate from sync to local
-                _data = getDefaultData();
-                _data.profile = syncResult.profile;
-                if (syncResult.descriptionTemplate) {
-                  _data.descTemplates[0].content = syncResult.descriptionTemplate;
-                }
-                if (syncResult.footerTemplate) {
-                  _data.footerTemplates[0].content = syncResult.footerTemplate;
-                }
-                saveData(_data);
-                log('Migrated data from sync to local storage');
-              } else {
-                _data = getDefaultData();
-                saveData(_data);
-              }
-              resolve(_data);
-            });
-            return;
-          } else {
-            _data = result;
-            // Ensure all keys exist (for upgrades)
-            const defaults = getDefaultData();
-            let needsSave = false;
-            for (const key of Object.keys(defaults)) {
-              if (_data[key] === undefined) {
-                _data[key] = defaults[key];
-                needsSave = true;
-              }
-            }
-            if (needsSave) saveData(_data);
+      chrome.storage.local.get(null, (r) => {
+        if (chrome.runtime.lastError || !r || !r.descTemplates) {
+          _data = defaults();
+          chrome.storage.local.set(_data);
+        } else {
+          _data = r;
+          const d = defaults();
+          let save = false;
+          for (const k of Object.keys(d)) {
+            if (_data[k] === undefined) { _data[k] = d[k]; save = true; }
           }
-          resolve(_data);
-        });
-      } catch (e) {
-        log('Storage exception:', e);
-        _data = getDefaultData();
+          if (save) chrome.storage.local.set(_data);
+        }
         resolve(_data);
-      }
+      });
     });
   }
 
-  function saveData(data) {
-    _data = data || _data;
-    try {
-      chrome.storage.local.set(_data);
-    } catch (e) {
-      log('Save error:', e);
-    }
+  function save(key, val) {
+    _data[key] = val;
+    chrome.storage.local.set({ [key]: val });
   }
 
-  function save(key, value) {
-    _data[key] = value;
-    try {
-      chrome.storage.local.set({ [key]: value });
-    } catch (e) {
-      log('Save error:', e);
-    }
-  }
+  // ---------------------------------------------------------------------------
+  // Template engine
+  // ---------------------------------------------------------------------------
 
-  // ==========================================================================
-  // PAGE DETECTION
-  // ==========================================================================
-
-  const DOC_PATHS = [
-    '/jobs/', '/documents/', '/invoices/', '/estimates/', '/proposals/',
-    '/contracts/', '/purchase-orders/', '/change-orders/', '/work-orders/',
-    '/bills/', '/budget', '/quotes/',
-  ];
-  const EXCLUDE_PATHS = ['/settings', '/plans', '/catalog'];
-
-  function isDocPage() {
-    const p = window.location.pathname;
-    if (EXCLUDE_PATHS.some(x => p.includes(x))) return false;
-    return DOC_PATHS.some(x => p.includes(x));
-  }
-
-  let currentJobInfo = null;
-  let currentCustomerInfo = null;
-
-  function extractJobInfo() {
-    const info = { jobName: '', jobNumber: '', jobId: '' };
-    try {
-      for (const h of document.querySelectorAll('h1, h2')) {
-        const t = h.textContent.trim();
-        if (t.length > 2 && t.length < 200) { info.jobName = t; break; }
-      }
-      if (!info.jobName) {
-        const m = document.title.match(/^(.+?)(?:\s*[-|]\s*JobTread)?$/i);
-        if (m) info.jobName = m[1].trim();
-      }
-      const nm = document.body.innerText.match(/(?:Job\s*#?\s*|#)(\d{3,})/i);
-      if (nm) info.jobNumber = nm[1];
-      const id = window.location.pathname.match(/\/jobs\/([^/]+)/);
-      if (id) info.jobId = id[1];
-    } catch (e) { log('extractJobInfo error:', e); }
-    return info;
-  }
-
-  function extractCustomerInfo() {
-    const info = { customerName: '', company: '', email: '', phone: '' };
-    try {
-      const txt = document.body.innerText;
-      const em = txt.match(/[\w.+-]+@[\w-]+\.[\w.]+/);
-      if (em) info.email = em[0];
-      const ph = txt.match(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
-      if (ph) info.phone = ph[0];
-    } catch (e) { log('extractCustomerInfo error:', e); }
-    return info;
-  }
-
-  // ==========================================================================
-  // TEMPLATE ENGINE
-  // ==========================================================================
-
-  function render(template, data) {
-    let r = template || '';
-    // Conditional blocks: {{#var}}content{{/var}}
-    r = r.replace(/\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (_, k, c) => {
-      return (data[k] && data[k].toString().trim())
-        ? c.replace(/\{\{(\w+)\}\}/g, (__, kk) => data[kk] || '')
-        : '';
-    });
-    // Simple variables: {{var}}
+  function render(tpl, data) {
+    let r = tpl || '';
+    r = r.replace(/\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (_, k, c) =>
+      (data[k] && data[k].toString().trim()) ? c.replace(/\{\{(\w+)\}\}/g, (__, kk) => data[kk] || '') : ''
+    );
     r = r.replace(/\{\{(\w+)\}\}/g, (_, k) => data[k] || '');
     return r.replace(/\n{3,}/g, '\n\n').trim();
   }
 
-  function buildData() {
-    const p = (_data && _data.profile) || {};
-    const cv = (_data && _data.customVars) || {};
-    return {
-      company: document.getElementById('bb-company')?.value || '',
-      customerName: document.getElementById('bb-name')?.value || '',
-      jobName: document.getElementById('bb-job')?.value || '',
-      jobNumber: document.getElementById('bb-jobnum')?.value || '',
-      date: new Date().toLocaleDateString(),
-      bizName: p.bizName || '',
-      bizEmail: p.bizEmail || '',
-      bizPhone: p.bizPhone || '',
-      bizAddress: p.bizAddress || '',
-      bizWebsite: p.bizWebsite || '',
-      bizLicense: p.bizLicense || '',
-      ownerName: p.ownerName || '',
-      ...cv,
-    };
-  }
+  // ---------------------------------------------------------------------------
+  // Clipboard
+  // ---------------------------------------------------------------------------
 
-  // ==========================================================================
-  // CLIPBOARD
-  // ==========================================================================
-
-  async function copyText(text, btn) {
-    let ok = false;
+  async function copyText(text) {
     try {
       await navigator.clipboard.writeText(text);
-      ok = true;
+      return true;
     } catch (_) {
       try {
         const ta = document.createElement('textarea');
@@ -514,833 +622,543 @@ Client Signature: _________________________ Date: _________
         ta.style.cssText = 'position:fixed;left:-9999px;opacity:0';
         document.body.appendChild(ta);
         ta.select();
-        ok = document.execCommand('copy');
-        document.body.removeChild(ta);
-      } catch (__) { ok = false; }
+        const ok = document.execCommand('copy');
+        ta.remove();
+        return ok;
+      } catch (__) { return false; }
     }
-    if (btn) {
-      const orig = btn.innerHTML;
-      if (ok) {
-        btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
-        btn.classList.add('bb-btn--copied');
-      } else {
-        btn.textContent = 'Failed';
-        btn.classList.add('bb-btn--error');
-      }
-      setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('bb-btn--copied', 'bb-btn--error'); }, 1800);
-    }
-    return ok;
   }
 
-  // ==========================================================================
-  // FAB
-  // ==========================================================================
+  // ---------------------------------------------------------------------------
+  // Page detection
+  // ---------------------------------------------------------------------------
 
-  function createFAB() {
-    if (document.getElementById(FAB_ID)) return;
-    const el = document.createElement('div');
-    el.id = FAB_ID;
-    el.innerHTML = `<button class="bb-fab" title="${BRAND} DocFill" aria-label="Open ${BRAND} DocFill"><span class="bb-fab__icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><span class="bb-fab__label">DocFill</span></button>`;
-    el.addEventListener('click', togglePanel);
-    document.body.appendChild(el);
+  function isRelevantPage() {
+    const p = location.pathname.toLowerCase();
+    if (['/settings', '/plans', '/catalog', '/login', '/signup', '/register'].some(x => p.includes(x))) return false;
+    const relevant = ['/jobs', '/documents', '/invoices', '/estimates', '/proposals', '/contracts', '/purchase-orders', '/change-orders', '/work-orders', '/bills', '/budget', '/quotes', '/customers', '/contacts'];
+    return relevant.some(x => p.includes(x));
   }
 
-  // ==========================================================================
-  // PANEL CORE
-  // ==========================================================================
+  // ---------------------------------------------------------------------------
+  // Trigger FAB
+  // ---------------------------------------------------------------------------
 
-  let activeTab = 'docfill';
-  let editingId = null;
-  let editingType = null; // 'desc', 'footer', 'snippet'
-
-  function togglePanel() {
-    const ex = document.getElementById(PANEL_ID);
-    if (ex) { closePanel(); return; }
-    openPanel();
+  function createTrigger() {
+    if (document.getElementById(TRIGGER_ID)) return;
+    const btn = document.createElement('button');
+    btn.id = TRIGGER_ID;
+    btn.className = 'bb-fab';
+    btn.title = 'Better Boss DocFill (Ctrl+Shift+B)';
+    btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg><span>DocFill</span>';
+    btn.addEventListener('click', toggle);
+    document.body.appendChild(btn);
   }
+
+  function removeTrigger() {
+    const el = document.getElementById(TRIGGER_ID);
+    if (el) el.remove();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Panel
+  // ---------------------------------------------------------------------------
+
+  let panelOpen = false;
+  let currentView = 'main';
+  let editTarget = null;
+  let _pageData = null;
+
+  function toggle() { panelOpen ? closePanel() : openPanel(); }
 
   function closePanel() {
     const p = document.getElementById(PANEL_ID);
-    if (p) {
-      p.classList.add('bb-panel-out');
-      setTimeout(() => p.remove(), 200);
-    }
+    if (p) { p.classList.add('bb-panel--out'); setTimeout(() => p.remove(), 200); }
+    panelOpen = false;
   }
 
   async function openPanel() {
-    if (!_data) await loadData();
-    const job = currentJobInfo || extractJobInfo();
-    const cust = currentCustomerInfo || extractCustomerInfo();
-    currentJobInfo = job;
-    currentCustomerInfo = cust;
+    if (!_data) await load();
+    closePanel();
+    _pageData = gatherData();
+    const prof = _data.profile || {};
 
     const panel = document.createElement('div');
     panel.id = PANEL_ID;
-    panel.innerHTML = `
-      <div class="bb-panel">
-        <div class="bb-hdr">
-          <div class="bb-hdr__brand">
-            <div class="bb-hdr__logo">BB</div>
-            <div class="bb-hdr__text">
-              <span class="bb-hdr__title">${BRAND} <span class="bb-hdr__accent">DocFill</span></span>
-              <span class="bb-hdr__ver">v${VERSION}</span>
-            </div>
-          </div>
-          <button class="bb-hdr__close" id="bb-close">&times;</button>
-        </div>
-        <div class="bb-tabs" id="bb-tabs">
-          <button class="bb-tab bb-tab--active" data-tab="docfill">DocFill</button>
-          <button class="bb-tab" data-tab="templates">Templates</button>
-          <button class="bb-tab" data-tab="snippets">Snippets</button>
-          <button class="bb-tab" data-tab="settings">Settings</button>
-          <div class="bb-tab__indicator"></div>
-        </div>
-        <div class="bb-body" id="bb-body"></div>
-        <div class="bb-foot">
-          <span>${BRAND} DocFill v${VERSION}</span>
-          <a href="https://better-boss.ai" target="_blank" rel="noopener">better-boss.ai</a>
-        </div>
-      </div>`;
-
+    panel.innerHTML = buildHTML(prof);
     document.body.appendChild(panel);
-
-    // Tab switching
-    panel.querySelectorAll('.bb-tab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        editingId = null;
-        editingType = null;
-        panel.querySelectorAll('.bb-tab').forEach(t => t.classList.remove('bb-tab--active'));
-        tab.classList.add('bb-tab--active');
-        activeTab = tab.dataset.tab;
-        moveIndicator(tab);
-        renderTab();
-      });
-    });
-
-    document.getElementById('bb-close').addEventListener('click', closePanel);
-    activeTab = 'docfill';
-    moveIndicator(panel.querySelector('.bb-tab--active'));
-    renderTab();
-  }
-
-  function moveIndicator(tab) {
-    const indicator = document.querySelector('.bb-tab__indicator');
-    if (!indicator || !tab) return;
-    indicator.style.left = tab.offsetLeft + 'px';
-    indicator.style.width = tab.offsetWidth + 'px';
-  }
-
-  function renderTab() {
-    const body = document.getElementById('bb-body');
-    if (!body) return;
-    if (activeTab === 'docfill') renderDocFill(body);
-    else if (activeTab === 'templates') renderTemplates(body);
-    else if (activeTab === 'snippets') renderSnippets(body);
-    else if (activeTab === 'settings') renderSettings(body);
-  }
-
-  // ==========================================================================
-  // TAB: DOCFILL (Main Generation)
-  // ==========================================================================
-
-  function renderDocFill(body) {
-    const job = currentJobInfo || {};
-    const cust = currentCustomerInfo || {};
-    const p = _data.profile || {};
-    const loggedIn = !!(p.ownerName);
-    const descTemplates = _data.descTemplates || [];
-    const footerTemplates = _data.footerTemplates || [];
-    const activeDescId = _data.activeDescId || (descTemplates[0] && descTemplates[0].id);
-    const activeFooterId = _data.activeFooterId || (footerTemplates[0] && footerTemplates[0].id);
-
-    const profileHTML = loggedIn
-      ? `<div class="bb-badge"><div class="bb-avatar">${initials(p.ownerName)}</div><div class="bb-badge__info"><strong>${esc(p.ownerName)}</strong><span>${esc(p.bizName || '')}</span></div></div>`
-      : `<div class="bb-alert bb-alert--warn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Set up your profile in <a href="#" id="bb-go-settings">Settings</a> to auto-fill your business info.</div>`;
-
-    const descOpts = descTemplates.map(t => `<option value="${esc(t.id)}"${t.id === activeDescId ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
-    const footerOpts = footerTemplates.map(t => `<option value="${esc(t.id)}"${t.id === activeFooterId ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
-
-    body.innerHTML = `
-      <div class="bb-sec">${profileHTML}</div>
-      <div class="bb-sep"></div>
-
-      <div class="bb-sec">
-        <div class="bb-sec__head"><h4>Client & Job</h4></div>
-        <div class="bb-grid">
-          <div class="bb-inp"><label for="bb-company">Company</label><input id="bb-company" value="${esc(cust.company)}" placeholder="Smith Roofing LLC" maxlength="200"/></div>
-          <div class="bb-inp"><label for="bb-name">Contact</label><input id="bb-name" value="${esc(cust.customerName)}" placeholder="John Smith" maxlength="120"/></div>
-        </div>
-        <div class="bb-grid">
-          <div class="bb-inp"><label for="bb-job">Job Name</label><input id="bb-job" value="${esc(job.jobName)}" placeholder="Roof Replacement" maxlength="200"/></div>
-          <div class="bb-inp bb-inp--sm"><label for="bb-jobnum">Job #</label><input id="bb-jobnum" value="${esc(job.jobNumber)}" placeholder="4821" maxlength="30"/></div>
-        </div>
-      </div>
-
-      <div class="bb-sep"></div>
-
-      <div class="bb-sec">
-        <div class="bb-sec__head">
-          <h4>Description</h4>
-          <div class="bb-sec__actions">
-            <select id="bb-desc-select" class="bb-select">${descOpts}</select>
-            <button class="bb-btn bb-btn--copy" id="bb-copy-desc"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button>
-          </div>
-        </div>
-        <div class="bb-output" id="bb-desc-out" tabindex="0"></div>
-      </div>
-
-      <div class="bb-sep"></div>
-
-      <div class="bb-sec">
-        <div class="bb-sec__head">
-          <h4>Footer</h4>
-          <div class="bb-sec__actions">
-            <select id="bb-footer-select" class="bb-select">${footerOpts}</select>
-            <button class="bb-btn bb-btn--copy" id="bb-copy-footer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button>
-          </div>
-        </div>
-        <div class="bb-output bb-output--sm" id="bb-footer-out" tabindex="0"></div>
-      </div>
-
-      <div class="bb-sec bb-sec--actions">
-        <button class="bb-btn bb-btn--primary" id="bb-copy-all">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          Copy All to Clipboard
-        </button>
-        <button class="bb-btn bb-btn--ghost" id="bb-regen">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-          Regenerate
-        </button>
-      </div>`;
-
-    // Events
-    const debouncedGen = debounce(generate, 250);
-    ['bb-company', 'bb-name', 'bb-job', 'bb-jobnum'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.addEventListener('input', debouncedGen);
-    });
-
-    document.getElementById('bb-desc-select').addEventListener('change', (e) => {
-      save('activeDescId', e.target.value);
-      generate();
-    });
-    document.getElementById('bb-footer-select').addEventListener('change', (e) => {
-      save('activeFooterId', e.target.value);
-      generate();
-    });
-
-    document.getElementById('bb-copy-desc').addEventListener('click', function () {
-      const raw = document.getElementById('bb-desc-out')?.getAttribute('data-raw') || '';
-      copyText(raw, this);
-    });
-    document.getElementById('bb-copy-footer').addEventListener('click', function () {
-      const raw = document.getElementById('bb-footer-out')?.getAttribute('data-raw') || '';
-      copyText(raw, this);
-    });
-    document.getElementById('bb-copy-all').addEventListener('click', function () {
-      const desc = document.getElementById('bb-desc-out')?.getAttribute('data-raw') || '';
-      const footer = document.getElementById('bb-footer-out')?.getAttribute('data-raw') || '';
-      const combined = desc + (footer ? '\n\n---\n\n' + footer : '');
-      copyText(combined, this);
-    });
-    document.getElementById('bb-regen').addEventListener('click', () => {
-      currentJobInfo = extractJobInfo();
-      currentCustomerInfo = extractCustomerInfo();
-      const job2 = currentJobInfo;
-      const el1 = document.getElementById('bb-job');
-      const el2 = document.getElementById('bb-jobnum');
-      if (el1 && job2.jobName) el1.value = job2.jobName;
-      if (el2 && job2.jobNumber) el2.value = job2.jobNumber;
-      generate();
-      toast('Page data refreshed');
-    });
-
-    const goSettings = document.getElementById('bb-go-settings');
-    if (goSettings) {
-      goSettings.addEventListener('click', (e) => {
-        e.preventDefault();
-        const panel = document.getElementById(PANEL_ID);
-        if (!panel) return;
-        panel.querySelectorAll('.bb-tab').forEach(t => t.classList.remove('bb-tab--active'));
-        const st = panel.querySelector('[data-tab="settings"]');
-        if (st) { st.classList.add('bb-tab--active'); moveIndicator(st); }
-        activeTab = 'settings';
-        renderTab();
-      });
-    }
-
+    panelOpen = true;
+    currentView = 'main';
+    bindEvents(panel);
     generate();
   }
 
-  function generate() {
-    const data = buildData();
-    const descTemplates = _data.descTemplates || [];
-    const footerTemplates = _data.footerTemplates || [];
-    const descTpl = descTemplates.find(t => t.id === _data.activeDescId) || descTemplates[0];
-    const footerTpl = footerTemplates.find(t => t.id === _data.activeFooterId) || footerTemplates[0];
+  // ---------------------------------------------------------------------------
+  // Panel HTML
+  // ---------------------------------------------------------------------------
 
-    const descText = render(descTpl ? descTpl.content : '', data);
-    const footerText = render(footerTpl ? footerTpl.content : '', data);
+  function buildHTML(prof) {
+    const hasProfile = !!prof.ownerName;
+    const pg = _pageData || {};
+    const descTpls = _data.descTemplates || [];
+    const footerTpls = _data.footerTemplates || [];
+    const descOpts = descTpls.map(t => `<option value="${esc(t.id)}"${t.id === _data.activeDesc ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
+    const footerOpts = footerTpls.map(t => `<option value="${esc(t.id)}"${t.id === _data.activeFooter ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
 
-    const dEl = document.getElementById('bb-desc-out');
-    const fEl = document.getElementById('bb-footer-out');
-    if (dEl) { dEl.setAttribute('data-raw', descText); dEl.textContent = descText; }
-    if (fEl) { fEl.setAttribute('data-raw', footerText); fEl.textContent = footerText; }
-  }
+    // Detected data rows
+    const fields = [];
+    if (pg.customerName) fields.push(['Customer', pg.customerName]);
+    if (pg.company) fields.push(['Company', pg.company]);
+    if (pg.customerEmail) fields.push(['Email', pg.customerEmail]);
+    if (pg.customerPhone) fields.push(['Phone', pg.customerPhone]);
+    if (pg.jobName) fields.push(['Job', pg.jobName]);
+    if (pg.jobNumber) fields.push(['Job #', pg.jobNumber]);
+    if (pg.jobAddress) fields.push(['Address', pg.jobAddress]);
+    if (pg.docType) fields.push(['Type', pg.docType]);
 
-  // ==========================================================================
-  // TAB: TEMPLATES
-  // ==========================================================================
+    const sourceBadge = pg.source === 'api'
+      ? '<span class="bb-badge bb-badge--green">LIVE DATA</span>'
+      : pg.source === 'dom'
+        ? '<span class="bb-badge bb-badge--yellow">SCRAPED</span>'
+        : '';
 
-  function renderTemplates(body) {
-    const descTemplates = _data.descTemplates || [];
-    const footerTemplates = _data.footerTemplates || [];
+    const statusDot = pg.fieldCount > 0 ? 'bb-dot--on' : 'bb-dot--off';
+    const statusText = pg.fieldCount > 0
+      ? `${pg.docType || 'Page'} · ${pg.fieldCount} field${pg.fieldCount !== 1 ? 's' : ''} detected`
+      : 'No data detected — navigate to a job or document';
 
-    if (editingId) {
-      renderTemplateEditor(body);
-      return;
-    }
-
-    const renderList = (templates, type, activeId) => {
-      return templates.map(t => {
-        const isActive = t.id === activeId;
-        return `<div class="bb-card ${isActive ? 'bb-card--active' : ''}" data-id="${esc(t.id)}">
-          <div class="bb-card__body">
-            <div class="bb-card__title">${esc(t.name)}${isActive ? '<span class="bb-card__badge">Active</span>' : ''}</div>
-            <div class="bb-card__preview">${esc((t.content || '').substring(0, 80))}${(t.content || '').length > 80 ? '...' : ''}</div>
-          </div>
-          <div class="bb-card__actions">
-            ${!isActive ? `<button class="bb-btn bb-btn--xs" data-action="activate" data-type="${type}" data-id="${esc(t.id)}">Use</button>` : ''}
-            <button class="bb-btn bb-btn--xs" data-action="edit" data-type="${type}" data-id="${esc(t.id)}">Edit</button>
-            ${!t.isDefault ? `<button class="bb-btn bb-btn--xs bb-btn--danger-xs" data-action="delete" data-type="${type}" data-id="${esc(t.id)}">Del</button>` : ''}
-          </div>
+    const dataHTML = fields.length > 0
+      ? `<div class="bb-card">
+          <div class="bb-card-hd"><span class="bb-card-label">Detected Data</span>${sourceBadge}</div>
+          <div class="bb-data">${fields.map(([k, v]) =>
+            `<div class="bb-data-row"><span class="bb-data-k">${esc(k)}</span><span class="bb-data-v">${esc(v)}</span></div>`
+          ).join('')}</div>
+        </div>`
+      : `<div class="bb-card bb-card--empty">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <div class="bb-empty-text">No data detected yet</div>
+          <div class="bb-empty-hint">Navigate to a job or document in JobTread, then click the refresh button above.</div>
         </div>`;
-      }).join('');
-    };
 
-    body.innerHTML = `
-      <div class="bb-sec">
-        <div class="bb-sec__head">
-          <h4>Description Templates</h4>
-          <button class="bb-btn bb-btn--xs bb-btn--add" id="bb-add-desc">+ New</button>
+    return `<div class="bb">
+      <div class="bb-hd">
+        <div class="bb-hd-brand">
+          <div class="bb-logo">B</div>
+          <div class="bb-hd-text">
+            <span class="bb-hd-title">Better Boss</span>
+          </div>
         </div>
-        <div class="bb-card-list">${renderList(descTemplates, 'desc', _data.activeDescId)}</div>
+        <div class="bb-hd-actions">
+          <button class="bb-btn-icon" id="bb-refresh" title="Re-scan page">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
+          <button class="bb-btn-icon" id="bb-gear" title="Templates">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+          <button class="bb-btn-icon" id="bb-close" title="Close">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
       </div>
-      <div class="bb-sep"></div>
-      <div class="bb-sec">
-        <div class="bb-sec__head">
-          <h4>Footer Templates</h4>
-          <button class="bb-btn bb-btn--xs bb-btn--add" id="bb-add-footer">+ New</button>
+
+      <!-- Status bar -->
+      <div class="bb-status">
+        <div class="bb-dot ${statusDot}"></div>
+        <span>${statusText}</span>
+      </div>
+
+      <!-- Main view -->
+      <div class="bb-body" id="bb-view-main">
+        ${!hasProfile ? `
+        <div class="bb-card bb-card--notice">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <div>Set up your business profile in <a href="#" id="bb-open-opts">extension settings</a> to auto-fill your info into templates.</div>
+        </div>` : `
+        <div class="bb-profile">
+          <div class="bb-avatar">${initials(prof.ownerName)}</div>
+          <div class="bb-profile-text">
+            <span class="bb-profile-name">${esc(prof.ownerName)}</span>
+            <span class="bb-profile-co">${esc(prof.bizName || '')}</span>
+          </div>
+        </div>`}
+
+        ${dataHTML}
+
+        <details class="bb-card bb-card--toggle">
+          <summary class="bb-toggle-hd">
+            <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+            <span>Override fields</span>
+            <svg class="bb-chevron" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+          </summary>
+          <div class="bb-toggle-body">
+            <div class="bb-row">
+              <div class="bb-input-group"><label>Customer</label><input id="bb-f-name" value="${esc(pg.customerName)}" placeholder="Auto" /></div>
+              <div class="bb-input-group"><label>Company</label><input id="bb-f-company" value="${esc(pg.company)}" placeholder="Auto" /></div>
+            </div>
+            <div class="bb-row">
+              <div class="bb-input-group bb-input-group--grow"><label>Job Name</label><input id="bb-f-job" value="${esc(pg.jobName)}" placeholder="Auto" /></div>
+              <div class="bb-input-group bb-input-group--sm"><label>Job #</label><input id="bb-f-jobnum" value="${esc(pg.jobNumber)}" placeholder="#" /></div>
+            </div>
+          </div>
+        </details>
+
+        <div class="bb-sep"></div>
+
+        <div class="bb-section">
+          <div class="bb-section-hd">
+            <span class="bb-section-label">Description</span>
+            <select id="bb-sel-desc" class="bb-select">${descOpts}</select>
+          </div>
+          <div class="bb-preview" id="bb-preview-desc" tabindex="0"></div>
+          <button class="bb-btn bb-btn--outline" id="bb-copy-desc">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copy Description
+          </button>
         </div>
-        <div class="bb-card-list">${renderList(footerTemplates, 'footer', _data.activeFooterId)}</div>
-      </div>`;
 
-    // Delegate card actions
-    body.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-action]');
-      if (!btn) return;
-      const action = btn.dataset.action;
-      const type = btn.dataset.type;
-      const id = btn.dataset.id;
+        <div class="bb-sep"></div>
 
-      if (action === 'activate') {
-        save(type === 'desc' ? 'activeDescId' : 'activeFooterId', id);
-        toast('Template activated');
-        renderTemplates(body);
-      } else if (action === 'edit') {
-        editingId = id;
-        editingType = type;
-        renderTemplateEditor(body);
-      } else if (action === 'delete') {
-        const key = type === 'desc' ? 'descTemplates' : 'footerTemplates';
-        _data[key] = _data[key].filter(t => t.id !== id);
-        save(key, _data[key]);
-        toast('Template deleted');
-        renderTemplates(body);
-      }
-    });
+        <div class="bb-section">
+          <div class="bb-section-hd">
+            <span class="bb-section-label">Footer</span>
+            <select id="bb-sel-footer" class="bb-select">${footerOpts}</select>
+          </div>
+          <div class="bb-preview bb-preview--sm" id="bb-preview-footer" tabindex="0"></div>
+          <button class="bb-btn bb-btn--outline" id="bb-copy-footer">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copy Footer
+          </button>
+        </div>
 
-    document.getElementById('bb-add-desc')?.addEventListener('click', () => {
-      const newTpl = { id: uid(), name: 'New Template', content: '', isDefault: false };
-      _data.descTemplates.push(newTpl);
-      save('descTemplates', _data.descTemplates);
-      editingId = newTpl.id;
-      editingType = 'desc';
-      renderTemplateEditor(body);
-    });
+        <div class="bb-sep"></div>
 
-    document.getElementById('bb-add-footer')?.addEventListener('click', () => {
-      const newTpl = { id: uid(), name: 'New Footer', content: '', isDefault: false };
-      _data.footerTemplates.push(newTpl);
-      save('footerTemplates', _data.footerTemplates);
-      editingId = newTpl.id;
-      editingType = 'footer';
-      renderTemplateEditor(body);
-    });
-  }
-
-  function renderTemplateEditor(body) {
-    const key = editingType === 'desc' ? 'descTemplates' : 'footerTemplates';
-    const tpl = (_data[key] || []).find(t => t.id === editingId);
-    if (!tpl) { editingId = null; renderTemplates(body); return; }
-
-    const customVarTags = Object.keys(_data.customVars || {}).map(k =>
-      `<span class="bb-tag" data-v="${esc(k)}">${esc(k)}</span>`
-    ).join('');
-
-    body.innerHTML = `
-      <div class="bb-sec">
-        <button class="bb-btn bb-btn--ghost bb-btn--back" id="bb-back-tpl">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-          Back to Templates
+        <button class="bb-btn bb-btn--primary" id="bb-copy-all">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Copy All
         </button>
       </div>
-      <div class="bb-sec">
-        <div class="bb-sec__head"><h4>Edit ${editingType === 'desc' ? 'Description' : 'Footer'} Template</h4></div>
-        <div class="bb-inp"><label>Template Name</label><input id="bb-tpl-name" value="${esc(tpl.name)}" maxlength="80"/></div>
-      </div>
-      <div class="bb-sec">
-        <div class="bb-sec__head"><h4>Variables</h4></div>
-        <p class="bb-hint">Click to insert at cursor. Use <code>{{var}}</code> for values, <code>{{#var}}...{{/var}}</code> for conditionals.</p>
-        <div class="bb-tags">
-          <div class="bb-tags__group">
-            <span class="bb-tags__label">Client/Job</span>
-            <span class="bb-tag" data-v="company">company</span>
-            <span class="bb-tag" data-v="customerName">customerName</span>
-            <span class="bb-tag" data-v="jobName">jobName</span>
-            <span class="bb-tag" data-v="jobNumber">jobNumber</span>
-            <span class="bb-tag" data-v="date">date</span>
-          </div>
-          <div class="bb-tags__group">
-            <span class="bb-tags__label">Business</span>
-            <span class="bb-tag bb-tag--biz" data-v="bizName">bizName</span>
-            <span class="bb-tag bb-tag--biz" data-v="bizEmail">bizEmail</span>
-            <span class="bb-tag bb-tag--biz" data-v="bizPhone">bizPhone</span>
-            <span class="bb-tag bb-tag--biz" data-v="bizAddress">bizAddress</span>
-            <span class="bb-tag bb-tag--biz" data-v="bizWebsite">bizWebsite</span>
-            <span class="bb-tag bb-tag--biz" data-v="bizLicense">bizLicense</span>
-            <span class="bb-tag bb-tag--biz" data-v="ownerName">ownerName</span>
-          </div>
-          ${customVarTags ? `<div class="bb-tags__group"><span class="bb-tags__label">Custom</span>${customVarTags}</div>` : ''}
+
+      <!-- Templates view -->
+      <div class="bb-body" id="bb-view-tpls" style="display:none">
+        <button class="bb-back" id="bb-back-main">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+          Back
+        </button>
+        <div class="bb-section">
+          <div class="bb-section-hd"><span class="bb-section-label">Description Templates</span><button class="bb-btn--sm" id="bb-add-desc">+ New</button></div>
+          <div class="bb-tpl-list" id="bb-desc-list"></div>
+        </div>
+        <div class="bb-sep"></div>
+        <div class="bb-section">
+          <div class="bb-section-hd"><span class="bb-section-label">Footer Templates</span><button class="bb-btn--sm" id="bb-add-footer">+ New</button></div>
+          <div class="bb-tpl-list" id="bb-footer-list"></div>
         </div>
       </div>
-      <div class="bb-sec">
-        <div class="bb-inp"><label>Template Content</label><textarea id="bb-tpl-content" rows="${editingType === 'desc' ? 16 : 6}" spellcheck="false">${esc(tpl.content)}</textarea></div>
-      </div>
-      <div class="bb-sec bb-sec--actions">
-        <button class="bb-btn bb-btn--primary" id="bb-save-tpl">Save Template</button>
-        <button class="bb-btn bb-btn--ghost" id="bb-cancel-tpl">Cancel</button>
-      </div>`;
 
-    // Tag insertion
-    body.querySelectorAll('.bb-tag[data-v]').forEach(tag => {
+      <!-- Edit template view -->
+      <div class="bb-body" id="bb-view-edit" style="display:none">
+        <button class="bb-back" id="bb-back-tpls">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+          Back
+        </button>
+        <div class="bb-section">
+          <div class="bb-section-label" id="bb-edit-title">Edit Template</div>
+          <div class="bb-input-group" style="margin-top:12px"><label>Name</label><input id="bb-edit-name" maxlength="80" /></div>
+          <div class="bb-input-group" style="margin-top:8px">
+            <label>Content <span class="bb-hint">Use {{variable}} for auto-fill</span></label>
+            <textarea id="bb-edit-body" rows="14"></textarea>
+          </div>
+          <div class="bb-vars">
+            <span class="bb-var" data-v="company">company</span>
+            <span class="bb-var" data-v="customerName">customerName</span>
+            <span class="bb-var" data-v="customerEmail">customerEmail</span>
+            <span class="bb-var" data-v="customerPhone">customerPhone</span>
+            <span class="bb-var" data-v="jobName">jobName</span>
+            <span class="bb-var" data-v="jobNumber">jobNumber</span>
+            <span class="bb-var" data-v="jobAddress">jobAddress</span>
+            <span class="bb-var" data-v="docType">docType</span>
+            <span class="bb-var" data-v="date">date</span>
+            <span class="bb-var bb-var--biz" data-v="bizName">bizName</span>
+            <span class="bb-var bb-var--biz" data-v="bizEmail">bizEmail</span>
+            <span class="bb-var bb-var--biz" data-v="bizPhone">bizPhone</span>
+            <span class="bb-var bb-var--biz" data-v="bizWebsite">bizWebsite</span>
+            <span class="bb-var bb-var--biz" data-v="bizLicense">bizLicense</span>
+          </div>
+          <div class="bb-edit-actions">
+            <button class="bb-btn bb-btn--primary" id="bb-save-tpl">Save</button>
+            <button class="bb-btn bb-btn--ghost" id="bb-cancel-edit">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="bb-ft">
+        Better Boss <span class="bb-ft-sep">&middot;</span> <a href="https://better-boss.ai" target="_blank" rel="noopener">better-boss.ai</a>
+      </div>
+    </div>`;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Event binding
+  // ---------------------------------------------------------------------------
+
+  function bindEvents(panel) {
+    const dg = debounce(generate, 200);
+
+    panel.querySelector('#bb-close').addEventListener('click', closePanel);
+
+    // Refresh
+    panel.querySelector('#bb-refresh').addEventListener('click', () => {
+      _pageData = gatherData();
+      for (const [id, key] of [['bb-f-name', 'customerName'], ['bb-f-company', 'company'], ['bb-f-job', 'jobName'], ['bb-f-jobnum', 'jobNumber']]) {
+        const el = panel.querySelector('#' + id);
+        if (el && _pageData[key]) el.value = _pageData[key];
+      }
+      // Re-render status
+      const statusEl = panel.querySelector('.bb-status span');
+      if (statusEl) {
+        statusEl.textContent = _pageData.fieldCount > 0
+          ? `${_pageData.docType || 'Page'} · ${_pageData.fieldCount} field${_pageData.fieldCount !== 1 ? 's' : ''} detected`
+          : 'No data detected — navigate to a job or document';
+      }
+      const dot = panel.querySelector('.bb-dot');
+      if (dot) { dot.className = 'bb-dot ' + (_pageData.fieldCount > 0 ? 'bb-dot--on' : 'bb-dot--off'); }
+      generate();
+      toast('Page re-scanned');
+    });
+
+    // Manual inputs
+    for (const id of ['bb-f-name', 'bb-f-company', 'bb-f-job', 'bb-f-jobnum']) {
+      const el = panel.querySelector('#' + id);
+      if (el) el.addEventListener('input', dg);
+    }
+
+    // Template selects
+    panel.querySelector('#bb-sel-desc').addEventListener('change', (e) => { save('activeDesc', e.target.value); generate(); });
+    panel.querySelector('#bb-sel-footer').addEventListener('change', (e) => { save('activeFooter', e.target.value); generate(); });
+
+    // Copy
+    panel.querySelector('#bb-copy-desc').addEventListener('click', async function () {
+      const raw = panel.querySelector('#bb-preview-desc')?.dataset.raw || '';
+      if (await copyText(raw)) flashBtn(this, 'Copied!');
+    });
+    panel.querySelector('#bb-copy-footer').addEventListener('click', async function () {
+      const raw = panel.querySelector('#bb-preview-footer')?.dataset.raw || '';
+      if (await copyText(raw)) flashBtn(this, 'Copied!');
+    });
+    panel.querySelector('#bb-copy-all').addEventListener('click', async function () {
+      const d = panel.querySelector('#bb-preview-desc')?.dataset.raw || '';
+      const f = panel.querySelector('#bb-preview-footer')?.dataset.raw || '';
+      if (await copyText(d + (f ? '\n\n---\n\n' + f : ''))) flashBtn(this, 'Copied!');
+    });
+
+    // Options link
+    const optLink = panel.querySelector('#bb-open-opts');
+    if (optLink) optLink.addEventListener('click', (e) => { e.preventDefault(); chrome.runtime.sendMessage({ action: 'openOptions' }); });
+
+    // Views
+    panel.querySelector('#bb-gear').addEventListener('click', () => showView('tpls'));
+    panel.querySelector('#bb-back-main').addEventListener('click', () => showView('main'));
+    panel.querySelector('#bb-back-tpls').addEventListener('click', () => showView('tpls'));
+
+    // Add templates
+    panel.querySelector('#bb-add-desc').addEventListener('click', () => {
+      const id = 'desc_' + Date.now().toString(36);
+      _data.descTemplates.push({ id, name: 'New Template', body: '' });
+      save('descTemplates', _data.descTemplates);
+      editTarget = { type: 'desc', id };
+      showView('edit');
+    });
+    panel.querySelector('#bb-add-footer').addEventListener('click', () => {
+      const id = 'footer_' + Date.now().toString(36);
+      _data.footerTemplates.push({ id, name: 'New Footer', body: '' });
+      save('footerTemplates', _data.footerTemplates);
+      editTarget = { type: 'footer', id };
+      showView('edit');
+    });
+
+    // Save template
+    panel.querySelector('#bb-save-tpl').addEventListener('click', () => {
+      if (!editTarget) return;
+      const key = editTarget.type === 'desc' ? 'descTemplates' : 'footerTemplates';
+      const tpl = _data[key].find(t => t.id === editTarget.id);
+      if (!tpl) return;
+      const n = panel.querySelector('#bb-edit-name').value.trim();
+      if (!n) { toast('Name required', 'error'); return; }
+      tpl.name = n;
+      tpl.body = panel.querySelector('#bb-edit-body').value;
+      save(key, _data[key]);
+      toast('Template saved');
+      refreshSelectors();
+      showView('tpls');
+    });
+    panel.querySelector('#bb-cancel-edit').addEventListener('click', () => showView('tpls'));
+
+    // Variable tags
+    panel.querySelectorAll('.bb-var[data-v]').forEach(tag => {
       tag.addEventListener('click', () => {
-        const ta = document.getElementById('bb-tpl-content');
+        const ta = panel.querySelector('#bb-edit-body');
         if (!ta) return;
-        const v = `{{${tag.dataset.v}}}`;
+        const v = '{{' + tag.dataset.v + '}}';
         const s = ta.selectionStart, e = ta.selectionEnd;
         ta.value = ta.value.substring(0, s) + v + ta.value.substring(e);
         ta.focus();
         ta.selectionStart = ta.selectionEnd = s + v.length;
       });
     });
-
-    document.getElementById('bb-back-tpl')?.addEventListener('click', () => {
-      editingId = null;
-      editingType = null;
-      renderTemplates(body);
-    });
-
-    document.getElementById('bb-save-tpl')?.addEventListener('click', () => {
-      const name = document.getElementById('bb-tpl-name').value.trim();
-      const content = document.getElementById('bb-tpl-content').value;
-      if (!name) { toast('Template name is required', 'error'); return; }
-      tpl.name = name;
-      tpl.content = content;
-      save(key, _data[key]);
-      toast('Template saved');
-      editingId = null;
-      editingType = null;
-      renderTemplates(body);
-    });
-
-    document.getElementById('bb-cancel-tpl')?.addEventListener('click', () => {
-      editingId = null;
-      editingType = null;
-      renderTemplates(body);
-    });
   }
 
-  // ==========================================================================
-  // TAB: SNIPPETS
-  // ==========================================================================
+  // ---------------------------------------------------------------------------
+  // Views
+  // ---------------------------------------------------------------------------
 
-  function renderSnippets(body) {
-    const snippets = _data.snippets || [];
-
-    if (editingId && editingType === 'snippet') {
-      renderSnippetEditor(body);
-      return;
-    }
-
-    const list = snippets.map(s => `
-      <div class="bb-card" data-id="${esc(s.id)}">
-        <div class="bb-card__body">
-          <div class="bb-card__title">${esc(s.name)}</div>
-          <div class="bb-card__preview">${esc((s.content || '').substring(0, 100))}${(s.content || '').length > 100 ? '...' : ''}</div>
-        </div>
-        <div class="bb-card__actions">
-          <button class="bb-btn bb-btn--xs bb-btn--copy-xs" data-action="copy-snippet" data-id="${esc(s.id)}">Copy</button>
-          <button class="bb-btn bb-btn--xs" data-action="edit-snippet" data-id="${esc(s.id)}">Edit</button>
-          <button class="bb-btn bb-btn--xs bb-btn--danger-xs" data-action="delete-snippet" data-id="${esc(s.id)}">Del</button>
-        </div>
-      </div>
-    `).join('');
-
-    body.innerHTML = `
-      <div class="bb-sec">
-        <div class="bb-sec__head">
-          <h4>Quick Snippets</h4>
-          <button class="bb-btn bb-btn--xs bb-btn--add" id="bb-add-snippet">+ New</button>
-        </div>
-        <p class="bb-hint">Reusable text blocks. Click Copy to grab any snippet instantly.</p>
-        <div class="bb-card-list">${list || '<div class="bb-empty">No snippets yet. Click + New to create one.</div>'}</div>
-      </div>`;
-
-    body.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-action]');
-      if (!btn) return;
-      const action = btn.dataset.action;
-      const id = btn.dataset.id;
-
-      if (action === 'copy-snippet') {
-        const snip = snippets.find(s => s.id === id);
-        if (snip) {
-          const rendered = render(snip.content, buildData());
-          copyText(rendered, btn);
-        }
-      } else if (action === 'edit-snippet') {
-        editingId = id;
-        editingType = 'snippet';
-        renderSnippetEditor(body);
-      } else if (action === 'delete-snippet') {
-        _data.snippets = _data.snippets.filter(s => s.id !== id);
-        save('snippets', _data.snippets);
-        toast('Snippet deleted');
-        renderSnippets(body);
-      }
-    });
-
-    document.getElementById('bb-add-snippet')?.addEventListener('click', () => {
-      const newSnip = { id: uid(), name: 'New Snippet', content: '' };
-      _data.snippets.push(newSnip);
-      save('snippets', _data.snippets);
-      editingId = newSnip.id;
-      editingType = 'snippet';
-      renderSnippetEditor(body);
-    });
+  function showView(view) {
+    currentView = view;
+    const panel = document.getElementById(PANEL_ID);
+    if (!panel) return;
+    panel.querySelector('#bb-view-main').style.display = view === 'main' ? '' : 'none';
+    panel.querySelector('#bb-view-tpls').style.display = view === 'tpls' ? '' : 'none';
+    panel.querySelector('#bb-view-edit').style.display = view === 'edit' ? '' : 'none';
+    if (view === 'tpls') renderTplList();
+    if (view === 'edit') renderEditTpl();
+    if (view === 'main') generate();
   }
 
-  function renderSnippetEditor(body) {
-    const snip = (_data.snippets || []).find(s => s.id === editingId);
-    if (!snip) { editingId = null; renderSnippets(body); return; }
-
-    body.innerHTML = `
-      <div class="bb-sec">
-        <button class="bb-btn bb-btn--ghost bb-btn--back" id="bb-back-snip">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-          Back to Snippets
-        </button>
-      </div>
-      <div class="bb-sec">
-        <div class="bb-sec__head"><h4>Edit Snippet</h4></div>
-        <div class="bb-inp"><label>Snippet Name</label><input id="bb-snip-name" value="${esc(snip.name)}" maxlength="80"/></div>
-        <div class="bb-inp"><label>Content</label><textarea id="bb-snip-content" rows="10" spellcheck="false">${esc(snip.content)}</textarea></div>
-      </div>
-      <div class="bb-sec bb-sec--actions">
-        <button class="bb-btn bb-btn--primary" id="bb-save-snip">Save Snippet</button>
-        <button class="bb-btn bb-btn--ghost" id="bb-cancel-snip">Cancel</button>
-      </div>`;
-
-    document.getElementById('bb-back-snip')?.addEventListener('click', () => {
-      editingId = null;
-      editingType = null;
-      renderSnippets(body);
-    });
-
-    document.getElementById('bb-save-snip')?.addEventListener('click', () => {
-      const name = document.getElementById('bb-snip-name').value.trim();
-      const content = document.getElementById('bb-snip-content').value;
-      if (!name) { toast('Snippet name is required', 'error'); return; }
-      snip.name = name;
-      snip.content = content;
-      save('snippets', _data.snippets);
-      toast('Snippet saved');
-      editingId = null;
-      editingType = null;
-      renderSnippets(body);
-    });
-
-    document.getElementById('bb-cancel-snip')?.addEventListener('click', () => {
-      editingId = null;
-      editingType = null;
-      renderSnippets(body);
-    });
-  }
-
-  // ==========================================================================
-  // TAB: SETTINGS
-  // ==========================================================================
-
-  function renderSettings(body) {
-    const p = _data.profile || {};
-    const cv = _data.customVars || {};
-    const prefs = _data.prefs || {};
-
-    const customVarRows = Object.entries(cv).map(([k, v]) =>
-      `<div class="bb-cv-row">
-        <span class="bb-cv-key">${esc(k)}</span>
-        <span class="bb-cv-eq">=</span>
-        <span class="bb-cv-val">${esc(v)}</span>
-        <button class="bb-btn bb-btn--xs bb-btn--danger-xs" data-del-var="${esc(k)}">&times;</button>
-      </div>`
-    ).join('');
-
-    body.innerHTML = `
-      <div class="bb-sec">
-        <div class="bb-sec__head"><h4>Business Profile</h4></div>
-        <div class="bb-card-inner">
-          <div class="bb-grid">
-            <div class="bb-inp"><label>Your Name</label><input id="bb-s-name" value="${esc(p.ownerName)}" placeholder="Nick Peret" maxlength="120"/></div>
-            <div class="bb-inp"><label>Email</label><input id="bb-s-email" type="email" value="${esc(p.bizEmail)}" placeholder="nick@better-boss.ai" maxlength="200"/></div>
-          </div>
-          <div class="bb-grid">
-            <div class="bb-inp"><label>Company</label><input id="bb-s-company" value="${esc(p.bizName)}" placeholder="Better Boss" maxlength="200"/></div>
-            <div class="bb-inp"><label>Phone</label><input id="bb-s-phone" type="tel" value="${esc(p.bizPhone)}" placeholder="(720) 636-9500" maxlength="30"/></div>
-          </div>
-          <div class="bb-grid">
-            <div class="bb-inp"><label>Address</label><input id="bb-s-address" value="${esc(p.bizAddress)}" placeholder="Denver, CO" maxlength="300"/></div>
-            <div class="bb-inp"><label>Website</label><input id="bb-s-website" type="url" value="${esc(p.bizWebsite)}" placeholder="https://better-boss.ai" maxlength="200"/></div>
-          </div>
-          <div class="bb-inp"><label>License #</label><input id="bb-s-license" value="${esc(p.bizLicense)}" placeholder="CON-12345" maxlength="60"/></div>
-          <button class="bb-btn bb-btn--primary bb-btn--compact" id="bb-save-profile">Save Profile</button>
-        </div>
-      </div>
-
-      <div class="bb-sep"></div>
-
-      <div class="bb-sec">
-        <div class="bb-sec__head"><h4>Custom Variables</h4></div>
-        <p class="bb-hint">Add your own {{variables}} to use in templates. Great for project managers, estimators, etc.</p>
-        <div class="bb-card-inner">
-          <div class="bb-cv-list">${customVarRows || '<div class="bb-empty">No custom variables yet.</div>'}</div>
-          <div class="bb-cv-add">
-            <input id="bb-cv-key" placeholder="Variable name" maxlength="40"/>
-            <input id="bb-cv-val" placeholder="Value" maxlength="200"/>
-            <button class="bb-btn bb-btn--xs bb-btn--add" id="bb-add-cv">+ Add</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="bb-sep"></div>
-
-      <div class="bb-sec">
-        <div class="bb-sec__head"><h4>Preferences</h4></div>
-        <div class="bb-card-inner">
-          <label class="bb-toggle">
-            <input type="checkbox" id="bb-pref-shortcuts" ${prefs.shortcuts !== false ? 'checked' : ''}/>
-            <span class="bb-toggle__label">Keyboard shortcuts</span>
-            <span class="bb-toggle__hint">Ctrl+Shift+B toggle panel &bull; Ctrl+Shift+D copy desc &bull; Ctrl+Shift+F copy footer</span>
-          </label>
-        </div>
-      </div>
-
-      <div class="bb-sep"></div>
-
-      <div class="bb-sec">
-        <div class="bb-sec__head"><h4>Data</h4></div>
-        <div class="bb-card-inner">
-          <p class="bb-hint" style="margin-bottom:10px">Export your profile, templates & snippets as a backup. Import to restore on another machine.</p>
-          <div class="bb-btn-row">
-            <button class="bb-btn bb-btn--outline" id="bb-export">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Export
-            </button>
-            <label class="bb-btn bb-btn--outline" style="cursor:pointer">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              Import
-              <input type="file" id="bb-import-file" accept=".json" style="display:none"/>
-            </label>
-            <button class="bb-btn bb-btn--outline bb-btn--danger" id="bb-clear">Reset All</button>
-          </div>
-        </div>
-      </div>`;
-
-    // Save profile
-    document.getElementById('bb-save-profile')?.addEventListener('click', () => {
-      const profile = {
-        ownerName: document.getElementById('bb-s-name').value.trim(),
-        bizEmail: document.getElementById('bb-s-email').value.trim(),
-        bizName: document.getElementById('bb-s-company').value.trim(),
-        bizPhone: document.getElementById('bb-s-phone').value.trim(),
-        bizAddress: document.getElementById('bb-s-address').value.trim(),
-        bizWebsite: document.getElementById('bb-s-website').value.trim(),
-        bizLicense: document.getElementById('bb-s-license').value.trim(),
-      };
-      save('profile', profile);
-      toast('Profile saved');
-    });
-
-    // Add custom variable
-    document.getElementById('bb-add-cv')?.addEventListener('click', () => {
-      const key = document.getElementById('bb-cv-key').value.trim().replace(/[^a-zA-Z0-9_]/g, '');
-      const val = document.getElementById('bb-cv-val').value.trim();
-      if (!key) { toast('Variable name required', 'error'); return; }
-      if (!val) { toast('Value required', 'error'); return; }
-      _data.customVars = _data.customVars || {};
-      _data.customVars[key] = val;
-      save('customVars', _data.customVars);
-      toast(`Variable {{${key}}} added`);
-      renderSettings(body);
-    });
-
-    // Delete custom variable
-    body.querySelectorAll('[data-del-var]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        delete _data.customVars[btn.dataset.delVar];
-        save('customVars', _data.customVars);
-        toast('Variable removed');
-        renderSettings(body);
+  function renderTplList() {
+    const panel = document.getElementById(PANEL_ID);
+    if (!panel) return;
+    panel.querySelector('#bb-desc-list').innerHTML = (_data.descTemplates || []).map(t => tplCard(t, 'desc', t.id === _data.activeDesc)).join('');
+    panel.querySelector('#bb-footer-list').innerHTML = (_data.footerTemplates || []).map(t => tplCard(t, 'footer', t.id === _data.activeFooter)).join('');
+    panel.querySelectorAll('[data-act]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const { act, ttype, tid } = btn.dataset;
+        const key = ttype === 'desc' ? 'descTemplates' : 'footerTemplates';
+        const akey = ttype === 'desc' ? 'activeDesc' : 'activeFooter';
+        if (act === 'use') { save(akey, tid); refreshSelectors(); toast('Activated'); renderTplList(); }
+        else if (act === 'edit') { editTarget = { type: ttype, id: tid }; showView('edit'); }
+        else if (act === 'del') { _data[key] = _data[key].filter(t => t.id !== tid); save(key, _data[key]); refreshSelectors(); toast('Deleted'); renderTplList(); }
       });
     });
-
-    // Preferences
-    document.getElementById('bb-pref-shortcuts')?.addEventListener('change', (e) => {
-      _data.prefs = _data.prefs || {};
-      _data.prefs.shortcuts = e.target.checked;
-      save('prefs', _data.prefs);
-      toast(e.target.checked ? 'Shortcuts enabled' : 'Shortcuts disabled');
-    });
-
-    // Export
-    document.getElementById('bb-export')?.addEventListener('click', () => {
-      const blob = new Blob([JSON.stringify(_data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'better-boss-docfill-backup.json';
-      a.click();
-      URL.revokeObjectURL(url);
-      toast('Data exported');
-    });
-
-    // Import
-    document.getElementById('bb-import-file')?.addEventListener('change', (ev) => {
-      const file = ev.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const imported = JSON.parse(e.target.result);
-          if (!imported || typeof imported !== 'object') throw new Error('Invalid format');
-          // Merge intelligently
-          if (imported.profile) save('profile', imported.profile);
-          if (imported.descTemplates) save('descTemplates', imported.descTemplates);
-          if (imported.footerTemplates) save('footerTemplates', imported.footerTemplates);
-          if (imported.snippets) save('snippets', imported.snippets);
-          if (imported.customVars) save('customVars', imported.customVars);
-          if (imported.activeDescId) save('activeDescId', imported.activeDescId);
-          if (imported.activeFooterId) save('activeFooterId', imported.activeFooterId);
-          // Handle legacy format (single template)
-          if (imported.descriptionTemplate && !imported.descTemplates) {
-            _data.descTemplates[0].content = imported.descriptionTemplate;
-            save('descTemplates', _data.descTemplates);
-          }
-          if (imported.footerTemplate && !imported.footerTemplates) {
-            _data.footerTemplates[0].content = imported.footerTemplate;
-            save('footerTemplates', _data.footerTemplates);
-          }
-          toast('Data imported successfully');
-          renderSettings(body);
-        } catch (err) {
-          toast('Import failed: ' + err.message, 'error');
-        }
-      };
-      reader.readAsText(file);
-    });
-
-    // Clear all
-    document.getElementById('bb-clear')?.addEventListener('click', () => {
-      if (!confirm('Reset ALL DocFill data? This removes your profile, templates, snippets, and custom variables.')) return;
-      _data = getDefaultData();
-      saveData(_data);
-      toast('All data reset to defaults');
-      renderSettings(body);
-    });
   }
 
-  // ==========================================================================
-  // KEYBOARD SHORTCUTS
-  // ==========================================================================
-
-  function setupShortcuts() {
-    document.addEventListener('keydown', (e) => {
-      if (!_data || !_data.prefs || _data.prefs.shortcuts === false) return;
-      if (!e.ctrlKey || !e.shiftKey) return;
-
-      if (e.key === 'B' || e.key === 'b') {
-        e.preventDefault();
-        togglePanel();
-      } else if (e.key === 'D' || e.key === 'd') {
-        e.preventDefault();
-        const raw = document.getElementById('bb-desc-out')?.getAttribute('data-raw');
-        if (raw) { copyText(raw); toast('Description copied'); }
-      } else if (e.key === 'F' || e.key === 'f') {
-        e.preventDefault();
-        const raw = document.getElementById('bb-footer-out')?.getAttribute('data-raw');
-        if (raw) { copyText(raw); toast('Footer copied'); }
-      }
-    });
+  function tplCard(t, type, active) {
+    const preview = (t.body || '').substring(0, 55).replace(/\n/g, ' ');
+    return `<div class="bb-tpl${active ? ' bb-tpl--active' : ''}">
+      <div class="bb-tpl-info">
+        <div class="bb-tpl-name">${esc(t.name)}${active ? '<span class="bb-badge bb-badge--accent">Active</span>' : ''}</div>
+        <div class="bb-tpl-preview">${esc(preview)}${preview.length >= 55 ? '…' : ''}</div>
+      </div>
+      <div class="bb-tpl-acts">
+        ${!active ? `<button class="bb-btn--sm" data-act="use" data-ttype="${type}" data-tid="${esc(t.id)}">Use</button>` : ''}
+        <button class="bb-btn--sm" data-act="edit" data-ttype="${type}" data-tid="${esc(t.id)}">Edit</button>
+        <button class="bb-btn--sm bb-btn--danger" data-act="del" data-ttype="${type}" data-tid="${esc(t.id)}">Del</button>
+      </div>
+    </div>`;
   }
 
-  // ==========================================================================
-  // MESSAGES (Chrome Extension API)
-  // ==========================================================================
+  function renderEditTpl() {
+    if (!editTarget) return;
+    const panel = document.getElementById(PANEL_ID);
+    if (!panel) return;
+    const key = editTarget.type === 'desc' ? 'descTemplates' : 'footerTemplates';
+    const tpl = _data[key].find(t => t.id === editTarget.id);
+    if (!tpl) return;
+    panel.querySelector('#bb-edit-title').textContent = 'Edit ' + (editTarget.type === 'desc' ? 'Description' : 'Footer') + ' Template';
+    panel.querySelector('#bb-edit-name').value = tpl.name;
+    panel.querySelector('#bb-edit-body').value = tpl.body || '';
+  }
+
+  function refreshSelectors() {
+    const panel = document.getElementById(PANEL_ID);
+    if (!panel) return;
+    const ds = panel.querySelector('#bb-sel-desc');
+    const fs = panel.querySelector('#bb-sel-footer');
+    if (ds) ds.innerHTML = (_data.descTemplates || []).map(t => `<option value="${esc(t.id)}"${t.id === _data.activeDesc ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
+    if (fs) fs.innerHTML = (_data.footerTemplates || []).map(t => `<option value="${esc(t.id)}"${t.id === _data.activeFooter ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Generate output
+  // ---------------------------------------------------------------------------
+
+  function generate() {
+    const panel = document.getElementById(PANEL_ID);
+    if (!panel || currentView !== 'main') return;
+
+    const prof = _data.profile || {};
+    const pg = _pageData || {};
+
+    const data = {
+      company: panel.querySelector('#bb-f-company')?.value || pg.company || '',
+      customerName: panel.querySelector('#bb-f-name')?.value || pg.customerName || '',
+      customerEmail: pg.customerEmail || '',
+      customerPhone: pg.customerPhone || '',
+      customerAddress: pg.customerAddress || '',
+      jobName: panel.querySelector('#bb-f-job')?.value || pg.jobName || '',
+      jobNumber: panel.querySelector('#bb-f-jobnum')?.value || pg.jobNumber || '',
+      jobAddress: pg.jobAddress || '',
+      docType: pg.docType || '',
+      date: new Date().toLocaleDateString(),
+      bizName: prof.bizName || '',
+      bizEmail: prof.bizEmail || '',
+      bizPhone: prof.bizPhone || '',
+      bizAddress: prof.bizAddress || '',
+      bizWebsite: prof.bizWebsite || '',
+      bizLicense: prof.bizLicense || '',
+      ownerName: prof.ownerName || '',
+    };
+
+    const descTpl = (_data.descTemplates || []).find(t => t.id === _data.activeDesc) || _data.descTemplates[0];
+    const footerTpl = (_data.footerTemplates || []).find(t => t.id === _data.activeFooter) || _data.footerTemplates[0];
+    const descText = render(descTpl?.body || '', data);
+    const footerText = render(footerTpl?.body || '', data);
+
+    const de = panel.querySelector('#bb-preview-desc');
+    const fe = panel.querySelector('#bb-preview-footer');
+    if (de) { de.dataset.raw = descText; de.textContent = descText || '(empty template)'; }
+    if (fe) { fe.dataset.raw = footerText; fe.textContent = footerText || '(empty)'; }
+  }
+
+  function flashBtn(btn, msg) {
+    toast(msg);
+    btn.classList.add('bb-btn--copied');
+    setTimeout(() => btn.classList.remove('bb-btn--copied'), 1500);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Keyboard
+  // ---------------------------------------------------------------------------
+
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.shiftKey && (e.key === 'B' || e.key === 'b')) { e.preventDefault(); toggle(); }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Chrome messaging
+  // ---------------------------------------------------------------------------
 
   if (chrome && chrome.runtime) {
     chrome.runtime.onMessage.addListener((msg, _, reply) => {
+      if (msg.action === 'togglePanel') { toggle(); reply({ ok: true }); }
       if (msg.action === 'getPageInfo') {
-        reply({
-          jobInfo: currentJobInfo || extractJobInfo(),
-          customerInfo: currentCustomerInfo || extractCustomerInfo(),
-          isRelevantPage: isDocPage(),
-          url: window.location.href,
-        });
-        return false;
+        reply({ isDocPage: isRelevantPage(), pageData: gatherData(), url: location.href });
       }
-      if (msg.action === 'togglePanel') {
-        togglePanel();
-        reply({ success: true });
-        return false;
-      }
+      return false;
     });
   }
 
-  // ==========================================================================
-  // SPA URL WATCHER
-  // ==========================================================================
+  // ---------------------------------------------------------------------------
+  // SPA watcher
+  // ---------------------------------------------------------------------------
 
   function watchURL() {
-    let last = window.location.href;
+    let last = location.href;
     const check = () => {
-      if (window.location.href !== last) {
-        last = window.location.href;
-        currentJobInfo = currentCustomerInfo = null;
-        const p = document.getElementById(PANEL_ID);
-        if (p) p.remove();
-        const b = document.getElementById(FAB_ID);
-        if (b) b.remove();
-        onPageChange();
+      if (location.href !== last) {
+        last = location.href;
+        closePanel();
+        removeTrigger();
+        if (isRelevantPage()) createTrigger();
       }
     };
     const origPush = history.pushState;
@@ -1350,31 +1168,32 @@ Client Signature: _________________________ Date: _________
     window.addEventListener('popstate', check);
   }
 
-  function onPageChange() {
-    if (isDocPage()) createFAB();
-  }
-
-  // ==========================================================================
-  // INIT
-  // ==========================================================================
+  // ---------------------------------------------------------------------------
+  // Init
+  // ---------------------------------------------------------------------------
 
   async function init() {
-    log(`DocFill v${VERSION} loaded on`, window.location.href);
-    await loadData();
-    onPageChange();
-    watchURL();
-    setupShortcuts();
+    // Inject API interceptor immediately
+    injectInterceptor();
 
-    const debouncedCheck = debounce(() => {
-      if (!document.getElementById(FAB_ID) && isDocPage()) createFAB();
-    }, 500);
-    const obs = new MutationObserver(debouncedCheck);
+    // Wait for body
+    if (!document.body) {
+      await new Promise(r => {
+        if (document.readyState !== 'loading') return r();
+        document.addEventListener('DOMContentLoaded', r);
+      });
+    }
+
+    await load();
+    if (isRelevantPage()) createTrigger();
+    watchURL();
+
+    // Watch for SPA content changes
+    const obs = new MutationObserver(debounce(() => {
+      if (!document.getElementById(TRIGGER_ID) && isRelevantPage()) createTrigger();
+    }, 500));
     obs.observe(document.body, { childList: true, subtree: true });
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  init();
 })();

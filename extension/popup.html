@@ -2,73 +2,42 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Better Boss — DocFill</title>
+  <title>Better Boss DocFill</title>
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
-  <div class="popup">
-    <header class="popup__hdr">
-      <div class="popup__brand">
-        <div class="popup__logo">BB</div>
-        <div>
-          <h1>Better Boss <span class="popup__accent">DocFill</span></h1>
-          <span class="popup__ver">v2.0 &middot; better-boss.ai</span>
-        </div>
+  <div class="p">
+    <div class="p-hd">
+      <div class="p-logo">B</div>
+      <div>
+        <div class="p-title">Better Boss</div>
+        <div class="p-sub">DocFill v4.0</div>
       </div>
-    </header>
+    </div>
 
-    <main class="popup__body">
-      <section class="popup__sec" id="profile-section">
-        <div class="popup__profile">
-          <div class="popup__avatar" id="popup-avatar">BB</div>
-          <div class="popup__profile-info">
-            <strong id="popup-name">Not set up</strong>
-            <span id="popup-company"></span>
-          </div>
-        </div>
-      </section>
+    <div class="p-profile" id="profile">
+      <div class="p-avatar" id="avatar">BB</div>
+      <div><strong id="name"></strong><span id="company"></span></div>
+    </div>
 
-      <section class="popup__sec">
-        <div class="popup__status">
-          <span class="dot" id="dot"></span>
-          <span id="status-text">Checking page...</span>
-        </div>
-      </section>
+    <div class="p-status">
+      <span class="dot" id="dot"></span>
+      <span id="status">Checking...</span>
+    </div>
 
-      <section class="popup__sec" id="setup-cta" style="display:none">
-        <div class="popup__cta">
-          <p>Set up your business profile to get started.</p>
-          <button class="btn btn--primary" id="btn-setup">Set Up Profile</button>
-        </div>
-      </section>
+    <div class="p-cta" id="cta" style="display:none">
+      <p>Set up your business profile to get started.</p>
+      <button class="btn" id="setup">Set Up Profile</button>
+    </div>
 
-      <section class="popup__sec" id="shortcuts-section">
-        <h2>Keyboard Shortcuts</h2>
-        <div class="popup__shortcuts">
-          <div class="shortcut"><kbd>Ctrl+Shift+B</kbd><span>Toggle panel</span></div>
-          <div class="shortcut"><kbd>Ctrl+Shift+D</kbd><span>Copy description</span></div>
-          <div class="shortcut"><kbd>Ctrl+Shift+F</kbd><span>Copy footer</span></div>
-        </div>
-      </section>
+    <div class="p-keys">
+      <div class="key"><kbd>Ctrl+Shift+B</kbd><span>Toggle panel</span></div>
+    </div>
 
-      <section class="popup__sec" id="info-section" style="display:none">
-        <h2>Detected</h2>
-        <div id="info-grid"></div>
-      </section>
+    <button class="btn" id="open" style="display:none">Open DocFill</button>
+    <button class="btn btn--ghost" id="opts">Settings</button>
 
-      <section class="popup__sec" id="actions-section" style="display:none">
-        <button class="btn btn--primary" id="btn-panel">Open DocFill Panel</button>
-      </section>
-
-      <section class="popup__sec">
-        <button class="btn btn--ghost" id="btn-options">Settings & Templates</button>
-      </section>
-    </main>
-
-    <footer class="popup__foot">
-      Better Boss DocFill v2.0 &middot; <a href="https://better-boss.ai" target="_blank">better-boss.ai</a>
-    </footer>
+    <div class="p-ft">Better Boss &middot; <a href="https://better-boss.ai" target="_blank">better-boss.ai</a></div>
   </div>
   <script src="popup.js"></script>
 </body>

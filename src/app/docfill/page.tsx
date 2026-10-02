@@ -193,6 +193,51 @@ export default function DocFillPage() {
           </p>
         </section>
 
+        {/* Chrome Extension Download */}
+        <section className="mb-16">
+          <p className="text-center text-[12px] font-extrabold uppercase tracking-[0.15em] text-[#a78bfa] mb-6">
+            Chrome Extension
+          </p>
+          <div className="rounded-[22px] p-9" style={{ background: 'linear-gradient(180deg, rgba(17,17,35,0.5), rgba(10,10,20,0.7))', border: '1px solid rgba(99,102,241,0.08)' }}>
+            <div className="flex items-start gap-8 flex-wrap justify-center">
+              <div className="flex-1 min-w-[260px]">
+                <h3 className="text-[20px] font-extrabold text-white mb-3">Self-Hosted Extension</h3>
+                <p className="text-[14px] text-[#8891a5] leading-relaxed mb-5">
+                  Full Chrome extension with multi-template engine, snippets, keyboard shortcuts, and cloud sync.
+                  Hosted on <strong className="text-white">better-boss.ai</strong> &mdash; no Chrome Web Store needed.
+                </p>
+                <ol className="text-[13px] text-[#8891a5] leading-relaxed space-y-2 mb-6">
+                  <li><span className="text-[#818cf8] font-bold">1.</span> Download the extension zip below</li>
+                  <li><span className="text-[#818cf8] font-bold">2.</span> Open <code className="bg-[rgba(99,102,241,0.08)] px-1.5 py-0.5 rounded text-[#818cf8] text-[12px]">chrome://extensions</code> in your browser</li>
+                  <li><span className="text-[#818cf8] font-bold">3.</span> Enable <strong className="text-white">Developer Mode</strong> (top right toggle)</li>
+                  <li><span className="text-[#818cf8] font-bold">4.</span> Drag the .zip file onto the page &mdash; or click <strong className="text-white">Load unpacked</strong> and select the extracted folder</li>
+                </ol>
+                <a
+                  href="/betterboss-docfill-extension.zip"
+                  download="better-boss-docfill-extension.zip"
+                  className="inline-flex items-center gap-2.5 text-white font-extrabold text-[16px] px-8 py-4 rounded-[12px] transition-all hover:-translate-y-0.5"
+                  style={{ background: 'linear-gradient(135deg, #6366f1, #7c3aed)', boxShadow: '0 4px 20px rgba(99,102,241,0.3)' }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Download Extension v2.0
+                </a>
+              </div>
+              <div className="w-[200px] text-center shrink-0">
+                <div className="w-[100px] h-[100px] rounded-[24px] flex items-center justify-center text-white font-black text-[36px] mx-auto mb-3" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 8px 30px rgba(99,102,241,0.3)' }}>
+                  BB
+                </div>
+                <p className="text-[12px] text-[#6b7280] font-bold uppercase tracking-[0.08em]">v2.0.0</p>
+                <div className="mt-3 space-y-1 text-[11px] text-[#52525b]">
+                  <p>Multi-templates</p>
+                  <p>Snippets</p>
+                  <p>Cloud Sync</p>
+                  <p>Keyboard Shortcuts</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* How It Works */}
         <section className="mb-16">
           <div className="text-center mb-9">

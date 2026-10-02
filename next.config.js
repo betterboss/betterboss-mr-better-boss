@@ -35,6 +35,22 @@ const nextConfig = {
           { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
         ],
       },
+      {
+        source: '/api/extension/:path*',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET, POST, DELETE, OPTIONS' },
+          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, X-Sync-Token, X-Extension-Version' },
+        ],
+      },
+      {
+        source: '/betterboss-docfill-extension.zip',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Content-Type', value: 'application/zip' },
+          { key: 'Content-Disposition', value: 'attachment; filename="better-boss-docfill-extension.zip"' },
+        ],
+      },
     ];
   },
 };
